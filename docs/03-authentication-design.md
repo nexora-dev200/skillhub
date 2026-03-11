@@ -277,6 +277,8 @@ public class OAuthClaimsExtractor {
 - 作用域：`skill:read`, `skill:publish`, `skill:delete`, `token:manage`
 - 天然无状态，多 Pod 安全
 
+> **一期作用域说明（非最小权限）**：一期 Token 作用域为粗粒度动作级别，不与 namespace 绑定。Token 继承用户的全部权限——如果用户是某个 namespace 的 MEMBER，则该用户的任何 Token（只要包含 `skill:publish` scope）都可以向该 namespace 发布技能。这是有意的一期简化，不满足最小权限原则。后续版本计划引入 namespace 级别的 Token 作用域限定（如 `namespace:ai-team:skill:publish`），或通过 `api_token_scope` 子表实现 Token 与 namespace 的绑定。
+
 ## 6. RBAC 授权判定
 
 ```
@@ -477,3 +479,72 @@ window.location.href = '/oauth2/authorization/github'
 - 前端权限控制是 UX 优化，不是安全边界
 - 后端每个写操作接口独立校验权限，不信任前端判定
 - 前端隐藏按钮 ≠ 安全，用户可以直接调 API，后端必须拦截
+
+## 10. 权限矩阵（完整）
+
+以下矩阵列出每个 API 接口的权限判定来源，作为后端实现的唯一参考。
+
+### 10.1 Public API（匿名可访问）
+
+| 接口 | 匿名 | 已登录 | 判定逻辑 |
+|------|------|--------|---------|
+| `GET /api/v1/skills`（搜索） | PUBLIC 技能 | PUBLIC + NAMESPACE_ONLY（成员空间）+ PRIVATE（owner/admin） | `SearchVisibilityScope` 投影 |
+| `GET /api/v1/skills/{ns}/{slug}` | PUBLIC 技能 | 同上 | visibility + namespace 成员关系 |
+| `GET /api/v1/skills/{ns}/{slug}/versions` | PUBLIC 技能 | 同上 | 同上 |
+| `GET /api/v1/skills/{ns}/{slug}/download` | PUBLIC 技能 | 同上 | 同上 |
+| `GET /api/v1/skills/{ns}/{slug}/resolve` | PUBLIC 技能 | 同上 | 同上 |
+| `GET /api/v1/namespaces` | 全部 | 全部 | 无限制 |
+
+### 10.2 Authenticated API
+
+| 接口 | 所需权限 | 判定来源 |
+|------|---------|---------|
+| `POST /api/v1/skills/{ns}/{slug}/star` | 已登录 | Session/Token |
+| `POST /api/v1/skills/{ns}/{slug}/rating` | 已登录 | Session/Token |
+| `POST .../versions/{ver}/submit-review` | namespace MEMBER 以上 | `namespace_member.role` |
+| `POST .../versions/{ver}/withdraw-review` | 提交人本人 或 namespace ADMIN | `review_task.submitted_by` 或 `namespace_member.role` |
+| `PUT /api/v1/skills/{ns}/{slug}/tags/{tag}` | namespace ADMIN 以上 或 owner | `namespace_member.role` 或 `skill.owner_id` |
+| `POST /api/v1/skills/{ns}/{slug}/archive` | namespace ADMIN 以上 或 owner | `namespace_member.role` 或 `skill.owner_id` |
+| `DELETE .../versions/{ver}` | namespace ADMIN 以上 或 owner（仅 DRAFT/REJECTED） | `namespace_member.role` 或 `skill.owner_id` + `skill_version.status` |
+
+### 10.3 CLI API
+
+| 接口 | 所需 Token Scope | 额外判定 |
+|------|-----------------|---------|
+| `GET /api/v1/cli/whoami` | 任意有效 Token | 无 |
+| `POST /api/v1/cli/publish` | `skill:publish` | 用户是目标 namespace 的 MEMBER 以上 |
+
+### 10.4 Admin API
+
+| 接口 | 所需平台角色 | 判定来源 |
+|------|------------|---------|
+| `POST /api/v1/admin/reviews/{id}/approve` | SKILL_ADMIN / SUPER_ADMIN | `user_role_binding` → `role_permission` |
+| `POST /api/v1/admin/reviews/{id}/reject` | SKILL_ADMIN / SUPER_ADMIN | 同上 |
+| `POST /api/v1/admin/promotions/{id}/approve` | SKILL_ADMIN / SUPER_ADMIN | 同上 |
+| `POST /api/v1/admin/promotions/{id}/reject` | SKILL_ADMIN / SUPER_ADMIN | 同上 |
+| `PUT /api/v1/admin/users/{id}/roles` | USER_ADMIN / SUPER_ADMIN | 同上，且 USER_ADMIN 不可分配 SUPER_ADMIN |
+| `POST /api/v1/admin/users/{id}/approve` | USER_ADMIN / SUPER_ADMIN | 同上 |
+| `POST /api/v1/admin/users/{id}/ban` | USER_ADMIN / SUPER_ADMIN | 同上 |
+| `GET /api/v1/admin/audit-logs` | AUDITOR / SUPER_ADMIN | 同上 |
+
+### 10.5 Namespace API
+
+| 接口 | 所需 namespace 角色 | 判定来源 |
+|------|-------------------|---------|
+| `POST /api/v1/namespaces/{slug}/reviews/{id}/approve` | 该空间 ADMIN 以上 | `namespace_member.role` |
+| `POST /api/v1/namespaces/{slug}/reviews/{id}/reject` | 该空间 ADMIN 以上 | `namespace_member.role` |
+| `POST /api/v1/namespaces/{slug}/members` | 该空间 ADMIN 以上 | `namespace_member.role` |
+| `DELETE /api/v1/namespaces/{slug}/members/{userId}` | 该空间 ADMIN 以上 | `namespace_member.role` |
+| `POST .../skills/{skillId}/promote` | 该空间 ADMIN 以上 或 owner | `namespace_member.role` 或 `skill.owner_id` |
+
+### 10.6 Compatibility API（Token 认证）
+
+| 接口 | 所需 Token Scope | 额外判定 |
+|------|-----------------|---------|
+| `GET /api/compat/v1/whoami` | 任意有效 Token | 无 |
+| `GET /api/compat/v1/search` | 可选（匿名限 PUBLIC） | `SearchVisibilityScope` |
+| `GET /api/compat/v1/resolve` | 可选（匿名限 PUBLIC） | visibility |
+| `GET /api/compat/v1/download` | 可选（匿名限 PUBLIC） | visibility |
+| `POST /api/compat/v1/skills` | `skill:publish` | 用户是目标 namespace 的 MEMBER 以上（namespace 由 canonical slug 解析） |
+| `DELETE /api/compat/v1/skills/{slug}` | `skill:delete` | namespace ADMIN 以上 或 owner |
+| `POST /api/compat/v1/stars/{slug}` | 任意有效 Token | 无 |

@@ -5,10 +5,10 @@
 - JDK: 21
 - Framework: Spring Boot 3.x（最新稳定版）
 - Security: Spring Security + spring-boot-starter-oauth2-client
-- Database: MySQL 8.x
+- Database: PostgreSQL 16.x
 - Cache/Session: Redis 7.x（一期必须依赖，用于 Session 存储 + 分布式锁 + 幂等去重）
 - Object Storage: S3 协议兼容对象存储
-- Search: MySQL Full-Text Search（一期）
+- Search: PostgreSQL Full-Text Search（一期）
 - Future Search: Elasticsearch / OpenSearch / Vector Search
 
 ## 2. 总体架构
@@ -22,9 +22,9 @@ server/
 ├── skillhub-app                 # 启动、配置装配、Controller 聚合
 ├── skillhub-domain              # 领域模型 + 领域服务 + 应用服务
 ├── skillhub-auth                # OAuth2 认证 + RBAC + 授权判定
-├── skillhub-search              # 搜索 SPI + MySQL 全文实现
+├── skillhub-search              # 搜索 SPI + PostgreSQL 全文实现
 ├── skillhub-storage             # 对象存储抽象 + S3 实现
-└── skillhub-infra               # MyBatis、通用工具、配置基础
+└── skillhub-infra               # JPA、通用工具、配置基础
 ```
 
 ## 4. 模块依赖方向（依赖倒置，禁止领域层依赖基础设施）
@@ -39,9 +39,9 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 
 核心原则：
 - domain 是最内层，不依赖任何其他模块，只定义接口和实体
-- infra 实现 domain 中定义的 Repository 接口（MyBatis Mapper）
+- infra 实现 domain 中定义的 Repository 接口（Spring Data JPA）
 - app 负责装配所有模块，通过 Spring 依赖注入将 infra 实现注入 domain 接口
-- 禁止 domain → infra 方向的依赖，避免领域层与 MyBatis、事件实现绑死
+- 禁止 domain → infra 方向的依赖，避免领域层与 JPA、事件实现绑死
 
 ## 5. 各模块职责
 
@@ -68,7 +68,7 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 
 ### skillhub-search
 - SPI 接口：`SearchIndexService`, `SearchQueryService`, `SearchRebuildService`
-- 一期实现：`MysqlFullTextIndexService`, `MysqlFullTextQueryService`
+- 一期实现：`PostgresFullTextIndexService`, `PostgresFullTextQueryService`
 - 独立搜索文档表 `skill_search_document`
 - 未来扩展点：ES / 向量检索实现
 
@@ -79,10 +79,9 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 - 对象 key 规则（使用不可变 ID，避免命名空间变更导致 key 失效）：
   - 正式路径：`skills/{skillId}/{versionId}/{filePath}`
   - 打包路径：`packages/{skillId}/{versionId}/bundle.zip`
-  - 临时上传：`tmp/{uploadId}/{filePath}`（24h GC 清理）
 
 ### skillhub-infra
-- MyBatis-Plus Mapper 实现
+- Spring Data JPA Repository 实现
 - Repository 实现
 - 通用工具（ID 生成、时间、JSON 等）
 - Spring Events 异步事件基础设施
@@ -109,8 +108,13 @@ web/
 ```
 skillhub/
 ├── server/               # Maven 多模块 Java 后端
+│   └── Dockerfile        # 后端多阶段构建
 ├── web/                  # React 前端
-├── Makefile              # 顶层构建编排（dev / build / docker）
+│   ├── Dockerfile        # 前端多阶段构建
+│   └── nginx.conf        # Nginx 配置（SPA 路由 + API 反向代理）
+├── docker-compose.yml    # 本地开发（仅依赖服务：PostgreSQL/Redis/MinIO）
+├── docker-compose.prod.yml  # 完整部署（前后端 + 依赖服务）
+├── Makefile              # 顶层构建编排（dev / build / docker / deploy）
 ├── docs/                 # 设计文档
 └── README.md
 ```
@@ -130,14 +134,14 @@ skillhub/
 
 | 组件 | 一期要求 | 职责 |
 |------|---------|------|
-| MySQL 8.x | 主从 | 主存储 |
+| PostgreSQL 16.x | 主从 | 主存储 |
 | Redis 7.x | Sentinel 或 Cluster | Session 存储 + 分布式锁 + 幂等去重 |
 | S3 兼容存储 | MinIO 或云厂商 S3 | 技能包文件 + 预打包 zip |
 | Ingress | Nginx Ingress Controller | 路由分发 + TLS 终止 |
 
 ## 10. 推荐的一期技术决策
 
-- ORM：MyBatis-Plus
+- ORM：Spring Data JPA (Hibernate)
 - API 文档：Springdoc OpenAPI
 - 对象存储：MinIO / AWS S3 兼容接口
 - 异步任务：Spring Events + 异步线程池，后续视复杂度引入 MQ

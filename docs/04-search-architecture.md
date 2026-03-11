@@ -46,7 +46,7 @@ ACL 投影计算规则：
 - 匿名用户：`includeAllPublic=true`，其余为空集，`userId=null`
 - 已登录用户：`includeAllPublic=true`，`memberNamespaceIds` = 用户所属空间，`adminNamespaceIds` = 用户是 ADMIN 以上的空间，`userId` = 当前用户 ID
 
-一期 MySQL 实现中，`SearchVisibilityScope` 转换为 WHERE 条件：
+一期 PostgreSQL 实现中，`SearchVisibilityScope` 转换为 WHERE 条件：
 ```sql
 WHERE (visibility = 'PUBLIC')
    OR (visibility = 'NAMESPACE_ONLY' AND namespace_id IN (:memberNamespaceIds))
@@ -75,7 +75,7 @@ WHERE (visibility = 'PUBLIC')
 
 唯一约束：`(skill_id)`
 
-MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
+PostgreSQL 全文搜索索引：表增加 `search_vector tsvector` 生成列，基于 `title`、`summary`、`keywords`、`search_text` 自动维护，建立 GIN 索引。详见第 7 节。
 
 ## 4 索引写入时机
 
@@ -95,11 +95,18 @@ MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
 
 这些场景不是简单换 provider 能解决的，需要改表结构和索引写入逻辑。
 
+**一期搜索能力边界（产品限制）：**
+- 搜索只基于 `latest_version_id` 对应版本的内容
+- 不支持按 version 或 tag 搜索内容
+- 搜索结果不区分 channel（`beta`、`stable` 等标签通道）
+- 用户通过 tag 安装的技能内容可能与搜索结果展示的内容不一致（搜索展示 latest，安装的是 tag 指向的版本）
+- 若要支持 channel-aware 搜索，必须升级到 version 级索引（二期 ES 实现）
+
 ### 5.2 演进阶段
 
 | 阶段 | 实现 | 索引粒度 | 切换方式 |
 |------|------|---------|---------|
-| 一期 | MySQL Full-Text | 每 skill 一条（latest_version_id） | 默认 |
+| 一期 | PostgreSQL Full-Text (tsvector + GIN) | 每 skill 一条（latest_version_id） | 默认 |
 | 二期 | ES / OpenSearch | 每 skill_version 一条 + skill 聚合文档 | 配置 `search.provider=elasticsearch` |
 | 三期 | 向量检索 | 每 skill_version 多条（chunk 级） | 配置 `search.provider=vector` |
 | 四期 | 混合排序 | 关键词 + 向量混合 | 配置 `search.provider=hybrid` |
@@ -121,16 +128,28 @@ MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
 
 `rebuildAll()` / `rebuildByNamespace()` 执行前获取 Redis 分布式锁（key: `search:rebuild:{scope}`，TTL: 10min），获取失败则跳过。
 
-## 7 MySQL 全文搜索中文支持
+## 7 PostgreSQL 全文搜索中文支持
 
-MySQL Full-Text Index 必须使用 ngram parser：
+PostgreSQL 全文搜索使用 `tsvector` + `tsquery` + GIN 索引：
 
 ```sql
+-- 增加 tsvector 生成列
 ALTER TABLE skill_search_document
-ADD FULLTEXT INDEX ft_search (title, summary, keywords, search_text)
-WITH PARSER ngram;
+ADD COLUMN search_vector tsvector
+GENERATED ALWAYS AS (
+    setweight(to_tsvector('simple', coalesce(title, '')), 'A') ||
+    setweight(to_tsvector('simple', coalesce(summary, '')), 'B') ||
+    setweight(to_tsvector('simple', coalesce(keywords, '')), 'B') ||
+    setweight(to_tsvector('simple', coalesce(search_text, '')), 'C')
+) STORED;
+
+-- 建立 GIN 索引
+CREATE INDEX idx_search_vector ON skill_search_document USING GIN (search_vector);
 ```
 
-配置 `ngram_token_size=2`（my.cnf）。
+中文支持方案：
+- 一期使用 `simple` 分词配置（按空格和标点分词），对中文支持有限但零依赖
+- 如需更好的中文分词，可安装 `zhparser` 或 `pg_jieba` 扩展，替换为对应的 text search configuration
+- PostgreSQL 的 `tsvector` 支持权重（A/B/C/D），可对 title 赋予更高权重，提升搜索相关性
 
-已知局限：ngram 分词精度不如专业搜索引擎，中文搜索体验有限。建议 Phase 2 完成后评估搜索效果，如不满足需求则在 Phase 3 提前引入 ES。
+已知局限：`simple` 分词对中文的精度不如专业搜索引擎。建议 Phase 2 完成后评估搜索效果，如不满足需求则在 Phase 3 提前引入 ES。

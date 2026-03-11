@@ -12,6 +12,10 @@
 | GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/file?path=...` | 读取单个文件（query param 避免路径中 / 的解析问题） |
 | GET | `/api/v1/skills/{namespace}/{slug}/download` | 下载默认安装版本（latest_version_id 指向的版本） |
 | GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/download` | 下载指定版本包 |
+| GET | `/api/v1/skills/{namespace}/{slug}/resolve` | 解析技能版本（支持 query param: `version`、`tag`、`hash`） |
+| GET | `/api/v1/skills/{namespace}/{slug}/tags/{tagName}/download` | 按标签下载（解析标签指向的版本后下载） |
+| GET | `/api/v1/skills/{namespace}/{slug}/tags/{tagName}/files` | 按标签查看文件清单 |
+| GET | `/api/v1/skills/{namespace}/{slug}/tags/{tagName}/file?path=...` | 按标签读取单个文件 |
 | GET | `/api/v1/namespaces` | 公开命名空间列表 |
 | GET | `/api/v1/namespaces/{slug}` | 命名空间详情 |
 
@@ -56,7 +60,7 @@ Public API 的可见性规则：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/api/v1/skills/{namespace}/{slug}/versions/{version}/submit-review` | 将 DRAFT 版本提交审核（前置：file_transfer_status=COMPLETED） |
+| POST | `/api/v1/skills/{namespace}/{slug}/versions/{version}/submit-review` | 将 DRAFT 版本提交审核 |
 | POST | `/api/v1/skills/{namespace}/{slug}/versions/{version}/withdraw-review` | 撤回提审（PENDING_REVIEW → DRAFT，同时删除关联的 PENDING review_task） |
 | GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/draft` | 查看草稿详情（owner 或 namespace ADMIN 以上） |
 
@@ -182,7 +186,182 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 | CLI `install @team/skill` | `latest_version_id` | 等同于 `@latest` |
 | CLI `install @team/skill@beta` | `skill_tag` 查询 | 自定义标签指向的版本 |
 
-## 7.9 Rate Limiting
+## 7.9 Resolve 接口说明
+
+`GET /api/v1/skills/{namespace}/{slug}/resolve` 用于解析技能版本，支持以下 query param：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `version` | string | 精确版本号（如 `1.2.0`） |
+| `tag` | string | 标签名（如 `beta`、`latest`） |
+| `hash` | string | fingerprint 哈希，用于判断本地版本是否与 registry 同步 |
+
+解析优先级：
+1. `version` 和 `tag` 不可同时传，同时传返回 `400 Bad Request`
+2. 仅传 `version`：精确匹配版本号
+3. 仅传 `tag`：查询 `skill_tag` 表获取 `target_version_id`
+4. 仅传 `hash`：遍历已发布版本，比对 fingerprint
+5. 均不传：返回 `latest_version_id` 指向的版本
+
+响应：
+
+```json
+{
+  "data": {
+    "skillId": 456,
+    "namespace": "team-name",
+    "slug": "my-skill",
+    "version": "1.2.0",
+    "versionId": 123,
+    "fingerprint": "sha256:abc123...",
+    "downloadUrl": "/api/v1/skills/team-name/my-skill/versions/1.2.0/download"
+  }
+}
+```
+
+`hash` 匹配时额外返回 `"matched": true`，不匹配时返回最新版本信息 + `"matched": false`。
+
+## 7.10 ClawHub CLI 兼容层 API
+
+兼容层 API 基地址为 `/api/compat/v1`，通过 `/.well-known/clawhub.json` 发现。兼容层使用 canonical slug（双连字符映射规则，详见 `00-product-direction.md` 1.1 节）。
+
+认证方式：`Authorization: Bearer <token>`，复用 skillhub API Token 体系。
+
+### Well-known 发现
+
+```
+GET /.well-known/clawhub.json
+
+响应：
+{
+  "apiBase": "/api/compat/v1"
+}
+```
+
+### 兼容层端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/compat/v1/whoami` | 当前用户信息 |
+| GET | `/api/compat/v1/search` | 搜索技能 |
+| GET | `/api/compat/v1/resolve` | 通过 slug + fingerprint 解析版本 |
+| GET | `/api/compat/v1/download` | 下载技能 zip 包 |
+| GET | `/api/compat/v1/skills` | 列出技能（分页） |
+| POST | `/api/compat/v1/skills` | 发布技能（multipart/form-data） |
+| GET | `/api/compat/v1/skills/{slug}` | 获取技能详情 |
+| DELETE | `/api/compat/v1/skills/{slug}` | 软删除技能 |
+| GET | `/api/compat/v1/skills/{slug}/versions` | 列出版本 |
+| GET | `/api/compat/v1/skills/{slug}/versions/{version}` | 版本详情 |
+| GET | `/api/compat/v1/skills/{slug}/file` | 获取单个文件内容 |
+| POST | `/api/compat/v1/stars/{slug}` | 收藏 |
+| DELETE | `/api/compat/v1/stars/{slug}` | 取消收藏 |
+
+### 兼容层请求/响应格式
+
+**GET `/api/compat/v1/whoami`**
+
+```json
+{
+  "handle": "username",
+  "displayName": "User Name",
+  "role": "user"
+}
+```
+
+**GET `/api/compat/v1/search?q={keyword}&page={page}&limit={limit}`**
+
+```json
+{
+  "results": [
+    {
+      "slug": "my-skill",
+      "name": "My Skill",
+      "description": "...",
+      "author": { "handle": "username", "displayName": "User Name" },
+      "version": "1.2.0",
+      "downloadCount": 100,
+      "starCount": 50,
+      "createdAt": "2026-01-01T00:00:00Z",
+      "updatedAt": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20
+}
+```
+
+注意：兼容层返回的 `slug` 为 canonical slug 格式（全局空间直接返回 skill slug，团队空间返回 `namespace--skill`）。
+
+**GET `/api/compat/v1/resolve?slug={slug}&hash={fingerprint}`**
+
+```json
+{
+  "slug": "my-skill",
+  "version": "1.2.0",
+  "fingerprint": "sha256:abc123...",
+  "matched": true
+}
+```
+
+`hash` 不匹配时返回最新版本 + `"matched": false`。
+
+**GET `/api/compat/v1/download?slug={slug}&version={version}`**
+
+返回 zip 文件流。`version` 可选，不传时下载最新已发布版本。
+
+**POST `/api/compat/v1/skills`**
+
+```
+Content-Type: multipart/form-data
+Parts:
+  - file: zip 包
+```
+
+一期同步响应，返回发布结果：
+
+```json
+{
+  "slug": "my-skill",
+  "version": "1.0.0",
+  "status": "pending_review"
+}
+```
+
+注意：ClawHub 原始协议使用两步发布（先获取 upload URL，再 JSON publish），skillhub 兼容层简化为单步 multipart 上传。如果 ClawHub CLI 的发布流程无法适配单步模式，需要额外实现 `/api/compat/v1/upload-url` + `/api/compat/v1/publish` 两步兼容端点。
+
+**GET `/api/compat/v1/skills/{slug}`**
+
+```json
+{
+  "slug": "my-skill",
+  "name": "My Skill",
+  "description": "...",
+  "author": { "handle": "username", "displayName": "User Name" },
+  "version": "1.2.0",
+  "versions": ["1.0.0", "1.1.0", "1.2.0"],
+  "license": "MIT-0",
+  "downloadCount": 100,
+  "starCount": 50,
+  "starred": false,
+  "files": [
+    { "path": "SKILL.md", "size": 1024 }
+  ],
+  "createdAt": "2026-01-01T00:00:00Z",
+  "updatedAt": "2026-03-01T00:00:00Z"
+}
+```
+
+### 兼容层适配说明
+
+- 兼容层是独立的 Controller 层，内部调用与 native API 相同的领域服务
+- 请求进入时将 canonical slug 转换为 `(namespace_id, skill_slug)` 坐标
+- 响应返回时将内部坐标转换为 canonical slug
+- 兼容层不暴露 namespace 概念，对 ClawHub CLI 透明
+- 发布时如果 canonical slug 包含 `--`，解析为团队空间发布；否则发布到全局空间
+- 兼容层的认证复用 skillhub API Token，ClawHub CLI 通过 `clawhub login` 获取 token 后即可使用
+
+## 7.11 Rate Limiting
 
 分两阶段实施：
 
@@ -203,10 +382,24 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 
 触发限流时返回 `429 Too Many Requests` + `Retry-After` Header。
 
-## 7.10 API 设计原则
+## 7.12 API 设计原则
 
-- 统一响应格式：`{ code, message, data, timestamp }`
+### Native API（`/api/v1/*`）
+
+- 统一响应包裹：`{ code, message, data, timestamp }`
 - 分页格式：`{ items, total, page, size }`
 - 错误码体系：业务错误码 + HTTP 状态码配合
 - 版本策略：URL path 版本 `/api/v1/`
 - 幂等性：写操作通过 `X-Request-Id` + Redis 去重（TTL 24h）
+
+### Compatibility API（`/api/compat/v1/*`）
+
+- 响应格式完全遵循 ClawHub 协议，不套统一响应包裹
+- 错误响应遵循 ClawHub 格式：`{ error: string, message: string }`
+- 分页格式遵循 ClawHub 格式：`{ results, total, page, limit }`
+
+### OpenAPI 文档分离
+
+生成两份独立的 OpenAPI spec：
+- `openapi-native.json`：skillhub Native API，用于前端 SDK 生成
+- `openapi-compat-clawhub.json`：ClawHub 兼容层 API，用于兼容性测试和文档

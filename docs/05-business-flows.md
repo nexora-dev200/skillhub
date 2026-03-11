@@ -2,6 +2,10 @@
 
 ## 1 发布流程
 
+一期采用同步发布模型：上传、校验、存储、持久化在一次请求中同步完成。前端通过异步上传（带进度条）提升用户体验，但后端处理是同步的。
+
+> **设计决策**：一期暂不考虑异步发布（uploadId、publishId、状态轮询、异步转正等）。一期技能包为文本资源包，体积有限（上限 10MB），同步处理足以满足需求。如后续引入大文件或复杂校验流程，再考虑异步模型。
+
 ```
 用户提交发布
     │
@@ -16,20 +20,20 @@
    - [扩展点] PrePublishValidator 链（一期空实现）
     │
     ▼
-③ 写入对象存储临时区（文件逐个上传到 `tmp/{uploadId}/{filePath}`，记录 SHA-256）
+③ 同步写入对象存储
+   - 文件逐个上传到正式路径 `skills/{skillId}/{versionId}/{filePath}`，记录 SHA-256
+   - 生成预打包 zip 到 `packages/{skillId}/{versionId}/bundle.zip`
     │
     ▼
-④ 持久化数据
-   - 创建 skill_version (status=DRAFT, file_transfer_status=PENDING)
+④ 持久化数据（与 ③ 在同一事务/请求中）
+   - 创建或关联 skill 记录（首次发布时创建 skill）
+   - 创建 skill_version (status=DRAFT)
    - 创建 skill_file 记录
    - 解析 SKILL.md frontmatter → parsed_metadata_json
    - 生成 manifest_json
-   - 异步将文件从 `tmp/` 转正到 `skills/{skillId}/{versionId}/{filePath}`
-   - 转正成功 → file_transfer_status=COMPLETED
-   - 转正失败 → file_transfer_status=FAILED，记录失败原因
     │
     ▼
-⑤ 提交审核（前置检查：file_transfer_status 必须为 COMPLETED，否则拒绝提审）
+⑤ 提交审核
    - skill_version.status → PENDING_REVIEW
    - 创建 review_task (status=PENDING)
     │
@@ -49,26 +53,13 @@
 
 ④ 和 ⑤ 分开，给用户一个检查草稿的机会。CLI 发布走同样的流程。
 
-### 对象存储临时区与 GC
+### 对象存储写入策略
 
-- 上传阶段文件写入 `tmp/{uploadId}/{filePath}`
-- 数据库事务提交成功后，异步将文件从 `tmp/` copy 到正式路径 `skills/{skillId}/{versionId}/{filePath}`，完成后删除 `tmp/` 副本
-- 定时 GC 任务：清理超过 24h 的 `tmp/` 前缀对象（覆盖事务失败、用户取消、流程中断等场景）
-- 如果数据库事务失败，`tmp/` 中的文件由 GC 自动清理，不产生孤儿对象
-
-### 文件转正补偿机制
-
-`skill_version` 增加 `file_transfer_status` 字段（`PENDING` / `COMPLETED` / `FAILED`），用于追踪异步转正状态。
-
-安全门控：
-- 提交审核（DRAFT → PENDING_REVIEW）：前置检查 `file_transfer_status = COMPLETED`，否则返回 400
-- 下载接口：前置检查 `file_transfer_status = COMPLETED`，否则返回 404
-
-失败重试：
-- 转正失败时标记 `file_transfer_status = FAILED`
-- 定时任务每 5 分钟扫描 `file_transfer_status = PENDING` 且 `created_at > 5min ago` 或 `file_transfer_status = FAILED` 的记录，重试转正
-- 最多重试 3 次，超过后标记为 FAILED 并保留，用户可在草稿页看到"文件处理失败"提示，可手动触发重试或删除该版本重新上传
-- `tmp/` 中的源文件在转正成功前不删除，确保重试有源可用
+一期同步写入正式路径，不使用临时区：
+- 文件直接写入 `skills/{skillId}/{versionId}/{filePath}`
+- 如果数据库事务失败，对象存储中的文件成为孤儿对象
+- 定时 GC 任务：每天扫描对象存储中存在但数据库中无对应 `skill_file` 记录的文件，清理孤儿对象
+- 删除 DRAFT/REJECTED 版本时，同步清理对应的对象存储文件
 
 ### CLI publish 请求规范
 
@@ -81,41 +72,27 @@ Parts:
   - auto_submit: boolean（可选，默认 false，为 true 时自动提交审核）
 ```
 
-CLI 默认行为：上传 → 创建 DRAFT → 自动提交审核（`auto_submit=true`）。
+一期同步响应：服务端同步完成上传、校验、存储、持久化，返回 `200 OK` + skill_version 信息。
+
+CLI 默认行为：上传 → 创建 DRAFT → 自动提交审核（`auto_submit=true`），一次请求完成。
 Web 端默认行为：上传 → 创建 DRAFT → 用户预览确认 → 手动提交审核。
 
-### CLI publish 异步协议
-
-`auto_submit=true` 时，服务端在文件转正完成后自动提交审核，CLI 不需要额外调用 submit-review。
-
-```
-CLI 调用 POST /api/v1/cli/publish (auto_submit=true)
-    │
-    ▼
-服务端返回 202 Accepted + publishId + 初始状态
-    │
-    ▼
-CLI 轮询 GET /api/v1/cli/publish/{publishId}/status
-    │
-    ├── TRANSFERRING → 文件转正中，继续轮询（建议间隔 2s）
-    ├── SUBMITTED → 文件转正完成 + 已自动提交审核，CLI 结束
-    ├── DRAFT → auto_submit=false 时，文件转正完成但未提审，CLI 结束
-    └── FAILED → 文件转正失败，返回错误原因，CLI 提示用户
-```
-
-`/api/v1/cli/publish/{publishId}/status` 响应：
+`/api/v1/cli/publish` 响应：
 
 ```json
 {
   "data": {
-    "publishId": "uuid",
+    "skillId": 456,
     "skillVersionId": 123,
-    "fileTransferStatus": "COMPLETED",
-    "versionStatus": "PENDING_REVIEW",
-    "error": null
+    "version": "1.2.0",
+    "status": "PENDING_REVIEW",
+    "namespace": "team-name",
+    "slug": "my-skill"
   }
 }
 ```
+
+`auto_submit=false` 时，`status` 为 `DRAFT`，用户需后续手动提交审核。
 
 ## 2 团队技能提升到全局空间（派生发布）
 
@@ -177,8 +154,8 @@ CLI 轮询 GET /api/v1/cli/publish/{publishId}/status
 
 一期使用原子 SQL 直接更新，可接受。如出现热点行瓶颈，切换为：
 1. Redis `INCR` 做实时计数（key: `skill:downloads:{skillId}`）
-2. 定时任务每 5 分钟批量回写 MySQL
-3. 查询时合并 MySQL 存量 + Redis 增量
+2. 定时任务每 5 分钟批量回写 PostgreSQL
+3. 查询时合并 PostgreSQL 存量 + Redis 增量
 
 ## 4 搜索流程
 

@@ -4,6 +4,12 @@
 
 产出：架构设计文档、数据库 DDL、API OpenAPI spec 草案、前端线框图
 
+已冻结决策：
+- 技能坐标体系：`@{namespace_slug}/{skill_slug}`，兼容层使用 `--` 双连字符映射（详见 `00-product-direction.md` 1.1 节）
+- 一期同步发布模型，暂不考虑异步发布
+- API Token 一期继承用户全部权限（非最小权限），后续版本细化
+- ClawHub CLI 兼容层基地址 `/api/compat/v1`，通过 `/.well-known/clawhub.json` 发现
+
 ## Phase 1：工程骨架 + 认证打通
 
 ### 后端
@@ -42,9 +48,9 @@
 
 - 命名空间 CRUD + 成员管理
 - 对象存储集成
-- 技能发布（上传 → 校验 → 存储 → draft）
+- 技能发布（上传 → 校验 → 存储 → draft，一期同步处理）
 - 技能查询（详情、版本、文件）、下载（打包 + 可见性检查，PUBLIC 匿名可下载）
-- 标签管理、搜索（MySQL Full-Text，匿名搜索限 PUBLIC）
+- 标签管理、搜索（PostgreSQL Full-Text，匿名搜索限 PUBLIC）
 - 异步事件基础设施
 - Rate Limiting 升级（应用层精细限流：按用户/端点分类，基于 Redis 滑动窗口）
 
@@ -67,7 +73,9 @@
 - 团队技能提升到全局（promotion_request 流程）
 - 评分 + 收藏 + 计数器（原子更新）
 - CLI API（whoami、publish、resolve、check）
-- ClawHub CLI 协议兼容层（registry metadata、resolve、download、publish、check 等核心接口）
+- ClawHub CLI 协议兼容层（`/api/compat/v1` 端点：search、resolve、download、publish、skills CRUD、stars）
+- 兼容层 canonical slug 映射（`--` 双连字符规则）
+- `/.well-known/clawhub.json` 发现端点
 - 协议适配器与兼容性测试（针对 ClawHub CLI 的真实请求/响应样例）
 - 审计日志（同步落库）、幂等去重（idempotency_record + Redis）
 
@@ -109,4 +117,4 @@
 | 搜索效果不佳 | SPI 架构允许随时切换实现 |
 | 前后端接口频繁变更 | OpenAPI spec 先行，类型自动生成 |
 | 新增 OAuth Provider | Spring Security OAuth2 原生多 Provider 支持，只需配置 + 属性映射 |
-| ClawHub CLI 协议细节与现有模型不完全一致 | 增加兼容适配层与协议回归测试，避免把 skillhub 内部模型直接暴露给兼容客户端 |
+| ClawHub CLI 协议细节与现有模型不完全一致 | 兼容层使用 `--` 双连字符 canonical slug 映射，独立 Controller 层适配，协议回归测试覆盖 |

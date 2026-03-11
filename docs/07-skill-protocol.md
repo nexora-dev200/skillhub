@@ -113,9 +113,33 @@ CLI 安装后在本地写入 `.astron/metadata.json`：
 
 ## 8.7 版本解析规则
 
+skillhub 自有 CLI 支持完整 namespace 坐标：
+
 ```
 install @team/my-skill              → 最新已发布版本（latest_version_id）
 install @team/my-skill@1.2.0        → 精确版本
 install @team/my-skill@latest        → 等同于不带版本号（系统保留标签，只读）
 install @team/my-skill@beta          → beta 标签（自定义标签）
+install my-skill                     → 等同于 @global/my-skill
 ```
+
+ClawHub CLI 通过兼容层使用 canonical slug：
+
+```
+clawhub install my-skill             → @global/my-skill 的最新版本
+clawhub install team-name--my-skill  → @team-name/my-skill 的最新版本
+clawhub install my-skill@1.2.0       → @global/my-skill 的精确版本
+```
+
+## 8.8 坐标映射与 ClawHub CLI 兼容
+
+skillhub 内部使用 `@{namespace_slug}/{skill_slug}` 坐标，ClawHub CLI 使用单一 slug。映射规则详见 `00-product-direction.md` 1.1 节。
+
+安装后的本地目录名始终使用 `skill.slug`（不含 namespace 前缀），确保与 OpenSkills/Claude 兼容客户端的互操作性。
+
+| skillhub 坐标 | ClawHub canonical slug | 本地安装目录名 |
+|---|---|---|
+| `@global/my-skill` | `my-skill` | `my-skill/` |
+| `@team-name/my-skill` | `team-name--my-skill` | `my-skill/` |
+
+注意：不同 namespace 下同名 skill 安装到本地时会产生目录冲突。skillhub CLI 应在安装时检测冲突并提示用户选择安装目录或使用别名。

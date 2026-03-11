@@ -1,0 +1,53 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment / local config
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Java / Spring Boot
+target/
+build/
+.gradle/
+out/
+*.class
+*.jar
+*.war
+*.ear
+
+# Keep wrapper binaries/config in VCS
+!gradle/wrapper/gradle-wrapper.jar
+!mvnw
+!mvnw.cmd
+
+# React / frontend
+node_modules/
+dist/
+coverage/
+.cache/
+.parcel-cache/
+.vite/
+.eslintcache
+*.tsbuildinfo
+
+# Temporary files
+.tmp/
+tmp/

@@ -14,6 +14,38 @@
 
 同时，一期必须提供 ClawHub CLI 协议兼容层：服务端需要暴露一组与 ClawHub CLI 兼容的 registry API，使现有 ClawHub CLI 在不修改或仅最小配置修改的前提下可完成 registry 侧查询、解析、下载、发布、校验等核心操作。
 
+### 1.1 技能坐标体系（已冻结）
+
+skillhub 内部使用 namespace 坐标模型：`@{namespace_slug}/{skill_slug}`。
+
+ClawHub CLI 使用单一 slug 模型，slug 校验规则为 `[a-z0-9]([a-z0-9-]*[a-z0-9])?`，不允许 `/` 出现。
+
+为同时满足两套模型，定义以下双向映射规则：
+
+**映射规则：**
+
+| skillhub 坐标 | 兼容层 canonical slug | 说明 |
+|---|---|---|
+| `@global/my-skill` | `my-skill` | 全局空间省略前缀，直接使用 skill slug |
+| `@team-name/my-skill` | `team-name--my-skill` | 团队空间使用 `{namespace_slug}--{skill_slug}` 格式 |
+
+**约束规则：**
+- 分隔符为双连字符 `--`
+- skill slug 和 namespace slug 均禁止包含 `--`（在校验规则中追加此限制）
+- slug 格式校验更新为：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，且不得包含连续两个以上的连字符 `--`
+- 兼容层解析 canonical slug 时：包含 `--` 则拆分为 `namespace_slug` + `skill_slug`，不包含则视为 `@global/{slug}`
+- 冲突规则：如果 `@global/team-name--my-skill` 与 `@team-name/my-skill` 产生冲突，以 `--` 拆分优先（即优先解析为团队空间技能）。全局空间的 skill slug 禁止包含 `--` 以避免歧义
+- 保留字规则：namespace slug 保留词列表同样适用于 canonical slug 的 namespace 部分
+
+**显示规则：**
+- Web 端始终显示完整坐标：`@global/my-skill`、`@team-name/my-skill`
+- ClawHub CLI 兼容层返回 canonical slug：`my-skill`、`team-name--my-skill`
+- skillhub 自有 CLI 支持两种格式输入，内部统一转换为 namespace 坐标
+
+**Well-known 发现：**
+- skillhub 服务端提供 `/.well-known/clawhub.json`，返回 `{ "apiBase": "/api/compat/v1" }`
+- ClawHub CLI 通过此机制自动发现兼容层 API 基地址
+
 ## 2. 参考项目取舍
 
 ### 2.1 继承 ClawHub 的部分
@@ -61,7 +93,7 @@
 - 技能浏览、详情、下载（公共技能匿名可访问）
 - 标签管理（`latest` 系统保留只读 + 自定义标签人工维护）
 - 技能包文件校验与 SKILL.md 元数据抽取
-- 基于 MySQL 全文索引的搜索
+- 基于 PostgreSQL 全文索引的搜索
 
 命名空间与组织：
 - 单一全局命名空间（`@global/skill-name`），由平台管理员管理，不支持多个平台级 namespace

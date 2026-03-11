@@ -139,8 +139,8 @@ window.location.href = "/oauth2/authorization/github"
 
 ## 7 关键交互
 
-**技能详情页**：SKILL.md Markdown 渲染、右侧信息栏（版本/下载量/评分/收藏/标签/空间）、版本切换、安装命令一键复制。匿名用户可浏览和下载，收藏/评分按钮提示登录。
+**技能详情页**：SKILL.md Markdown 渲染、右侧信息栏（版本/下载量/评分/收藏/标签/空间）、版本切换、安装命令一键复制（同时展示 skillhub CLI 格式 `install @namespace/slug` 和 ClawHub CLI 格式 `install canonical-slug`）。匿名用户可浏览和下载，收藏/评分按钮提示登录。
 
-**搜索页**：实时搜索（debounce 300ms）、技能卡片、排序（相关度/下载量/评分/最新）、命名空间过滤。匿名用户可搜索 PUBLIC 技能。
+**搜索页**：实时搜索（debounce 300ms）、技能卡片、排序（相关度/下载量/评分/最新）、命名空间过滤。匿名用户可搜索 PUBLIC 技能。注意：一期搜索仅基于 latest 版本内容，不支持按 tag/version 搜索（详见 `04-search-architecture.md` 5.1 节）。
 
 **审核页面**：左侧列表 + 右侧内容预览（Markdown + 文件树）、通过/拒绝 + 意见输入。

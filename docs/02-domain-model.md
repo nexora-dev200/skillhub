@@ -21,7 +21,7 @@
 - `TEAM` 类型对应部门/团队，可创建多个
 - 技能完整寻址：`@{namespace_slug}/{skill_slug}`
 - slug 唯一约束：`slug`
-- slug 格式校验：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，长度 2-64
+- slug 格式校验：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，长度 2-64，且不得包含连续两个以上的连字符 `--`（为兼容层坐标映射保留）
 - slug 保留词列表（用户创建 namespace 时不可使用）：`admin`, `api`, `dashboard`, `search`, `auth`, `me`, `global`, `system`, `static`, `assets`, `health`
 - 系统内置 namespace（`@global`）在数据库初始化时由 Flyway 脚本预置，绕过 slug 校验规则。保留词校验仅作用于用户创建 namespace 的接口
 - 状态语义：
@@ -74,7 +74,7 @@
   - owner 作为 MEMBER 时可管理自己创建的 skill（提交审核、编辑草稿）
   - owner 离职/换组后，namespace ADMIN 仍能完整管理所有技能
 - `rating_avg` / `rating_count` 冗余字段，避免每次查询聚合
-- `slug`：面向用户的 URL 标识，来自 SKILL.md 的 `name` 字段，首次发布后不可变更。slug 格式校验规则与 namespace slug 相同：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，同样适用保留词限制
+- `slug`：面向用户的 URL 标识，来自 SKILL.md 的 `name` 字段，首次发布后不可变更。slug 格式校验规则与 namespace slug 相同：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，同样适用保留词限制，且不得包含连续两个以上的连字符 `--`（为兼容层坐标映射保留）。全局空间（`@global`）下的 skill slug 额外禁止包含 `--`，以避免与兼容层 canonical slug 产生歧义
 - `source_skill_id`：仅在"团队技能提升到全局"场景下填充，记录原始团队空间的 skill ID，用于追溯来源
 - 提升关系的唯一事实来源是 `promotion_request` 表，UI 查询"是否已提升"通过 `SELECT ... FROM promotion_request WHERE source_skill_id=? AND status='APPROVED'` 判定
 
@@ -90,7 +90,6 @@
 | manifest_json | json | 文件清单 |
 | parsed_metadata_json | json | SKILL.md frontmatter 解析结果 |
 | status | enum | `DRAFT` / `PENDING_REVIEW` / `PUBLISHED` / `REJECTED` / `YANKED` |
-| file_transfer_status | enum | `PENDING` / `COMPLETED` / `FAILED`，异步文件转正状态 |
 | reject_reason | varchar(512) | 拒绝原因 |
 | published_by | bigint | |
 | published_at | datetime | |
@@ -98,7 +97,6 @@
 
 - `status` 覆盖完整审核生命周期
 - 状态机：`DRAFT → PENDING_REVIEW → PUBLISHED / REJECTED`，`PUBLISHED → YANKED`
-- `DRAFT → PENDING_REVIEW` 前置条件：`file_transfer_status = COMPLETED`
 - 唯一约束：`(skill_id, version)` 防止重复发布
 - `YANKED` 状态：已发布后撤回
 
@@ -142,6 +140,7 @@
 - `latest` 是系统保留标签，只读，自动跟随 `skill.latest_version_id`，不允许 API 手动移动
 - 自定义标签（如 `beta`、`stable-2026q1`）允许人工创建和移动
 - 唯一约束：`(skill_id, tag_name)`
+- `target_version_id` 必须指向 `status = PUBLISHED` 的版本，应用层校验
 
 ### review_task
 
@@ -161,6 +160,7 @@
 - 仅用于普通发布审核，"提升到全局"使用独立的 `promotion_request` 表
 - `version` 字段用于乐观锁，防止多 Pod 并发审核
 - 业务约束：同一 `skill_version_id` 在 `status=PENDING` 时只能存在一条记录，重复提交返回 409 Conflict。撤回（PENDING → 删除 review_task + skill_version 回退到 DRAFT）后才能再次提交
+- PostgreSQL 并发约束落地：通过唯一索引 `(skill_version_id)` + 软删除标记实现。`review_task` 表增加 `deleted` 字段（bigint, 默认 0），唯一索引改为 `(skill_version_id, deleted)`。撤回时将 `deleted` 设为 `id`（非零值），新提交时 `deleted=0`，利用唯一索引防止并发重复提交。或者采用更简单的方案：撤回时物理删除 review_task 记录，依赖 `INSERT` 的唯一约束 `(skill_version_id)` 防并发。PostgreSQL 还支持 partial unique index 方案：`CREATE UNIQUE INDEX ON review_task (skill_version_id) WHERE status = 'PENDING'`，更优雅地实现"PENDING 状态唯一"约束
 
 ### promotion_request
 
@@ -183,6 +183,7 @@
 - 审批通过后填充 `target_skill_id`，指向全局空间新创建的 skill
 - `promotion_request` 是提升关系的唯一事实来源，skill 表不再冗余 `promoted_to_skill_id`
 - 业务约束：同一 `source_version_id` 在 `status=PENDING` 时只能存在一条记录，重复提交返回 409 Conflict
+- PostgreSQL 并发约束落地：与 `review_task` 类似，通过唯一索引防止并发重复提交。推荐使用 partial unique index：`CREATE UNIQUE INDEX ON promotion_request (source_version_id) WHERE status = 'PENDING'`，或增加 `deleted` 字段 + `(source_version_id, deleted)` 唯一约束，或采用物理删除 + `(source_version_id)` 唯一约束方案
 
 ### skill_star
 
@@ -349,7 +350,7 @@
 | status | enum | |
 | updated_at | datetime | |
 
-MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
+PostgreSQL Full-Text Index：在 `skill_search_document` 表增加 `search_vector tsvector` 列，通过触发器或 `GENERATED ALWAYS AS` 自动维护，建立 GIN 索引。
 
 ## 3.4 幂等记录表
 
@@ -366,7 +367,7 @@ MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
 | expires_at | datetime | 过期时间（默认 24h） |
 
 - 流程：收到请求 → 插入 record（PROCESSING）→ 业务处理 → 更新为 COMPLETED + resource_id → 重复请求时查 record 返回已有结果
-- Redis 做快速去重缓存（SETNX），MySQL 做持久化兜底
+- Redis 做快速去重缓存（SETNX），PostgreSQL 做持久化兜底
 - 定时任务清理过期记录
 
 ## 3.5 关键索引设计
