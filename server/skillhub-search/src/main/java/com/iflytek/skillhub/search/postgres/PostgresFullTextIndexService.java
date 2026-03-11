@@ -1,0 +1,69 @@
+package com.iflytek.skillhub.search.postgres;
+
+import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentEntity;
+import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentJpaRepository;
+import com.iflytek.skillhub.search.SearchIndexService;
+import com.iflytek.skillhub.search.SkillSearchDocument;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class PostgresFullTextIndexService implements SearchIndexService {
+
+    private final SkillSearchDocumentJpaRepository repository;
+
+    public PostgresFullTextIndexService(SkillSearchDocumentJpaRepository repository) {
+        this.repository = repository;
+    }
+
+    @Override
+    @Transactional
+    public void index(SkillSearchDocument document) {
+        Optional<SkillSearchDocumentEntity> existing = repository.findBySkillId(document.skillId());
+
+        if (existing.isPresent()) {
+            SkillSearchDocumentEntity entity = existing.get();
+            entity.setNamespaceId(document.namespaceId());
+            entity.setNamespaceSlug(document.namespaceSlug());
+            entity.setOwnerId(document.ownerId());
+            entity.setTitle(document.title());
+            entity.setSummary(document.summary());
+            entity.setKeywords(document.keywords());
+            entity.setSearchText(document.searchText());
+            entity.setVisibility(document.visibility());
+            entity.setStatus(document.status());
+            repository.save(entity);
+        } else {
+            SkillSearchDocumentEntity entity = new SkillSearchDocumentEntity(
+                    document.skillId(),
+                    document.namespaceId(),
+                    document.namespaceSlug(),
+                    document.ownerId(),
+                    document.title(),
+                    document.summary(),
+                    document.keywords(),
+                    document.searchText(),
+                    document.visibility(),
+                    document.status()
+            );
+            repository.save(entity);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void batchIndex(List<SkillSearchDocument> documents) {
+        for (SkillSearchDocument document : documents) {
+            index(document);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void remove(Long skillId) {
+        repository.deleteBySkillId(skillId);
+    }
+}
