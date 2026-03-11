@@ -767,9 +767,9 @@ public class PostgresSearchRebuildService implements SearchRebuildService {
 }
 ```
 
-### 6.2 搜索应用服务（`domain.skill.service.SkillSearchAppService`）
+### 6.2 搜索应用服务（`skillhub-app` 中的 `service.SkillSearchAppService`）
 
-位于 `skillhub-domain`，面向 Controller 层：
+位于 `skillhub-app` 模块（非 domain），因为它依赖 `SearchQueryService`（定义在 skillhub-search），按依赖方向 domain 不应依赖 search：
 
 ```
 searchSkills(keyword, namespaceSlug, sortBy, page, size, currentUser) → SearchResultDTO
@@ -777,9 +777,12 @@ searchSkills(keyword, namespaceSlug, sortBy, page, size, currentUser) → Search
 内部流程：
 1. 计算 SearchVisibilityScope（根据 currentUser 的 namespace 成员关系）
 2. 构建 SearchQuery
-3. 调用 SearchQueryService.search()
-4. 转换为 DTO 返回
+3. 调用 SearchQueryService.search() → 返回匹配的 skillId 列表 + 总数
+4. 批量查询 skill 表获取统计字段（downloadCount, starCount, ratingAvg, ratingCount, latestVersion）
+5. 组装为 DTO 返回
 ```
+
+> **搜索统计字段策略** — 搜索文档表只负责全文匹配和可见性过滤，不冗余统计字段。排序和统计数据通过 JOIN `skill` 表获取。具体实现：搜索查询使用子查询先匹配 + 过滤，外层 JOIN skill 表做排序和字段补充。这避免了计数器更新时同步刷新搜索文档的复杂度。`latestVersion` 通过 JOIN `skill_version` 表（`skill.latest_version_id`）获取。
 
 ### 6.3 搜索文档更新时机
 
@@ -1285,15 +1288,15 @@ web/src/
 1. `V2__phase2_skill_tables.sql` 迁移成功，所有新表和索引创建
 2. Phase 1 实体补齐：`Namespace.java` 补 type/avatarUrl，`NamespaceMember.java` 补 updatedAt，新增 `NamespaceType` 枚举
 3. 对象存储 LocalFile 实现可用，S3 实现可用（Docker Compose MinIO）
-3. 命名空间 CRUD + 成员管理 API 全部可用
-4. CLI 发布接口：上传 zip → 校验 → 存储 → PUBLISHED，返回版本信息
-5. 技能详情、版本列表、文件清单、文件内容 API 可用
-6. 下载 API：latest / 指定版本 / 按标签，返回 zip
-7. 标签 CRUD API 可用，latest 标签不可操作
-8. 搜索 API：关键词搜索 + 可见性过滤 + 排序 + 分页
-9. 异步事件：发布后搜索索引自动更新，下载后计数自动递增
-10. 限流：超限返回 429，Redis 不可用时 fail-open
-11. 所有后端测试通过
+4. 命名空间 CRUD + 成员管理 API 全部可用
+5. CLI 发布接口：上传 zip → 校验 → 存储 → PUBLISHED，返回版本信息
+6. 技能详情、版本列表、文件清单、文件内容 API 可用
+7. 下载 API：latest / 指定版本 / 按标签，返回 zip
+8. 标签 CRUD API 可用，latest 标签不可操作
+9. 搜索 API：关键词搜索 + 可见性过滤 + 排序 + 分页
+10. 异步事件：发布后搜索索引自动更新，下载后计数自动递增
+11. 限流：超限返回 429，Redis 不可用时 fail-open
+12. 所有后端测试通过
 
 ### Chunk 2：前端全部
 
