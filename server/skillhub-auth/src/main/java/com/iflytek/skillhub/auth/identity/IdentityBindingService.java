@@ -57,6 +57,13 @@ public class IdentityBindingService {
             bindingRepo.save(binding);
         }
 
+        if (user.getStatus() == UserStatus.PENDING) {
+            throw new com.iflytek.skillhub.auth.oauth.AccountPendingException();
+        }
+        if (user.getStatus() == UserStatus.DISABLED) {
+            throw new com.iflytek.skillhub.auth.oauth.AccountDisabledException();
+        }
+
         Set<String> roles = roleBindingRepo.findByUserId(user.getId()).stream()
             .map(rb -> rb.getRole().getCode())
             .collect(Collectors.toSet());
@@ -65,5 +72,31 @@ public class IdentityBindingService {
             user.getId(), user.getDisplayName(), user.getEmail(),
             user.getAvatarUrl(), claims.provider(), roles
         );
+    }
+
+    @Transactional
+    public void createPendingUserIfAbsent(OAuthClaims claims) {
+        IdentityBinding existingBinding = bindingRepo
+            .findByProviderCodeAndSubject(claims.provider(), claims.subject())
+            .orElse(null);
+        if (existingBinding != null) {
+            UserAccount existingUser = userRepo.findById(existingBinding.getUserId())
+                .orElseThrow(() -> new IllegalStateException("User not found for binding"));
+            if (existingUser.getStatus() == UserStatus.DISABLED) {
+                throw new com.iflytek.skillhub.auth.oauth.AccountDisabledException();
+            }
+            throw new com.iflytek.skillhub.auth.oauth.AccountPendingException();
+        }
+
+        UserAccount user = new UserAccount(
+            claims.providerLogin(),
+            claims.email(),
+            (String) claims.extra().get("avatar_url")
+        );
+        user.setStatus(UserStatus.PENDING);
+        user = userRepo.save(user);
+
+        IdentityBinding binding = new IdentityBinding(user.getId(), claims.provider(), claims.subject(), claims.providerLogin());
+        bindingRepo.save(binding);
     }
 }

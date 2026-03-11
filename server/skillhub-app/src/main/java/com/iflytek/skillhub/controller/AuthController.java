@@ -1,8 +1,9 @@
 package com.iflytek.skillhub.controller;
 
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,9 +16,9 @@ import java.util.Map;
 public class AuthController {
 
     @GetMapping("/me")
-    public ResponseEntity<Map<String, Object>> me(HttpSession session) {
-        PlatformPrincipal principal = (PlatformPrincipal) session.getAttribute("platformPrincipal");
-        if (principal == null) {
+    public ResponseEntity<Map<String, Object>> me(@AuthenticationPrincipal PlatformPrincipal principal,
+                                                  Authentication authentication) {
+        if (principal == null || authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(401).build();
         }
         return ResponseEntity.ok(Map.of(

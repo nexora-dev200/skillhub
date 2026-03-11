@@ -4,6 +4,8 @@ import com.iflytek.skillhub.auth.identity.IdentityBindingService;
 import com.iflytek.skillhub.auth.policy.AccessDecision;
 import com.iflytek.skillhub.auth.policy.AccessPolicy;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import com.iflytek.skillhub.domain.user.UserStatus;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -14,6 +16,7 @@ import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -47,21 +50,28 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                 new OAuth2Error("unsupported_provider", "Unsupported: " + registrationId, null));
         }
 
-        OAuthClaims claims = extractor.extract(oAuth2User);
+        OAuthClaims claims = extractor.extract(request, oAuth2User);
         AccessDecision decision = accessPolicy.evaluate(claims);
 
-        UserStatus initialStatus = switch (decision) {
-            case ALLOW -> UserStatus.ACTIVE;
-            case PENDING_APPROVAL -> UserStatus.PENDING;
-            case DENY -> throw new OAuth2AuthenticationException(
+        if (decision == AccessDecision.PENDING_APPROVAL) {
+            identityBindingService.createPendingUserIfAbsent(claims);
+            throw new AccountPendingException();
+        }
+        if (decision == AccessDecision.DENY) {
+            throw new OAuth2AuthenticationException(
                 new OAuth2Error("access_denied", "Access denied by policy", null));
-        };
+        }
 
-        PlatformPrincipal principal = identityBindingService.bindOrCreate(claims, initialStatus);
+        PlatformPrincipal principal = identityBindingService.bindOrCreate(claims, UserStatus.ACTIVE);
 
         var attrs = new HashMap<>(oAuth2User.getAttributes());
         attrs.put("platformPrincipal", principal);
 
-        return new DefaultOAuth2User(oAuth2User.getAuthorities(), attrs, "login");
+        var authorities = new LinkedHashSet<GrantedAuthority>(oAuth2User.getAuthorities());
+        principal.platformRoles().stream()
+            .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+            .forEach(authorities::add);
+
+        return new DefaultOAuth2User(authorities, attrs, "login");
     }
 }
