@@ -1,4 +1,4 @@
-# Astron Skills 产品定位与 MVP 范围
+# skillhub 产品定位与 MVP 范围
 
 ## 1. 定位
 
@@ -38,7 +38,7 @@
 - 四级目录优先级（`.agent/skills` → `~/.agent/skills` → `.claude/skills` → `~/.claude/skills`）
 - 目录名作为 lookup key（安装后目录名 = skill slug）
 - AGENTS.md `<skill>` 描述块格式兼容
-- 目标：Astron CLI 安装的技能可被 OpenSkills/Claude 兼容客户端发现和使用
+- 目标：skillhub CLI 安装的技能可被 OpenSkills/Claude 兼容客户端发现和使用
 
 不直接继承：
 - 以 CLI 为中心的产品定位
@@ -48,7 +48,7 @@
 
 - Hub 优先：服务端是核心，CLI 和 Agent 集成是入口能力
 - 兼容优先：兼容 `SKILL.md` 及常见目录约定
-- CLI 兼容优先：除 Astron CLI 外，一期明确要求实现 ClawHub CLI 协议兼容层
+- CLI 兼容优先：除 skillhub CLI 外，一期明确要求实现 ClawHub CLI 协议兼容层
 - 分层优先：搜索、对象存储都必须有可替换边界
 - 开放认证：基于标准 OAuth2 协议，一期 GitHub 登录，架构支持后续扩展多 Provider
 - 审计优先：企业内部分发平台必须保留发布、下载、删除、授权等审计链路

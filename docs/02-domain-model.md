@@ -1,4 +1,4 @@
-# Astron Skills 领域模型与数据模型
+# skillhub 领域模型与数据模型
 
 ## 3.1 核心实体
 

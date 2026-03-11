@@ -1,4 +1,4 @@
-# Astron Skills 系统架构设计
+# skillhub 系统架构设计
 
 ## 1. 技术基线
 
@@ -19,12 +19,12 @@
 
 ```
 server/
-├── astron-skills-app            # 启动、配置装配、Controller 聚合
-├── astron-skills-domain         # 领域模型 + 领域服务 + 应用服务
-├── astron-skills-auth           # OAuth2 认证 + RBAC + 授权判定
-├── astron-skills-search         # 搜索 SPI + MySQL 全文实现
-├── astron-skills-storage        # 对象存储抽象 + S3 实现
-└── astron-skills-infra          # MyBatis、通用工具、配置基础
+├── skillhub-app                 # 启动、配置装配、Controller 聚合
+├── skillhub-domain              # 领域模型 + 领域服务 + 应用服务
+├── skillhub-auth                # OAuth2 认证 + RBAC + 授权判定
+├── skillhub-search              # 搜索 SPI + MySQL 全文实现
+├── skillhub-storage             # 对象存储抽象 + S3 实现
+└── skillhub-infra               # MyBatis、通用工具、配置基础
 ```
 
 ## 4. 模块依赖方向（依赖倒置，禁止领域层依赖基础设施）
@@ -45,19 +45,19 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 
 ## 5. 各模块职责
 
-### astron-skills-app
+### skillhub-app
 - Spring Boot 启动类
 - Controller 分包：`controller.portal`（公开查询）、`controller.cli`（CLI API）、`controller.admin`（管理后台）
 - 全局异常处理、请求日志、OpenAPI 配置
 - 配置文件与环境 profile
 
-### astron-skills-domain
+### skillhub-domain
 - 核心实体：Skill, SkillVersion, SkillFile, SkillTag, Namespace, NamespaceMember, ReviewTask, AuditLog, SkillStar, SkillRating
 - 领域服务：发布流程编排、审核状态机、命名空间管理、标签管理
 - 应用服务：面向 Controller 的用例编排
 - Repository 接口定义（实现在 infra）
 
-### astron-skills-auth
+### skillhub-auth
 - Spring Security OAuth2 Client 配置（一期 GitHub，可扩展多 Provider）
 - `CustomOAuth2UserService`：OAuth2 用户 → 平台用户映射
 - `IdentityBindingService`：外部身份 → 平台用户绑定
@@ -66,13 +66,13 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
 - RBAC：角色定义、权限点、资源级授权判定
 - 用户实体：UserAccount, IdentityBinding, ApiToken, Role, Permission, UserRoleBinding
 
-### astron-skills-search
+### skillhub-search
 - SPI 接口：`SearchIndexService`, `SearchQueryService`, `SearchRebuildService`
 - 一期实现：`MysqlFullTextIndexService`, `MysqlFullTextQueryService`
 - 独立搜索文档表 `skill_search_document`
 - 未来扩展点：ES / 向量检索实现
 
-### astron-skills-storage
+### skillhub-storage
 - SPI 接口：`ObjectStorageService`
 - 一期实现：S3 兼容实现（MinIO / AWS S3）
 - 文件哈希校验、打包下载
@@ -81,7 +81,7 @@ storage → (独立抽象)     # 纯 SPI，不依赖 domain
   - 打包路径：`packages/{skillId}/{versionId}/bundle.zip`
   - 临时上传：`tmp/{uploadId}/{filePath}`（24h GC 清理）
 
-### astron-skills-infra
+### skillhub-infra
 - MyBatis-Plus Mapper 实现
 - Repository 实现
 - 通用工具（ID 生成、时间、JSON 等）
@@ -107,7 +107,7 @@ web/
 ## 7. Monorepo 顶层结构
 
 ```
-astron-skills/
+skillhub/
 ├── server/               # Maven 多模块 Java 后端
 ├── web/                  # React 前端
 ├── Makefile              # 顶层构建编排（dev / build / docker）

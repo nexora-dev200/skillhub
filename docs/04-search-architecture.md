@@ -1,4 +1,4 @@
-# Astron Skills 搜索架构
+# skillhub 搜索架构
 
 ## 1 SPI 接口
 

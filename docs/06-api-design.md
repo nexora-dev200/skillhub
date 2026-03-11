@@ -1,4 +1,4 @@
-# Astron Skills API 设计
+# skillhub API 设计
 
 ## 7.1 Public API（匿名可访问）
 
@@ -97,13 +97,13 @@ Public API 的可见性规则：
 
 ### ClawHub CLI 协议兼容层
 
-一期不仅提供 Astron 自有 CLI API，还必须暴露一组兼容 ClawHub CLI 的 registry API。
+一期不仅提供 skillhub 自有 CLI API，还必须暴露一组兼容 ClawHub CLI 的 registry API。
 
-- 目标：让现有 ClawHub CLI 可通过配置 registry base URL 直接对接 Astron Skills
+- 目标：让现有 ClawHub CLI 可通过配置 registry base URL 直接对接 skillhub
 - 范围：覆盖 ClawHub CLI 所依赖的查询、版本解析、下载、发布、校验等核心接口
-- 要求：兼容层优先保持 ClawHub CLI 既有请求/响应语义；若内部领域模型不同，通过 adapter 层完成协议转换，而不是要求客户端适配 Astron 私有协议
+- 要求：兼容层优先保持 ClawHub CLI 既有请求/响应语义；若内部领域模型不同，通过 adapter 层完成协议转换，而不是要求客户端适配 skillhub 私有协议
 - 要求：兼容层纳入 OpenAPI 或独立兼容协议文档，并作为正式对外契约维护
-- 要求：兼容层与 Astron 自有 `/api/v1/cli/**` 并存，二者共享同一套权限、审计、限流与领域服务
+- 要求：兼容层与 skillhub 自有 `/api/v1/cli/**` 并存，二者共享同一套权限、审计、限流与领域服务
 - 非目标：前端页面不直接依赖兼容层；兼容层用于服务已有 ClawHub CLI 和相关自动化脚本
 
 兼容层最少需要覆盖的能力类别：
@@ -113,7 +113,7 @@ Public API 的可见性规则：
 - Publish workflow：包上传、发布状态查询、提交审核
 - Integrity check：版本存在性校验、摘要/哈希比对、whoami/token 上下文确认
 
-如 ClawHub CLI 的现有协议与 Astron 自有接口存在差异，文档以“兼容 ClawHub CLI 协议”为准，Astron 内部 API 可继续保持当前风格。
+如 ClawHub CLI 的现有协议与 skillhub 自有接口存在差异，文档以“兼容 ClawHub CLI 协议”为准，skillhub 内部 API 可继续保持当前风格。
 
 ## 7.6 Admin API（需对应平台角色）
 

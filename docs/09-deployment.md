@@ -1,4 +1,4 @@
-# Astron Skills 部署架构与运维
+# skillhub 部署架构与运维
 
 ## 1 K8s 部署拓扑
 
@@ -87,6 +87,6 @@ Makefile 顶层命令：`make dev-server`, `make dev-web`, `make build`, `make d
 ## 7 数据库迁移
 
 Flyway 管理 schema 变更：
-- 脚本路径：`server/astron-skills-app/src/main/resources/db/migration/`
+- 脚本路径：`server/skillhub-app/src/main/resources/db/migration/`
 - 命名：`V{version}__{description}.sql`
 - 多 Pod 安全：Flyway 自带数据库锁

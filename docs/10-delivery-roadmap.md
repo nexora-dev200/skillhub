@@ -1,4 +1,4 @@
-# Astron Skills 交付路线
+# skillhub 交付路线
 
 ## Phase 0：设计定稿（当前阶段）
 
@@ -80,7 +80,7 @@
 
 ### 验收
 
-发布必须经审核，分级审核权限生效，Astron CLI 全流程可用，ClawHub CLI 通过兼容层可完成核心 registry 操作，评分收藏可用
+发布必须经审核，分级审核权限生效，skillhub CLI 全流程可用，ClawHub CLI 通过兼容层可完成核心 registry 操作，评分收藏可用
 
 ## Phase 4：运维增强 + 打磨
 
@@ -109,4 +109,4 @@
 | 搜索效果不佳 | SPI 架构允许随时切换实现 |
 | 前后端接口频繁变更 | OpenAPI spec 先行，类型自动生成 |
 | 新增 OAuth Provider | Spring Security OAuth2 原生多 Provider 支持，只需配置 + 属性映射 |
-| ClawHub CLI 协议细节与现有模型不完全一致 | 增加兼容适配层与协议回归测试，避免把 Astron 内部模型直接暴露给兼容客户端 |
+| ClawHub CLI 协议细节与现有模型不完全一致 | 增加兼容适配层与协议回归测试，避免把 skillhub 内部模型直接暴露给兼容客户端 |
