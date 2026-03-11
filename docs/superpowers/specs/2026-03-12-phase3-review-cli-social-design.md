@@ -138,6 +138,43 @@ Phase 2 设计中 `skill_version.status` 直接到 PUBLISHED，Phase 3 需要调
 
 Phase 2 代码中的自动审核逻辑在 Phase 3 移除，改为创建 review_task 等待人工审核。
 
+**Phase 2 已有数据的处理：**
+
+1. **已发布的技能（status=PUBLISHED）**
+   - 保持现状，无需补充审核
+   - 视为已通过审核的技能
+   - 后续新版本发布需要经过审核流程
+
+2. **草稿状态的技能（status=DRAFT）**
+   - 保持 DRAFT 状态
+   - 用户需要手动提交审核才能发布
+
+3. **待审核状态的技能（status=PENDING_REVIEW）**
+   - Phase 2 中不应该存在此状态（因为自动通过）
+   - 如果存在，需要补充创建 review_task 记录
+   - 迁移脚本：
+     ```sql
+     -- 为 Phase 2 遗留的 PENDING_REVIEW 版本创建审核任务
+     INSERT INTO review_task (skill_version_id, namespace_id, status, submitted_by, submitted_at)
+     SELECT
+       sv.id,
+       s.namespace_id,
+       'PENDING',
+       sv.created_by,
+       sv.created_at
+     FROM skill_version sv
+     JOIN skill s ON sv.skill_id = s.id
+     WHERE sv.status = 'PENDING_REVIEW'
+       AND NOT EXISTS (
+         SELECT 1 FROM review_task rt WHERE rt.skill_version_id = sv.id
+       );
+     ```
+
+4. **数据一致性检查**
+   - 检查所有 PUBLISHED 版本是否有对应的 skill.latest_version_id
+   - 检查所有 PENDING_REVIEW 版本是否有对应的 review_task
+   - 迁移脚本在 Phase 3 部署前执行
+
 ---
 
 ## 2. 审核流程设计
@@ -1865,16 +1902,20 @@ web/src/
 1. OAuth Device Flow 实现
    - DeviceAuthService：生成 device code、授权、轮询 token
    - DeviceAuthController：device code 端点、token 端点
-   - DeviceAuthWebController：Web 授权页面
+   - DeviceAuthWebController：Web 授权页面后端
 2. CLI API 端点
    - whoami：查询当前用户信息
    - publish：发布技能（复用 Phase 2 逻辑）
    - resolve：解析技能版本
    - check：检查技能包有效性
-3. 前端 Device Auth 页面
-   - 输入 user code
-   - 确认授权
-   - 授权成功提示
+3. 前端 Device Auth 页面（`/device`）
+   - 页面组件：`web/src/pages/device-auth.tsx`
+   - User Code 输入表单（8 字符，自动格式化为 ABCD-1234）
+   - 输入校验（格式校验、存在性校验）
+   - 授权确认对话框（显示 CLI 设备信息）
+   - 授权成功页面（提示用户返回 CLI）
+   - 错误处理（无效 code、过期 code、已使用 code）
+   - 路由配置：`/device` 路由需要登录
 4. CLI 工具集成测试（手动测试）
 
 **验收标准：**
