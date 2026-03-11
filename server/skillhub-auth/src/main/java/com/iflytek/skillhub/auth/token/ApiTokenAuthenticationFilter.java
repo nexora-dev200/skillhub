@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -63,5 +62,13 @@ public class ApiTokenAuthenticationFilter extends OncePerRequestFilter {
             });
         }
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return !(path.startsWith("/api/v1/cli/")
+            || path.startsWith("/api/v1/tokens")
+            || path.startsWith("/api/compat/"));
     }
 }

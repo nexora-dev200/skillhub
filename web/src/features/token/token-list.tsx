@@ -71,7 +71,7 @@ export function TokenList() {
             </TableHeader>
             <TableBody>
               {tokens.map((token) => (
-                <TableRow key={token.tokenId}>
+                <TableRow key={token.id}>
                   <TableCell className="font-medium">{token.name}</TableCell>
                   <TableCell>
                     <code className="text-sm bg-muted px-2 py-1 rounded">
@@ -85,7 +85,7 @@ export function TokenList() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => handleDelete(token.tokenId, token.name)}
+                      onClick={() => handleDelete(token.id, token.name)}
                       disabled={deleteMutation.isPending}
                     >
                       删除

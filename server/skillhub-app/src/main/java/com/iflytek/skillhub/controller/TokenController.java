@@ -29,10 +29,14 @@ public class TokenController {
 
         var result = apiTokenService.createToken(principal.userId(), name, scopeJson);
         return ResponseEntity.ok(Map.of(
-            "token", result.rawToken(),
-            "id", result.entity().getId(),
-            "name", result.entity().getName(),
-            "tokenPrefix", result.entity().getTokenPrefix()
+            "data", Map.of(
+                "token", result.rawToken(),
+                "id", result.entity().getId(),
+                "name", result.entity().getName(),
+                "tokenPrefix", result.entity().getTokenPrefix(),
+                "createdAt", result.entity().getCreatedAt().toString(),
+                "expiresAt", result.entity().getExpiresAt() != null ? result.entity().getExpiresAt().toString() : ""
+            )
         ));
     }
 
