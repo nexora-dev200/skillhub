@@ -5978,18 +5978,110 @@ Phase 2 Chunk 1 backend complete:
 
 ### Chunk 1 验收标准
 
-1. ✅ `V2__phase2_skill_tables.sql` 迁移成功
-2. ✅ Phase 1 实体补齐（Namespace.type/avatarUrl, NamespaceMember.updatedAt）
-3. ✅ 对象存储 LocalFile + S3 双实现
-4. ✅ 命名空间 CRUD + 成员管理 API
-5. ✅ CLI/Web 发布接口：zip → 校验 → 存储 → PUBLISHED
-6. ✅ 技能详情、版本列表、文件清单、文件内容 API
-7. ✅ 下载 API：latest / 指定版本 / 按标签
-8. ✅ 标签 CRUD API，latest 标签不可操作
-9. ✅ 搜索 API：关键词 + 可见性过滤 + 排序 + 分页
-10. ✅ 异步事件：发布后索引更新，下载后计数递增
-11. ✅ 限流：超限 429，Redis 不可用 fail-open
-12. ✅ 所有后端测试通过
+运行以下命令验证 Chunk 1 完成：
+
+```bash
+# 1. 启动依赖服务
+make dev
+
+# 2. 运行所有后端测试
+cd server && ./mvnw test
+# Expected: BUILD SUCCESS, all tests pass
+
+# 3. 启动后端应用
+cd server && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local &
+sleep 15
+
+# 4. 验证 Phase 2 数据库迁移
+docker compose exec postgres psql -U skillhub -d skillhub -c "\dt skill*"
+# Expected: 列出 skill, skill_version, skill_file, skill_tag, skill_search_document 五张表
+
+# 5. 验证命名空间 CRUD（创建命名空间）
+curl -s -X POST http://localhost:8080/api/v1/namespaces \
+  -H "Content-Type: application/json" \
+  -d '{"slug":"test-ns","displayName":"Test NS","description":"test"}' | jq .
+# Expected: {"code":0,"data":{"slug":"test-ns","displayName":"Test NS",...}}
+
+# 6. 验证命名空间查询
+curl -s http://localhost:8080/api/v1/namespaces/test-ns | jq .
+# Expected: {"code":0,"data":{"slug":"test-ns",...}}
+
+# 7. 验证 CLI 发布接口（创建测试 zip）
+mkdir -p /tmp/test-skill && cat > /tmp/test-skill/SKILL.md << 'SKILLEOF'
+---
+name: hello-world
+description: A test skill
+version: 1.0.0
+---
+# Hello World
+Test skill body.
+SKILLEOF
+cd /tmp/test-skill && zip -r /tmp/test-skill.zip . && cd -
+
+curl -s -X POST http://localhost:8080/api/v1/cli/publish \
+  -F "file=@/tmp/test-skill.zip" \
+  -F "namespace=test-ns" \
+  -F "visibility=PUBLIC" | jq .
+# Expected: {"code":0,"data":{"slug":"hello-world","version":"1.0.0","status":"PUBLISHED",...}}
+
+# 8. 验证技能详情查询
+curl -s http://localhost:8080/api/v1/skills/test-ns/hello-world | jq .
+# Expected: {"code":0,"data":{"slug":"hello-world","displayName":"hello-world",...}}
+
+# 9. 验证版本列表
+curl -s http://localhost:8080/api/v1/skills/test-ns/hello-world/versions | jq .
+# Expected: {"code":0,"data":{"content":[{"version":"1.0.0","status":"PUBLISHED",...}],...}}
+
+# 10. 验证文件清单
+curl -s "http://localhost:8080/api/v1/skills/test-ns/hello-world/versions/1.0.0/files" | jq .
+# Expected: {"code":0,"data":[{"filePath":"SKILL.md",...}]}
+
+# 11. 验证下载最新版本
+curl -s -o /tmp/download-test.zip -w "%{http_code}" \
+  http://localhost:8080/api/v1/skills/test-ns/hello-world/download
+# Expected: 200, /tmp/download-test.zip 为有效 zip 文件
+
+# 12. 验证标签管理（创建标签）
+curl -s -X PUT http://localhost:8080/api/v1/skills/test-ns/hello-world/tags/stable \
+  -H "Content-Type: application/json" \
+  -d '{"targetVersion":"1.0.0"}' | jq .
+# Expected: {"code":0,"data":{"tagName":"stable","version":"1.0.0",...}}
+
+# 13. 验证标签列表
+curl -s http://localhost:8080/api/v1/skills/test-ns/hello-world/tags | jq .
+# Expected: 包含 "stable" 和虚拟 "latest" 标签
+
+# 14. 验证按标签下载
+curl -s -o /tmp/download-tag.zip -w "%{http_code}" \
+  http://localhost:8080/api/v1/skills/test-ns/hello-world/tags/stable/download
+# Expected: 200
+
+# 15. 验证搜索 API
+curl -s "http://localhost:8080/api/v1/skills?q=hello&sort=relevance&page=0&size=20" | jq .
+# Expected: {"code":0,"data":{"items":[{"slug":"hello-world",...}],"total":1,...}}
+
+# 16. 验证搜索空关键词（列表模式）
+curl -s "http://localhost:8080/api/v1/skills?sort=newest&page=0&size=20" | jq .
+# Expected: {"code":0,"data":{"items":[...],"total":...}}
+
+# 17. 验证限流（连续请求触发 429）
+for i in $(seq 1 25); do
+  code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:8080/api/v1/skills?q=test")
+  echo "Request $i: $code"
+done
+# Expected: 前 20 次返回 200，之后返回 429（匿名 search 限额 20 次/60s）
+
+# 18. 验证限流 header
+curl -s -D - "http://localhost:8080/api/v1/skills?q=test" 2>&1 | grep -i "x-ratelimit\|retry-after"
+# Expected: X-RateLimit-Remaining header 存在
+
+# 19. 停止应用并清理
+kill %1 2>/dev/null
+rm -rf /tmp/test-skill /tmp/test-skill.zip /tmp/download-test.zip /tmp/download-tag.zip
+make dev-down
+```
+
+Chunk 1 产出：Phase 2 全部后端功能 — 数据库迁移 + 对象存储 + 命名空间管理 + 技能发布/查询/下载 + 标签管理 + PostgreSQL 全文搜索 + 异步事件 + Redis 滑动窗口限流。
 
 ---
 
