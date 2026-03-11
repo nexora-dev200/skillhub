@@ -3,6 +3,13 @@ import { Layout } from './layout'
 import { HomePage } from '@/pages/home'
 import { LoginPage } from '@/pages/login'
 import { DashboardPage } from '@/pages/dashboard'
+import { SearchPage } from '@/pages/search'
+import { NamespacePage } from '@/pages/namespace'
+import { SkillDetailPage } from '@/pages/skill-detail'
+import { PublishPage } from '@/pages/dashboard/publish'
+import { MySkillsPage } from '@/pages/dashboard/my-skills'
+import { MyNamespacesPage } from '@/pages/dashboard/my-namespaces'
+import { NamespaceMembersPage } from '@/pages/dashboard/namespace-members'
 import { getCurrentUser } from '@/api/client'
 
 const rootRoute = createRootRoute({
@@ -21,6 +28,31 @@ const loginRoute = createRoute({
   component: LoginPage,
 })
 
+const searchRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/search',
+  component: SearchPage,
+  validateSearch: (search: Record<string, unknown>) => {
+    return {
+      q: (search.q as string) || '',
+      sort: (search.sort as string) || 'relevance',
+      page: Number(search.page) || 1,
+    }
+  },
+})
+
+const namespaceRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/@$namespace',
+  component: NamespacePage,
+})
+
+const skillDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/@$namespace/$slug',
+  component: SkillDetailPage,
+})
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/dashboard',
@@ -34,7 +66,70 @@ const dashboardRoute = createRoute({
   component: DashboardPage,
 })
 
-const routeTree = rootRoute.addChildren([homeRoute, loginRoute, dashboardRoute])
+const dashboardSkillsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/skills',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    return { user }
+  },
+  component: MySkillsPage,
+})
+
+const dashboardPublishRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/publish',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    return { user }
+  },
+  component: PublishPage,
+})
+
+const dashboardNamespacesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/namespaces',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    return { user }
+  },
+  component: MyNamespacesPage,
+})
+
+const dashboardNamespaceMembersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard/namespaces/$slug/members',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    return { user }
+  },
+  component: NamespaceMembersPage,
+})
+
+const routeTree = rootRoute.addChildren([
+  homeRoute,
+  loginRoute,
+  searchRoute,
+  namespaceRoute,
+  skillDetailRoute,
+  dashboardRoute,
+  dashboardSkillsRoute,
+  dashboardPublishRoute,
+  dashboardNamespacesRoute,
+  dashboardNamespaceMembersRoute,
+])
 
 export const router = createRouter({ routeTree })
 
