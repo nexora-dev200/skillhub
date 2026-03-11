@@ -1,0 +1,212 @@
+# Astron Skills API 设计
+
+## 7.1 Public API（匿名可访问）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/skills` | 搜索/列表（匿名仅返回 PUBLIC 技能） |
+| GET | `/api/v1/skills/{namespace}/{slug}` | 技能详情（PUBLIC 匿名可访问） |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions` | 版本列表 |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}` | 版本详情 |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/files` | 文件清单 |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/file?path=...` | 读取单个文件（query param 避免路径中 / 的解析问题） |
+| GET | `/api/v1/skills/{namespace}/{slug}/download` | 下载默认安装版本（latest_version_id 指向的版本） |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/download` | 下载指定版本包 |
+| GET | `/api/v1/namespaces` | 公开命名空间列表 |
+| GET | `/api/v1/namespaces/{slug}` | 命名空间详情 |
+
+Public API 的可见性规则：
+- `PUBLIC` 技能：匿名和已登录用户均可访问
+- `NAMESPACE_ONLY` 技能：仅该命名空间成员可访问（需登录）
+- `PRIVATE` 技能：owner 本人 + 该 namespace 的 ADMIN 以上可访问（需登录）
+
+## 7.2 Auth API（OAuth2 登录相关）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/oauth2/authorization/github` | 发起 GitHub OAuth 登录（Spring Security 内置） |
+| GET | `/login/oauth2/code/github` | GitHub OAuth 回调（Spring Security 内置） |
+| GET | `/api/v1/auth/me` | 当前用户信息（未登录返回 401） |
+| POST | `/api/v1/auth/logout` | 登出（清除 Session） |
+| GET | `/api/v1/auth/providers` | 可用的 OAuth Provider 列表（前端渲染登录按钮用） |
+
+`/api/v1/auth/providers` 响应示例：
+
+```json
+{
+  "data": [
+    { "id": "github", "name": "GitHub", "authorizationUrl": "/oauth2/authorization/github" }
+  ]
+}
+```
+
+前端根据此接口动态渲染登录按钮，新增 Provider 无需改前端代码。
+
+## 7.3 Authenticated API（需登录）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/skills/{namespace}/{slug}/star` | 收藏 |
+| DELETE | `/api/v1/skills/{namespace}/{slug}/star` | 取消收藏 |
+| POST | `/api/v1/skills/{namespace}/{slug}/rating` | 评分 |
+| GET | `/api/v1/me/stars` | 我的收藏列表 |
+| GET | `/api/v1/me/skills` | 我发布的技能列表 |
+
+### 草稿与审核提交
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/skills/{namespace}/{slug}/versions/{version}/submit-review` | 将 DRAFT 版本提交审核（前置：file_transfer_status=COMPLETED） |
+| POST | `/api/v1/skills/{namespace}/{slug}/versions/{version}/withdraw-review` | 撤回提审（PENDING_REVIEW → DRAFT，同时删除关联的 PENDING review_task） |
+| GET | `/api/v1/skills/{namespace}/{slug}/versions/{version}/draft` | 查看草稿详情（owner 或 namespace ADMIN 以上） |
+
+### 标签管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/skills/{namespace}/{slug}/tags` | 列出标签 |
+| PUT | `/api/v1/skills/{namespace}/{slug}/tags/{tagName}` | 创建/移动自定义标签（`latest` 为系统保留标签，不可通过此接口操作） |
+| DELETE | `/api/v1/skills/{namespace}/{slug}/tags/{tagName}` | 删除自定义标签（`latest` 不可删） |
+
+### 技能生命周期管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/skills/{namespace}/{slug}/archive` | 归档技能（namespace ADMIN 或 owner） |
+| POST | `/api/v1/skills/{namespace}/{slug}/unarchive` | 恢复归档（namespace ADMIN 或 owner） |
+| DELETE | `/api/v1/skills/{namespace}/{slug}/versions/{version}` | 删除 DRAFT/REJECTED 版本 |
+
+## 7.4 Token API（需登录）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/tokens` | 创建 API Token |
+| GET | `/api/v1/tokens` | 列出我的 Token |
+| DELETE | `/api/v1/tokens/{id}` | 吊销 Token |
+
+## 7.5 CLI API（API Token 认证）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/cli/whoami` | Token 对应的用户信息 |
+| POST | `/api/v1/cli/publish` | 发布技能包（返回 202 + publishId） |
+| GET | `/api/v1/cli/publish/{publishId}/status` | 查询发布状态（文件转正 + 提审进度） |
+| POST | `/api/v1/cli/publish/submit-review` | 手动提交审核（auto_submit=false 时使用） |
+| GET | `/api/v1/cli/resolve/{namespace}/{slug}` | 解析版本 |
+| GET | `/api/v1/cli/check/{namespace}/{slug}/{version}` | 本地哈希与远端比对 |
+
+### ClawHub CLI 协议兼容层
+
+一期不仅提供 Astron 自有 CLI API，还必须暴露一组兼容 ClawHub CLI 的 registry API。
+
+- 目标：让现有 ClawHub CLI 可通过配置 registry base URL 直接对接 Astron Skills
+- 范围：覆盖 ClawHub CLI 所依赖的查询、版本解析、下载、发布、校验等核心接口
+- 要求：兼容层优先保持 ClawHub CLI 既有请求/响应语义；若内部领域模型不同，通过 adapter 层完成协议转换，而不是要求客户端适配 Astron 私有协议
+- 要求：兼容层纳入 OpenAPI 或独立兼容协议文档，并作为正式对外契约维护
+- 要求：兼容层与 Astron 自有 `/api/v1/cli/**` 并存，二者共享同一套权限、审计、限流与领域服务
+- 非目标：前端页面不直接依赖兼容层；兼容层用于服务已有 ClawHub CLI 和相关自动化脚本
+
+兼容层最少需要覆盖的能力类别：
+
+- Registry metadata：技能查询、技能详情、版本列表、标签/默认版本解析
+- Artifact resolution：按技能坐标或版本解析下载地址/下载流
+- Publish workflow：包上传、发布状态查询、提交审核
+- Integrity check：版本存在性校验、摘要/哈希比对、whoami/token 上下文确认
+
+如 ClawHub CLI 的现有协议与 Astron 自有接口存在差异，文档以“兼容 ClawHub CLI 协议”为准，Astron 内部 API 可继续保持当前风格。
+
+## 7.6 Admin API（需对应平台角色）
+
+Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
+
+### 技能治理（需 SKILL_ADMIN / SUPER_ADMIN）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/admin/reviews` | 待审核列表 |
+| GET | `/api/v1/admin/reviews/{id}` | 审核详情 |
+| POST | `/api/v1/admin/reviews/{id}/approve` | 通过审核 |
+| POST | `/api/v1/admin/reviews/{id}/reject` | 拒绝审核 |
+| GET | `/api/v1/admin/promotions` | 待审核提升申请列表 |
+| GET | `/api/v1/admin/promotions/{id}` | 提升申请详情 |
+| POST | `/api/v1/admin/promotions/{id}/approve` | 通过提升申请 |
+| POST | `/api/v1/admin/promotions/{id}/reject` | 拒绝提升申请 |
+| POST | `/api/v1/admin/skills/{id}/hide` | 隐藏技能 |
+| POST | `/api/v1/admin/skills/{id}/unhide` | 恢复技能 |
+| POST | `/api/v1/admin/skills/{id}/yank/{versionId}` | 撤回已发布版本 |
+
+### 用户治理（需 USER_ADMIN / SUPER_ADMIN）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/admin/users` | 用户列表 |
+| GET | `/api/v1/admin/users/{id}` | 用户详情 |
+| PUT | `/api/v1/admin/users/{id}/roles` | 修改用户角色（USER_ADMIN 不可分配 SUPER_ADMIN） |
+| POST | `/api/v1/admin/users/{id}/approve` | 审批待准入用户 |
+| POST | `/api/v1/admin/users/{id}/disable` | 封禁用户 |
+| POST | `/api/v1/admin/users/{id}/enable` | 解封用户 |
+
+### 审计（需 AUDITOR / SUPER_ADMIN）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/v1/admin/audit-logs` | 审计日志查询 |
+
+## 7.7 Namespace 管理 API（需命名空间 OWNER 或 ADMIN）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/v1/namespaces` | 创建命名空间 |
+| PUT | `/api/v1/namespaces/{slug}` | 更新命名空间信息 |
+| GET | `/api/v1/namespaces/{slug}/members` | 成员列表 |
+| POST | `/api/v1/namespaces/{slug}/members` | 添加成员 |
+| PUT | `/api/v1/namespaces/{slug}/members/{userId}` | 修改成员角色 |
+| DELETE | `/api/v1/namespaces/{slug}/members/{userId}` | 移除成员 |
+| GET | `/api/v1/namespaces/{slug}/reviews` | 该空间待审核列表 |
+| POST | `/api/v1/namespaces/{slug}/reviews/{id}/approve` | 空间管理员审核通过 |
+| POST | `/api/v1/namespaces/{slug}/reviews/{id}/reject` | 空间管理员审核拒绝 |
+| POST | `/api/v1/namespaces/{slug}/skills/{skillId}/promote` | 申请提升到全局 |
+
+## 7.8 `latest` 语义说明
+
+`latest` 自动跟随最新已发布版本，不可手动移动。
+
+- `skill.latest_version_id`：每次审核通过自动更新，始终指向最新 PUBLISHED 版本
+- `latest` 标签：系统保留，只读，自动与 `latest_version_id` 同步
+- 自定义标签（如 `beta`、`stable-2026q1`）：允许人工创建和移动，用于固定安装通道
+
+| 场景 | 使用字段 | 说明 |
+|------|---------|------|
+| 搜索索引内容 | `latest_version_id` | 搜索文档取最新已发布版本内容 |
+| `/download`（不带版本号） | `latest_version_id` | 下载最新已发布版本 |
+| CLI `install @team/skill` | `latest_version_id` | 等同于 `@latest` |
+| CLI `install @team/skill@beta` | `skill_tag` 查询 | 自定义标签指向的版本 |
+
+## 7.9 Rate Limiting
+
+分两阶段实施：
+
+### Phase 1：Ingress 层基础限流
+
+通过 Nginx Ingress `limit-req` 按 IP 全局限流，覆盖认证、搜索、下载等匿名可访问接口，防止基本的滥用和爬虫。
+
+### Phase 2：应用层精细限流
+
+基于 Redis 滑动窗口，按用户/端点分类的精细限流。
+
+| 端点类别 | 限流策略 |
+|---------|---------|
+| 搜索 API | 已登录 60 次/分钟，匿名 20 次/分钟（按 IP） |
+| 下载 API | 已登录 120 次/分钟，匿名 30 次/分钟（按 IP） |
+| 发布 API | 10 次/小时（按用户） |
+| 认证 API | 30 次/分钟（按 IP） |
+
+触发限流时返回 `429 Too Many Requests` + `Retry-After` Header。
+
+## 7.10 API 设计原则
+
+- 统一响应格式：`{ code, message, data, timestamp }`
+- 分页格式：`{ items, total, page, size }`
+- 错误码体系：业务错误码 + HTTP 状态码配合
+- 版本策略：URL path 版本 `/api/v1/`
+- 幂等性：写操作通过 `X-Request-Id` + Redis 去重（TTL 24h）

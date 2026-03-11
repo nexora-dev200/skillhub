@@ -1,0 +1,118 @@
+# Astron Skills 产品定位与 MVP 范围
+
+## 1. 定位
+
+单实例共享技能注册中心（Skills Hub / Registry），不是多租户平台。
+
+- 平台只有一个共享注册中心实例
+- 隔离边界是 namespace，不是租户
+- `@global` 是平台级公共空间，由平台管理员管理
+- `@team-*` 是协作与治理边界（部门/团队），不是租户边界
+- 公共技能（visibility=PUBLIC）匿名可浏览和下载
+
+以 ClawHub 为产品蓝本（继承产品模型，不照搬技术实现），以 OpenSkills 借鉴 SKILL.md 格式和目录结构约定（不兼容其客户端运行时行为）。
+
+同时，一期必须提供 ClawHub CLI 协议兼容层：服务端需要暴露一组与 ClawHub CLI 兼容的 registry API，使现有 ClawHub CLI 在不修改或仅最小配置修改的前提下可完成 registry 侧查询、解析、下载、发布、校验等核心操作。
+
+## 2. 参考项目取舍
+
+### 2.1 继承 ClawHub 的部分
+
+- Skill Registry 的整体产品边界
+- 技能版本、标签、下载的业务模型
+- 发布后治理机制（报告、标记、隐藏、撤回）
+- Web 浏览、详情页、上传发布、管理后台的功能切分
+- 公共查询 API 与 CLI API 的双通道设计
+- ClawHub CLI 所依赖的 registry API 协议面
+- Skill 元数据提取与服务端校验思路
+- 审计、收藏、评分、统计、运营标签等扩展位
+
+不直接继承：
+- Convex 数据模型与运行时
+- 向量检索的一期实现方式
+
+### 2.2 借鉴 OpenSkills 的部分
+
+- `SKILL.md` 格式兼容（frontmatter + markdown body）
+- 技能包目录结构约定（SKILL.md + references/ + scripts/ + assets/）
+- 四级目录优先级（`.agent/skills` → `~/.agent/skills` → `.claude/skills` → `~/.claude/skills`）
+- 目录名作为 lookup key（安装后目录名 = skill slug）
+- AGENTS.md `<skill>` 描述块格式兼容
+- 目标：Astron CLI 安装的技能可被 OpenSkills/Claude 兼容客户端发现和使用
+
+不直接继承：
+- 以 CLI 为中心的产品定位
+- "无服务端"的前提
+
+## 3. 产品原则
+
+- Hub 优先：服务端是核心，CLI 和 Agent 集成是入口能力
+- 兼容优先：兼容 `SKILL.md` 及常见目录约定
+- CLI 兼容优先：除 Astron CLI 外，一期明确要求实现 ClawHub CLI 协议兼容层
+- 分层优先：搜索、对象存储都必须有可替换边界
+- 开放认证：基于标准 OAuth2 协议，一期 GitHub 登录，架构支持后续扩展多 Provider
+- 审计优先：企业内部分发平台必须保留发布、下载、删除、授权等审计链路
+
+## 4. 一期 MVP 功能
+
+核心能力：
+- 技能发布（提交 → 审核 → 上线，每版本审核）
+- 技能版本管理（semver + 标签）
+- 技能浏览、详情、下载（公共技能匿名可访问）
+- 标签管理（`latest` 系统保留只读 + 自定义标签人工维护）
+- 技能包文件校验与 SKILL.md 元数据抽取
+- 基于 MySQL 全文索引的搜索
+
+命名空间与组织：
+- 单一全局命名空间（`@global/skill-name`），由平台管理员管理，不支持多个平台级 namespace
+- 团队/部门命名空间（`@team-slug/skill-name`）
+- 命名空间成员管理
+- 创建技能时选择归属空间
+
+审核流程：
+- 每版本审核策略
+- 分级审核：团队空间由团队管理员审核，全局空间由平台管理员审核
+- 团队技能提升到全局需平台管理员二次审核
+- 平台管理员拥有全局审核权
+- 一期纯人工审核，架构预留自动预检扩展点（`PrePublishValidator`）
+
+认证与权限：
+- OAuth2 标准登录（一期 GitHub OAuth）
+- API Token（CLI / agent 使用）
+- ClawHub CLI 协议兼容层（registry API 兼容查询、解析、下载、发布、校验等核心接口）
+- RBAC 角色权限体系（平台角色：SUPER_ADMIN / SKILL_ADMIN / USER_ADMIN / AUDITOR + 命名空间角色）
+- 管理后台：用户角色管理、发布审核
+
+社交功能：
+- 收藏（star）
+- 评分（1-5 分）
+
+审计：
+- 发布、审核、下载、删除等关键操作审计
+
+## 5. 一期明确不做（含后续规划）
+
+- 评论 → Phase 5 上线，含举报机制
+- 自动安全扫描 → Phase 5 上线，接入 `PrePublishValidator` 扩展点
+- 举报/标记机制 → Phase 5 上线，配合评论和治理闭环
+- 向量搜索 → Phase 3（搜索演进路线）
+- 在线编辑器 → 暂不规划
+- Webhook/事件通知 → Phase 5（预留扩展点）
+- 技能依赖/兼容性声明 → 暂不规划（预留 `parsed_metadata_json` 字段）
+
+### latest 语义说明
+
+这是有意的产品决策，不是继承 ClawHub 的回滚模型：
+
+- `latest` 自动跟随最新已发布版本，只读，不可手动移动
+- 回滚/稳定通道管理通过自定义标签实现（如 `stable`、`beta`、`stable-2026q1`）
+- ClawHub 的"通过移动 latest 做回滚"能力被替换为"通过自定义标签做通道管理"
+
+## 6. 一期核心约束
+
+- Skill 包视为"文本资源包"，不接受二进制大文件
+- 技能包主入口文件固定为 `SKILL.md`
+- 元数据以 `SKILL.md` frontmatter 为主，数据库持久化解析结果
+- 文件内容原文存对象存储，检索面向数据库中的派生字段与可索引文本
+- Web 认证与 API Token 认证分离，但统一汇聚到平台用户体系
+- 公共技能（visibility=PUBLIC）匿名可浏览和下载，无需登录

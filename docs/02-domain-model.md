@@ -1,0 +1,395 @@
+# Astron Skills 领域模型与数据模型
+
+## 3.1 核心实体
+
+### namespace
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | 主键 |
+| slug | varchar(64) | URL 友好标识 |
+| display_name | varchar(128) | 展示名 |
+| type | enum | `GLOBAL` / `TEAM` |
+| description | text | 描述 |
+| avatar_url | varchar(512) | 头像 |
+| status | enum | `ACTIVE` / `FROZEN` / `ARCHIVED` |
+| created_by | bigint | 创建人 |
+| created_at | datetime | |
+| updated_at | datetime | |
+
+- `GLOBAL` 类型全局唯一（只有一个 `@global`），由平台管理员管理
+- `TEAM` 类型对应部门/团队，可创建多个
+- 技能完整寻址：`@{namespace_slug}/{skill_slug}`
+- slug 唯一约束：`slug`
+- slug 格式校验：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，长度 2-64
+- slug 保留词列表（用户创建 namespace 时不可使用）：`admin`, `api`, `dashboard`, `search`, `auth`, `me`, `global`, `system`, `static`, `assets`, `health`
+- 系统内置 namespace（`@global`）在数据库初始化时由 Flyway 脚本预置，绕过 slug 校验规则。保留词校验仅作用于用户创建 namespace 的接口
+- 状态语义：
+  - `ACTIVE`：正常使用
+  - `FROZEN`：冻结，只读不可发布新版本，已有技能仍可浏览/下载
+  - `ARCHIVED`：归档，对外不可见
+
+### namespace_member
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| namespace_id | bigint | |
+| user_id | bigint | |
+| role | enum | `OWNER` / `ADMIN` / `MEMBER` |
+| created_at | datetime | |
+| updated_at | datetime | |
+
+- `OWNER`：命名空间创建者，可转让
+- `ADMIN`：可审核该空间内的技能发布、管理成员
+- `MEMBER`：可在该空间内发布技能（提交审核）
+- 唯一约束：`(namespace_id, user_id)`，一个用户在一个空间只有一个角色
+
+### skill
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| namespace_id | bigint | 所属命名空间 |
+| slug | varchar(128) | URL 友好标识 |
+| display_name | varchar(256) | |
+| summary | varchar(512) | |
+| owner_id | bigint | 主要维护人（可转让） |
+| source_skill_id | bigint | 派生来源（团队技能提升到全局时记录原 skill ID），nullable |
+| visibility | enum | `PUBLIC` / `NAMESPACE_ONLY` / `PRIVATE` |
+| status | enum | `ACTIVE` / `HIDDEN` / `ARCHIVED` |
+| latest_version_id | bigint | 最新已发布版本（自动跟随，每次发布自动更新） |
+| download_count | bigint | |
+| star_count | int | |
+| rating_avg | decimal(3,2) | 平均评分 |
+| rating_count | int | 评分人数 |
+| created_by | bigint | |
+| created_at | datetime | |
+| updated_by | bigint | |
+| updated_at | datetime | |
+
+- 唯一约束：`(namespace_id, slug)`
+- `owner_id` 语义为"主要维护人"，可转让。权限主轴是 namespace role，不是 owner：
+  - namespace ADMIN 对空间内所有 skill 有完整管理权（归档、版本管理、提升到全局），不受 owner 限制
+  - owner 作为 MEMBER 时可管理自己创建的 skill（提交审核、编辑草稿）
+  - owner 离职/换组后，namespace ADMIN 仍能完整管理所有技能
+- `rating_avg` / `rating_count` 冗余字段，避免每次查询聚合
+- `slug`：面向用户的 URL 标识，来自 SKILL.md 的 `name` 字段，首次发布后不可变更。slug 格式校验规则与 namespace slug 相同：`[a-z0-9]([a-z0-9-]*[a-z0-9])?`，同样适用保留词限制
+- `source_skill_id`：仅在"团队技能提升到全局"场景下填充，记录原始团队空间的 skill ID，用于追溯来源
+- 提升关系的唯一事实来源是 `promotion_request` 表，UI 查询"是否已提升"通过 `SELECT ... FROM promotion_request WHERE source_skill_id=? AND status='APPROVED'` 判定
+
+### skill_version
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_id | bigint | |
+| version | varchar(32) | semver |
+| version_sort | bigint | 排序用数值 |
+| changelog | text | |
+| manifest_json | json | 文件清单 |
+| parsed_metadata_json | json | SKILL.md frontmatter 解析结果 |
+| status | enum | `DRAFT` / `PENDING_REVIEW` / `PUBLISHED` / `REJECTED` / `YANKED` |
+| file_transfer_status | enum | `PENDING` / `COMPLETED` / `FAILED`，异步文件转正状态 |
+| reject_reason | varchar(512) | 拒绝原因 |
+| published_by | bigint | |
+| published_at | datetime | |
+| created_at | datetime | |
+
+- `status` 覆盖完整审核生命周期
+- 状态机：`DRAFT → PENDING_REVIEW → PUBLISHED / REJECTED`，`PUBLISHED → YANKED`
+- `DRAFT → PENDING_REVIEW` 前置条件：`file_transfer_status = COMPLETED`
+- 唯一约束：`(skill_id, version)` 防止重复发布
+- `YANKED` 状态：已发布后撤回
+
+版本号不可变性规则：
+
+| 版本状态 | 版本号处理 |
+|---------|-----------|
+| DRAFT | 可删除该版本记录，重新使用同版本号 |
+| PENDING_REVIEW | 可撤回到 DRAFT，然后删除 |
+| REJECTED | 可删除该版本记录，重新使用同版本号 |
+| PUBLISHED | 版本号永久占用，不可复用 |
+| YANKED | 版本号永久占用，不可复用，版本列表中显示但标记为不可下载 |
+
+### skill_file
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_version_id | bigint | |
+| file_path | varchar(512) | |
+| content_type | varchar(128) | |
+| size_bytes | bigint | |
+| sha256 | varchar(64) | |
+| object_key | varchar(512) | |
+| is_entry_file | boolean | |
+| created_at | datetime | |
+
+### skill_tag
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_id | bigint | |
+| tag_name | varchar(64) | |
+| target_version_id | bigint | |
+| created_by | bigint | |
+| created_at | datetime | |
+| updated_by | bigint | |
+| updated_at | datetime | |
+
+- `latest` 是系统保留标签，只读，自动跟随 `skill.latest_version_id`，不允许 API 手动移动
+- 自定义标签（如 `beta`、`stable-2026q1`）允许人工创建和移动
+- 唯一约束：`(skill_id, tag_name)`
+
+### review_task
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_version_id | bigint | 关联的版本 |
+| namespace_id | bigint | 所属空间（决定谁能审核） |
+| status | enum | `PENDING` / `APPROVED` / `REJECTED` |
+| version | int | 乐观锁版本号，默认 1 |
+| submitted_by | bigint | 提交人 |
+| reviewed_by | bigint | 审核人 |
+| review_comment | text | 审核意见 |
+| submitted_at | datetime | |
+| reviewed_at | datetime | |
+
+- 仅用于普通发布审核，"提升到全局"使用独立的 `promotion_request` 表
+- `version` 字段用于乐观锁，防止多 Pod 并发审核
+- 业务约束：同一 `skill_version_id` 在 `status=PENDING` 时只能存在一条记录，重复提交返回 409 Conflict。撤回（PENDING → 删除 review_task + skill_version 回退到 DRAFT）后才能再次提交
+
+### promotion_request
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| source_skill_id | bigint | 来源团队 skill |
+| source_version_id | bigint | 申请提升的版本 |
+| target_namespace_id | bigint | 目标全局 namespace |
+| target_skill_id | bigint | 审批通过后生成的全局 skill ID，nullable |
+| status | enum | `PENDING` / `APPROVED` / `REJECTED` |
+| version | int | 乐观锁版本号，默认 1 |
+| submitted_by | bigint | 提交人 |
+| reviewed_by | bigint | 审核人 |
+| review_comment | text | 审核意见 |
+| submitted_at | datetime | |
+| reviewed_at | datetime | |
+
+- 完整表达"哪个团队 skill 的哪一版被申请提升到哪个全局空间"
+- 审批通过后填充 `target_skill_id`，指向全局空间新创建的 skill
+- `promotion_request` 是提升关系的唯一事实来源，skill 表不再冗余 `promoted_to_skill_id`
+- 业务约束：同一 `source_version_id` 在 `status=PENDING` 时只能存在一条记录，重复提交返回 409 Conflict
+
+### skill_star
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_id | bigint | |
+| user_id | bigint | |
+| created_at | datetime | |
+
+唯一约束：`(skill_id, user_id)`
+
+### skill_rating
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_id | bigint | |
+| user_id | bigint | |
+| score | tinyint | 1-5 |
+| created_at | datetime | |
+| updated_at | datetime | |
+
+唯一约束：`(skill_id, user_id)`，每人每技能一条，可修改
+
+### user_account
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| display_name | varchar(128) | |
+| email | varchar(256) | |
+| avatar_url | varchar(512) | |
+| status | enum | `ACTIVE` / `PENDING` / `DISABLED` / `MERGED` |
+| merged_to_user_id | bigint | 合并目标用户 ID，仅 MERGED 状态有值 |
+| created_at | datetime | |
+| updated_at | datetime | |
+
+- 状态语义：
+  - `ACTIVE`：正常使用
+  - `PENDING`：等待管理员审批（AccessPolicy 返回 PENDING_APPROVAL 时创建）
+  - `DISABLED`：管理员封禁，登录后拒绝所有操作，返回 403
+  - `MERGED`：已合并到其他账号，保留记录不物理删除，登录时自动跳转到合并目标账号
+- 授权层在每次请求时检查用户状态，非 `ACTIVE` 用户拒绝所有写操作
+
+### identity_binding
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| user_id | bigint | |
+| provider_code | varchar(64) | 如 `github` |
+| subject | varchar(256) | OAuth Provider 返回的唯一用户标识 |
+| login_name | varchar(128) | 如 GitHub login |
+| extra_json | json | 原始扩展字段 |
+| created_at | datetime | |
+| updated_at | datetime | |
+
+- 唯一约束：`(provider_code, subject)`
+- 一期只接入 GitHub OAuth，但表结构支持后续扩展多个 OAuth Provider
+
+### api_token
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| subject_type | varchar(32) | `USER`（一期）/ `SERVICE_ACCOUNT`（预留） |
+| subject_id | bigint | 关联主体 ID（一期等同于 user_id） |
+| user_id | bigint | 兼容字段，一期与 subject_id 相同 |
+| name | varchar(128) | Token 名称（必填），如"CI/CD"、"本地开发" |
+| token_prefix | varchar(16) | |
+| token_hash | varchar(64) | |
+| scope_json | json | |
+| expires_at | datetime | |
+| last_used_at | datetime | |
+| revoked_at | datetime | |
+| created_at | datetime | |
+
+### audit_log
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| actor_user_id | bigint | |
+| action | varchar(64) | |
+| target_type | varchar(64) | |
+| target_id | bigint | |
+| request_id | varchar(64) | |
+| client_ip | varchar(64) | |
+| user_agent | varchar(512) | |
+| detail_json | json | |
+| created_at | datetime | |
+
+## 3.2 RBAC 实体
+
+一期即上线完整 RBAC，平台角色按最小权限拆分，避免所有治理能力压在单一超管角色上。
+
+平台角色（一期内置，Flyway 预置）：
+
+| 角色 code | 说明 | 典型权限 |
+|-----------|------|---------|
+| `SUPER_ADMIN` | 平台超管，拥有所有权限 | 全部 |
+| `SKILL_ADMIN` | 技能治理：全局空间审核、提升审核、隐藏/撤回 | `review:approve`, `skill:manage`, `promotion:approve` |
+| `USER_ADMIN` | 用户治理：准入审批、封禁/解封、角色分配（不可分配 SUPER_ADMIN） | `user:manage`, `user:approve` |
+| `AUDITOR` | 审计只读：查看审计日志 | `audit:read` |
+
+- 命名空间权限仍由 `namespace_member.role`（OWNER / ADMIN / MEMBER）决定，不走 RBAC 表
+- 一个用户可持有多个平台角色（多条 `user_role_binding`）
+- `SUPER_ADMIN` 隐含所有权限，代码中硬判定短路
+
+### role
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| code | varchar(64) | `SUPER_ADMIN` / `SKILL_ADMIN` / `USER_ADMIN` / `AUDITOR` |
+| name | varchar(128) | 展示名 |
+| description | varchar(512) | |
+| is_system | boolean | 系统内置角色不可删除 |
+| created_at | datetime | |
+
+### permission
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| code | varchar(128) | 如 `skill:publish`, `review:approve`, `user:manage` |
+| name | varchar(128) | |
+| group_code | varchar(64) | 权限分组 |
+
+### role_permission
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| role_id | bigint | |
+| permission_id | bigint | |
+
+### user_role_binding
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| user_id | bigint | |
+| role_id | bigint | |
+| created_at | datetime | |
+
+## 3.3 搜索文档表
+
+### skill_search_document
+
+一个 skill 对应一条搜索文档，内容取 `latest_version_id` 对应版本。
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | bigint | |
+| skill_id | bigint | 唯一，一 skill 一条 |
+| namespace_id | bigint | 用于空间过滤 |
+| owner_id | bigint | 用于 PRIVATE 可见性判定 |
+| title | varchar(256) | |
+| summary | varchar(512) | |
+| keywords | varchar(512) | |
+| search_text | text | SKILL.md 正文 + frontmatter 拼接 |
+| visibility | enum | 冗余，避免搜索时 join |
+| status | enum | |
+| updated_at | datetime | |
+
+MySQL Full-Text Index 建在 `(title, summary, keywords, search_text)` 上。
+
+## 3.4 幂等记录表
+
+### idempotency_record
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| request_id | varchar(64) | 主键，客户端传入的 UUID v4 |
+| resource_type | varchar(64) | 如 `skill_version`, `api_token` |
+| resource_id | bigint | 业务操作产生的资源 ID |
+| status | enum | `PROCESSING` / `COMPLETED` / `FAILED` |
+| response_status_code | int | 原始响应状态码 |
+| created_at | datetime | |
+| expires_at | datetime | 过期时间（默认 24h） |
+
+- 流程：收到请求 → 插入 record（PROCESSING）→ 业务处理 → 更新为 COMPLETED + resource_id → 重复请求时查 record 返回已有结果
+- Redis 做快速去重缓存（SETNX），MySQL 做持久化兜底
+- 定时任务清理过期记录
+
+## 3.5 关键索引设计
+
+| 表 | 索引 | 用途 |
+|------|------|------|
+| namespace | `(slug)` UNIQUE | 唯一约束 |
+| skill | `(namespace_id, status)` | 命名空间内技能列表 |
+| skill | `(namespace_id, slug)` UNIQUE | 唯一约束 |
+| skill_version | `(skill_id, status)` | 版本列表 |
+| skill_version | `(skill_id, version)` UNIQUE | 唯一约束 |
+| skill_tag | `(skill_id, tag_name)` UNIQUE | 标签唯一约束 |
+| review_task | `(namespace_id, status)` | 审核列表 |
+| review_task | `(submitted_by, status)` | 我的提交 |
+| promotion_request | `(source_skill_id)` | 按来源 skill 查询 |
+| promotion_request | `(status)` | 待审核列表 |
+| idempotency_record | `(expires_at)` | 过期清理 |
+| audit_log | `(created_at)` | 审计查询 |
+| audit_log | `(actor_user_id, created_at)` | 用户操作历史 |
+| skill_star | `(user_id)` | 我的收藏 |
+| skill_star | `(skill_id)` | 技能收藏数 |
+| skill_rating | `(skill_id)` | 评分聚合 |
+| namespace_member | `(namespace_id, user_id)` UNIQUE | 成员唯一约束 |
+| namespace_member | `(user_id)` | 用户所属空间 |
+| identity_binding | `(provider_code, subject)` UNIQUE | 身份查找 |
+| api_token | `(token_hash)` | Token 校验 |

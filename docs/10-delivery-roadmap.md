@@ -1,0 +1,112 @@
+# Astron Skills 交付路线
+
+## Phase 0：设计定稿（当前阶段）
+
+产出：架构设计文档、数据库 DDL、API OpenAPI spec 草案、前端线框图
+
+## Phase 1：工程骨架 + 认证打通
+
+### 后端
+
+- Maven 多模块初始化（6 个模块）
+- Spring Boot 启动、配置、Profile 分层
+- Flyway + 数据库初始化
+- Redis 集成（Session + 分布式锁）
+- Spring Security OAuth2 Client 配置（GitHub OAuth 登录）
+- CustomOAuth2UserService + IdentityBindingService（自动注册/绑定）
+- Spring Session (Redis) 管理、API Token 签发校验
+- RBAC 基础（SUPER_ADMIN / SKILL_ADMIN / USER_ADMIN / AUDITOR + 命名空间角色）
+- 全局异常处理、requestId 透传、日志格式
+- Springdoc OpenAPI、健康检查
+- CSRF 防护（Cookie-to-Header 模式，CLI API 豁免）
+- 本地开发 MockAuthFilter（`local` profile）
+- 基础限流：Nginx Ingress `limit-req` 按 IP 限流（认证/搜索/下载接口）
+
+### 前端
+
+- Vite + React + TypeScript 初始化
+- shadcn/ui + Tailwind 配置
+- TanStack Router 路由骨架、TanStack Query 配置
+- openapi-fetch 客户端生成管线
+- 布局组件、OAuth 登录流程（调用 `/api/v1/auth/providers` → 跳转）
+- 登录态检测（`/api/v1/auth/me`）+ 路由守卫
+- Makefile 顶层编排
+
+### 验收
+
+前后端能跑，GitHub OAuth 登录可用，AccessPolicy 准入策略生效，`/api/v1/auth/me` 可用，Token 可用，OpenAPI spec 可访问，Ingress 基础限流生效
+
+## Phase 2：命名空间 + Skill 核心链路
+
+### 后端
+
+- 命名空间 CRUD + 成员管理
+- 对象存储集成
+- 技能发布（上传 → 校验 → 存储 → draft）
+- 技能查询（详情、版本、文件）、下载（打包 + 可见性检查，PUBLIC 匿名可下载）
+- 标签管理、搜索（MySQL Full-Text，匿名搜索限 PUBLIC）
+- 异步事件基础设施
+- Rate Limiting 升级（应用层精细限流：按用户/端点分类，基于 Redis 滑动窗口）
+
+### 前端
+
+- 首页、搜索页、命名空间主页（匿名可访问）
+- 技能详情页、版本历史页（PUBLIC 匿名可浏览/下载）
+- 发布页、我的技能列表
+- 命名空间管理页
+
+### 验收
+
+完整发布 → 存储 → 查询 → 下载链路，搜索可用，命名空间隔离生效，匿名用户可浏览/下载公共技能
+
+## Phase 3：审核流程 + 评分收藏 + CLI API / ClawHub 兼容层
+
+### 后端
+
+- 审核流程（提交 → 审核 → 发布，含乐观锁）
+- 团队技能提升到全局（promotion_request 流程）
+- 评分 + 收藏 + 计数器（原子更新）
+- CLI API（whoami、publish、resolve、check）
+- ClawHub CLI 协议兼容层（registry metadata、resolve、download、publish、check 等核心接口）
+- 协议适配器与兼容性测试（针对 ClawHub CLI 的真实请求/响应样例）
+- 审计日志（同步落库）、幂等去重（idempotency_record + Redis）
+
+### 前端
+
+- 审核中心、命名空间审核页、提升审核页
+- 评分组件 + 收藏按钮（匿名用户点击提示登录）、我的收藏页
+- Token 管理页
+- 管理后台（用户管理、角色分配、准入审批、封禁/解封）
+
+### 验收
+
+发布必须经审核，分级审核权限生效，Astron CLI 全流程可用，ClawHub CLI 通过兼容层可完成核心 registry 操作，评分收藏可用
+
+## Phase 4：运维增强 + 打磨
+
+- 审计日志查询页面
+- 技能隐藏/恢复/版本撤回
+- Prometheus 指标暴露
+- Docker 镜像 + K8s 部署清单
+- 性能优化、安全加固
+- 文档完善
+- 后续 OAuth Provider 扩展准备（GitLab、Google 等）
+
+## Phase 5：治理闭环 + 社交
+
+- 评论功能
+- 举报/标记机制（用户举报 → 管理员处理 → 隐藏/撤回）
+- 自动安全预检（`PrePublishValidator` 实现：敏感信息扫描、恶意脚本检测）
+- Webhook/事件通知（发布通知、审核结果通知）
+- 多 Provider 账号显式绑定/合并流程
+
+## 主要风险与应对
+
+| 风险 | 应对 |
+|------|------|
+| GitHub OAuth 回调配置复杂 | 本地用 MockAuthFilter 解耦，OAuth 联调可并行 |
+| 审核流程需求变更 | skill_version.status 已预留审核状态 |
+| 搜索效果不佳 | SPI 架构允许随时切换实现 |
+| 前后端接口频繁变更 | OpenAPI spec 先行，类型自动生成 |
+| 新增 OAuth Provider | Spring Security OAuth2 原生多 Provider 支持，只需配置 + 属性映射 |
+| ClawHub CLI 协议细节与现有模型不完全一致 | 增加兼容适配层与协议回归测试，避免把 Astron 内部模型直接暴露给兼容客户端 |
