@@ -66,6 +66,7 @@ public class SecurityConfig {
                     "/api/v1/health",
                     "/api/v1/auth/providers",
                     "/api/v1/auth/me",
+                    "/api/v1/cli/auth/device/**",
                     "/actuator/health",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
