@@ -6,6 +6,8 @@
 
 **Architecture:** Maven 多模块后端（6 模块）扩展 + React 前端页面。后端采用领域服务集中式架构，domain 模块包含领域服务和应用服务。对象存储 SPI 双实现（LocalFile + S3），搜索 SPI PostgreSQL Full-Text 实现。发布流程 Phase 2 跳过审核直接到 PUBLISHED。
 
+**身份主键约束：** 用户身份主键全链路统一使用 `string`。本计划中所有 `userId` / `ownerId` / `createdBy` / `updatedBy` / `reviewedBy` 等用户标识字段均按字符串实现；旧的 `Long` / `BIGINT` 表述仅代表历史残留，不得继续照抄到代码或数据库设计。
+
 **Tech Stack:**
 - Backend: Spring Boot 3.x + JDK 21 + PostgreSQL 16 + Redis 7 + Spring Data JPA + Flyway + AWS SDK v2 (S3) + SnakeYAML
 - Frontend: React 19 + TypeScript + Vite + TanStack Router + TanStack Query + shadcn/ui + Tailwind CSS + react-markdown + react-dropzone
@@ -192,7 +194,7 @@ CREATE TABLE skill (
     slug VARCHAR(128) NOT NULL,
     display_name VARCHAR(256),
     summary VARCHAR(512),
-    owner_id BIGINT NOT NULL REFERENCES user_account(id),
+    owner_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     source_skill_id BIGINT,
     visibility VARCHAR(32) NOT NULL DEFAULT 'PUBLIC',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
@@ -201,9 +203,9 @@ CREATE TABLE skill (
     star_count INT NOT NULL DEFAULT 0,
     rating_avg DECIMAL(3,2) NOT NULL DEFAULT 0.00,
     rating_count INT NOT NULL DEFAULT 0,
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by BIGINT REFERENCES user_account(id),
+    updated_by VARCHAR(128) REFERENCES user_account(id),
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(namespace_id, slug)
 );
@@ -222,7 +224,7 @@ CREATE TABLE skill_version (
     file_count INT NOT NULL DEFAULT 0,
     total_size BIGINT NOT NULL DEFAULT 0,
     published_at TIMESTAMP,
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, version)
 );
@@ -251,7 +253,7 @@ CREATE TABLE skill_tag (
     skill_id BIGINT NOT NULL REFERENCES skill(id),
     tag_name VARCHAR(64) NOT NULL,
     version_id BIGINT NOT NULL REFERENCES skill_version(id),
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, tag_name)
@@ -263,7 +265,7 @@ CREATE TABLE skill_search_document (
     skill_id BIGINT NOT NULL UNIQUE REFERENCES skill(id),
     namespace_id BIGINT NOT NULL,
     namespace_slug VARCHAR(64) NOT NULL,
-    owner_id BIGINT NOT NULL,
+    owner_id VARCHAR(128) NOT NULL,
     title VARCHAR(256),
     summary VARCHAR(512),
     keywords VARCHAR(512),
@@ -409,7 +411,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable);
-void deleteByNamespaceIdAndUserId(Long namespaceId, Long userId);
+void deleteByNamespaceIdAndUserId(Long namespaceId, String userId);
 ```
 
 - [ ] **Step 6: 更新 NamespaceJpaRepository 实现**
@@ -433,7 +435,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable);
-void deleteByNamespaceIdAndUserId(Long namespaceId, Long userId);
+void deleteByNamespaceIdAndUserId(Long namespaceId, String userId);
 ```
 
 - [ ] **Step 8: 编译验证**
@@ -2156,7 +2158,7 @@ public interface PrePublishValidator {
     record SkillPackageContext(
             List<PackageEntry> entries,
             SkillMetadata metadata,
-            Long publisherId,
+            String publisherId,
             Long namespaceId
     ) {}
 }
@@ -2530,7 +2532,7 @@ import java.util.Map;
 
 public class VisibilityChecker {
 
-    public boolean canAccess(Skill skill, Long currentUserId,
+    public boolean canAccess(Skill skill, String currentUserId,
                              Map<Long, NamespaceRole> userNamespaceRoles) {
         return switch (skill.getVisibility()) {
             case PUBLIC -> true;
@@ -2540,7 +2542,7 @@ public class VisibilityChecker {
         };
     }
 
-    private boolean isOwner(Skill skill, Long currentUserId) {
+    private boolean isOwner(Skill skill, String currentUserId) {
         return currentUserId != null && skill.getOwnerId().equals(currentUserId);
     }
 
@@ -2894,7 +2896,7 @@ public class NamespaceMemberService {
     }
 
     @Transactional
-    public NamespaceMember addMember(Long namespaceId, Long userId, NamespaceRole role) {
+    public NamespaceMember addMember(Long namespaceId, String userId, NamespaceRole role) {
         if (role == NamespaceRole.OWNER) {
             throw new IllegalArgumentException("Cannot directly add member as OWNER, use transferOwnership");
         }
@@ -2910,7 +2912,7 @@ public class NamespaceMemberService {
     }
 
     @Transactional
-    public void removeMember(Long namespaceId, Long userId) {
+    public void removeMember(Long namespaceId, String userId) {
         NamespaceMember member = memberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
                 .orElseThrow(() -> new IllegalArgumentException("Member not found"));
         if (member.getRole() == NamespaceRole.OWNER) {
@@ -2920,7 +2922,7 @@ public class NamespaceMemberService {
     }
 
     @Transactional
-    public void updateMemberRole(Long namespaceId, Long userId, NamespaceRole newRole) {
+    public void updateMemberRole(Long namespaceId, String userId, NamespaceRole newRole) {
         if (newRole == NamespaceRole.OWNER) {
             throw new IllegalArgumentException("Cannot set OWNER via updateMemberRole, use transferOwnership");
         }
@@ -2931,7 +2933,7 @@ public class NamespaceMemberService {
     }
 
     @Transactional
-    public void transferOwnership(Long namespaceId, Long currentOwnerId, Long newOwnerId) {
+    public void transferOwnership(Long namespaceId, String currentOwnerId, String newOwnerId) {
         NamespaceMember currentOwner = memberRepository.findByNamespaceIdAndUserId(namespaceId, currentOwnerId)
                 .orElseThrow(() -> new IllegalArgumentException("Current owner not found"));
         NamespaceMember newOwner = memberRepository.findByNamespaceIdAndUserId(namespaceId, newOwnerId)
@@ -2943,7 +2945,7 @@ public class NamespaceMemberService {
         memberRepository.save(newOwner);
     }
 
-    public Optional<NamespaceRole> getMemberRole(Long namespaceId, Long userId) {
+    public Optional<NamespaceRole> getMemberRole(Long namespaceId, String userId) {
         return memberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
                 .map(NamespaceMember::getRole);
     }
@@ -3035,7 +3037,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record MemberRequest(
-        @NotNull Long userId,
+        @NotNull String userId,
         @NotBlank String role
 ) {}
 EOF
@@ -3050,7 +3052,7 @@ import java.time.LocalDateTime;
 public record MemberResponse(
         Long id,
         Long namespaceId,
-        Long userId,
+        String userId,
         String role,
         LocalDateTime createdAt
 ) {
@@ -3124,7 +3126,7 @@ public class NamespaceController {
     @PostMapping
     public ResponseEntity<?> createNamespace(
             @Valid @RequestBody NamespaceRequest request,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         Namespace ns = namespaceService.createNamespace(
                 request.slug(), request.displayName(), request.description(), userId);
         return ResponseEntity.ok(Map.of("code", 0, "data", NamespaceResponse.from(ns)));
@@ -3134,7 +3136,7 @@ public class NamespaceController {
     public ResponseEntity<?> updateNamespace(
             @PathVariable String slug,
             @RequestBody Map<String, String> body,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         Namespace ns = namespaceService.getNamespaceBySlug(slug);
         Namespace updated = namespaceService.updateNamespace(
                 ns.getId(),
@@ -3175,7 +3177,7 @@ public class NamespaceController {
     @DeleteMapping("/{slug}/members/{userId}")
     public ResponseEntity<?> removeMember(
             @PathVariable String slug,
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
         Namespace ns = namespaceService.getNamespaceBySlug(slug);
         memberService.removeMember(ns.getId(), userId);
         return ResponseEntity.ok(Map.of("code", 0, "message", "Member removed"));
@@ -3184,7 +3186,7 @@ public class NamespaceController {
     @PutMapping("/{slug}/members/{userId}/role")
     public ResponseEntity<?> updateMemberRole(
             @PathVariable String slug,
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestBody Map<String, String> body) {
         Namespace ns = namespaceService.getNamespaceBySlug(slug);
         memberService.updateMemberRole(ns.getId(), userId,
@@ -3243,7 +3245,7 @@ mkdir -p server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event
 cat > server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/SkillPublishedEvent.java << 'EOF'
 package com.iflytek.skillhub.domain.event;
 
-public record SkillPublishedEvent(Long skillId, Long versionId, Long publisherId) {}
+public record SkillPublishedEvent(Long skillId, Long versionId, String publisherId) {}
 EOF
 
 cat > server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/SkillDownloadedEvent.java << 'EOF'
@@ -3488,7 +3490,7 @@ cat >> server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/se
     @Transactional
     public SkillVersion publishFromEntries(String namespaceSlug,
                                             List<PackageEntry> entries,
-                                            Long publisherId,
+                                            String publisherId,
                                             SkillVisibility visibility) {
         // ① 解析 namespace
         Namespace ns = namespaceRepository.findBySlug(namespaceSlug)
@@ -3802,7 +3804,7 @@ public class SkillQueryService {
     ) {}
 
     public SkillDetailDTO getSkillDetail(String namespaceSlug, String skillSlug,
-                                          Long currentUserId,
+                                          String currentUserId,
                                           Map<Long, NamespaceRole> userNsRoles) {
         Namespace ns = findNamespace(namespaceSlug);
         Skill skill = skillRepository.findByNamespaceIdAndSlug(ns.getId(), skillSlug)
@@ -3826,7 +3828,7 @@ public class SkillQueryService {
     }
 
     public Page<Skill> listSkillsByNamespace(String namespaceSlug,
-                                              Long currentUserId,
+                                              String currentUserId,
                                               Map<Long, NamespaceRole> userNsRoles,
                                               Pageable pageable) {
         Namespace ns = findNamespace(namespaceSlug);
@@ -4047,7 +4049,7 @@ public class SkillDownloadService {
     }
 
     public DownloadResult downloadLatest(String namespaceSlug, String skillSlug,
-                                          Long currentUserId,
+                                          String currentUserId,
                                           Map<Long, NamespaceRole> userNsRoles) {
         Skill skill = findAndCheckAccess(namespaceSlug, skillSlug, currentUserId, userNsRoles);
         if (skill.getLatestVersionId() == null) {
@@ -4059,7 +4061,7 @@ public class SkillDownloadService {
     }
 
     public DownloadResult downloadVersion(String namespaceSlug, String skillSlug,
-                                           String versionStr, Long currentUserId,
+                                           String versionStr, String currentUserId,
                                            Map<Long, NamespaceRole> userNsRoles) {
         Skill skill = findAndCheckAccess(namespaceSlug, skillSlug, currentUserId, userNsRoles);
         SkillVersion version = versionRepository.findBySkillIdAndVersion(skill.getId(), versionStr)
@@ -4068,7 +4070,7 @@ public class SkillDownloadService {
     }
 
     public DownloadResult downloadByTag(String namespaceSlug, String skillSlug,
-                                         String tagName, Long currentUserId,
+                                         String tagName, String currentUserId,
                                          Map<Long, NamespaceRole> userNsRoles) {
         Skill skill = findAndCheckAccess(namespaceSlug, skillSlug, currentUserId, userNsRoles);
         SkillTag tag = tagRepository.findBySkillIdAndTagName(skill.getId(), tagName)
@@ -4079,7 +4081,7 @@ public class SkillDownloadService {
     }
 
     private Skill findAndCheckAccess(String namespaceSlug, String skillSlug,
-                                      Long currentUserId,
+                                      String currentUserId,
                                       Map<Long, NamespaceRole> userNsRoles) {
         Namespace ns = namespaceRepository.findBySlug(namespaceSlug)
                 .orElseThrow(() -> new IllegalArgumentException("Namespace not found"));
@@ -4493,7 +4495,7 @@ public class CliPublishController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("namespace") String namespace,
             @RequestParam(value = "visibility", defaultValue = "PUBLIC") String visibility,
-            @AuthenticationPrincipal Long userId) throws IOException {
+            @AuthenticationPrincipal String userId) throws IOException {
 
         List<PackageEntry> entries = extractZip(file);
         SkillVisibility vis = SkillVisibility.valueOf(visibility);
@@ -4563,7 +4565,7 @@ public class SkillPublishController {
             @PathVariable String namespace,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "visibility", defaultValue = "PUBLIC") String visibility,
-            @AuthenticationPrincipal Long userId) throws IOException {
+            @AuthenticationPrincipal String userId) throws IOException {
 
         List<PackageEntry> entries = extractZip(file);
         SkillVisibility vis = SkillVisibility.valueOf(visibility);
@@ -4637,7 +4639,7 @@ public class SkillController {
     public ResponseEntity<?> getSkillDetail(
             @PathVariable String namespace,
             @PathVariable String slug,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         var detail = queryService.getSkillDetail(namespace, slug, userId, Map.of());
         return ResponseEntity.ok(Map.of("code", 0, "data", detail));
     }
@@ -4688,7 +4690,7 @@ public class SkillController {
     public ResponseEntity<?> downloadLatest(
             @PathVariable String namespace,
             @PathVariable String slug,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         var result = downloadService.downloadLatest(namespace, slug, userId, Map.of());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -4703,7 +4705,7 @@ public class SkillController {
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String version,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         var result = downloadService.downloadVersion(
                 namespace, slug, version, userId, Map.of());
         return ResponseEntity.ok()
@@ -4759,7 +4761,7 @@ public class SkillTagController {
             @PathVariable String slug,
             @PathVariable String tagName,
             @Valid @RequestBody TagRequest request,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         SkillTag tag = tagService.createOrMoveTag(
                 namespace, slug, tagName, request.targetVersion(), userId);
         return ResponseEntity.ok(Map.of("code", 0, "data", TagResponse.from(tag)));
@@ -4770,7 +4772,7 @@ public class SkillTagController {
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String tagName,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         tagService.deleteTag(namespace, slug, tagName, userId);
         return ResponseEntity.ok(Map.of("code", 0, "message", "Tag deleted"));
     }
@@ -4846,7 +4848,7 @@ package com.iflytek.skillhub.search;
 import java.util.Set;
 
 public record SearchVisibilityScope(
-        Long userId,
+        String userId,
         Set<Long> memberNamespaceIds,
         Set<Long> adminNamespaceIds
 ) {
@@ -5317,7 +5319,7 @@ public class SkillSearchAppService {
 
     public SearchResultDTO searchSkills(String keyword, String namespaceSlug,
                                          String sortBy, int page, int size,
-                                         Long currentUserId) {
+                                         String currentUserId) {
         Long namespaceId = null;
         if (namespaceSlug != null && !namespaceSlug.isBlank()) {
             namespaceId = namespaceRepository.findBySlug(namespaceSlug)
@@ -5341,7 +5343,7 @@ public class SkillSearchAppService {
         return new SearchResultDTO(items, result.total(), result.page(), result.size());
     }
 
-    private SearchVisibilityScope buildScope(Long userId) {
+    private SearchVisibilityScope buildScope(String userId) {
         // Simplified: in production, load user's namespace memberships
         return new SearchVisibilityScope(userId, Set.of(), Set.of());
     }
@@ -5396,7 +5398,7 @@ public class SkillSearchController {
             @RequestParam(value = "sort", defaultValue = "relevance") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         var result = searchAppService.searchSkills(keyword, namespace, sort, page, size, userId);
         return ResponseEntity.ok(Map.of("code", 0, "data", Map.of(
                 "items", result.items(),
@@ -6178,7 +6180,7 @@ export interface Namespace {
 export interface NamespaceMember {
   id: number;
   namespaceId: number;
-  userId: number;
+  userId: string;
   role: string;
   createdAt: string;
 }
@@ -7253,8 +7255,8 @@ import { Button } from '@/shared/ui/button';
 
 export function MemberTable({ members, onRemove, onRoleChange }: {
   members: NamespaceMember[];
-  onRemove?: (userId: number) => void;
-  onRoleChange?: (userId: number, role: string) => void;
+  onRemove?: (userId: string) => void;
+  onRoleChange?: (userId: string, role: string) => void;
 }) {
   return (
     <div className="border rounded-lg">

@@ -38,7 +38,7 @@ public record SearchVisibilityScope(
     boolean includeAllPublic,        // 是否包含所有 PUBLIC 技能
     Set<Long> memberNamespaceIds,    // 用户是 MEMBER 的 namespace（可见 NAMESPACE_ONLY）
     Set<Long> adminNamespaceIds,     // 用户是 ADMIN 的 namespace（可见 PRIVATE）
-    Long userId                      // 当前用户 ID（可见自己的 PRIVATE skill），匿名为 null
+    String userId                    // 当前用户 ID（可见自己的 PRIVATE skill），匿名为 null
 ) {}
 ```
 
@@ -64,7 +64,7 @@ WHERE (visibility = 'PUBLIC')
 | id | bigint | |
 | skill_id | bigint | 唯一，一 skill 一条 |
 | namespace_id | bigint | 用于空间过滤 |
-| owner_id | bigint | 用于 PRIVATE 可见性判定 |
+| owner_id | VARCHAR(128) | 用于 PRIVATE 可见性判定 |
 | title | varchar(256) | |
 | summary | varchar(512) | |
 | keywords | varchar(512) | |

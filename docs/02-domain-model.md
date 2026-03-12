@@ -1,5 +1,12 @@
 # skillhub 领域模型与数据模型
 
+## 0. 用户标识约束
+
+- 用户身份主键全链路统一为 `string`。
+- 本约束覆盖 `user_id`、`owner_id`、`created_by`、`updated_by`、`published_by`、`reviewed_by`、`actor_user_id` 及所有等价语义字段。
+- 历史文档里写成 `bigint` / `BIGINT` 的用户关联字段均应按字符串重新解释；这些旧类型描述不再作为实现依据。
+- 若未来数据库为了索引或存储效率引入内部 surrogate key，也只能作为内部实现细节，不能替代字符串 `userId` 成为认证、授权、审计和 API 契约的主键。
+
 ## 3.1 核心实体
 
 ### namespace
@@ -13,7 +20,7 @@
 | description | text | 描述 |
 | avatar_url | varchar(512) | 头像 |
 | status | enum | `ACTIVE` / `FROZEN` / `ARCHIVED` |
-| created_by | bigint | 创建人 |
+| created_by | varchar(128) | 创建人 |
 | created_at | datetime | |
 | updated_at | datetime | |
 
@@ -35,7 +42,7 @@
 |------|------|------|
 | id | bigint | |
 | namespace_id | bigint | |
-| user_id | bigint | |
+| user_id | varchar(128) | |
 | role | enum | `OWNER` / `ADMIN` / `MEMBER` |
 | created_at | datetime | |
 | updated_at | datetime | |
@@ -54,7 +61,7 @@
 | slug | varchar(128) | URL 友好标识 |
 | display_name | varchar(256) | |
 | summary | varchar(512) | |
-| owner_id | bigint | 主要维护人（可转让） |
+| owner_id | varchar(128) | 主要维护人（可转让） |
 | source_skill_id | bigint | 派生来源（团队技能提升到全局时记录原 skill ID），nullable |
 | visibility | enum | `PUBLIC` / `NAMESPACE_ONLY` / `PRIVATE` |
 | status | enum | `ACTIVE` / `HIDDEN` / `ARCHIVED` |
@@ -63,9 +70,9 @@
 | star_count | int | |
 | rating_avg | decimal(3,2) | 平均评分 |
 | rating_count | int | 评分人数 |
-| created_by | bigint | |
+| created_by | varchar(128) | |
 | created_at | datetime | |
-| updated_by | bigint | |
+| updated_by | varchar(128) | |
 | updated_at | datetime | |
 
 - 唯一约束：`(namespace_id, slug)`
@@ -91,7 +98,7 @@
 | parsed_metadata_json | json | SKILL.md frontmatter 解析结果 |
 | status | enum | `DRAFT` / `PENDING_REVIEW` / `PUBLISHED` / `REJECTED` / `YANKED` |
 | reject_reason | varchar(512) | 拒绝原因 |
-| published_by | bigint | |
+| published_by | varchar(128) | |
 | published_at | datetime | |
 | created_at | datetime | |
 
@@ -132,9 +139,9 @@
 | skill_id | bigint | |
 | tag_name | varchar(64) | |
 | target_version_id | bigint | |
-| created_by | bigint | |
+| created_by | varchar(128) | |
 | created_at | datetime | |
-| updated_by | bigint | |
+| updated_by | varchar(128) | |
 | updated_at | datetime | |
 
 - `latest` 是系统保留标签，只读，自动跟随 `skill.latest_version_id`，不允许 API 手动移动
@@ -151,8 +158,8 @@
 | namespace_id | bigint | 所属空间（决定谁能审核） |
 | status | enum | `PENDING` / `APPROVED` / `REJECTED` |
 | version | int | 乐观锁版本号，默认 1 |
-| submitted_by | bigint | 提交人 |
-| reviewed_by | bigint | 审核人 |
+| submitted_by | varchar(128) | 提交人 |
+| reviewed_by | varchar(128) | 审核人 |
 | review_comment | text | 审核意见 |
 | submitted_at | datetime | |
 | reviewed_at | datetime | |
@@ -173,8 +180,8 @@
 | target_skill_id | bigint | 审批通过后生成的全局 skill ID，nullable |
 | status | enum | `PENDING` / `APPROVED` / `REJECTED` |
 | version | int | 乐观锁版本号，默认 1 |
-| submitted_by | bigint | 提交人 |
-| reviewed_by | bigint | 审核人 |
+| submitted_by | varchar(128) | 提交人 |
+| reviewed_by | varchar(128) | 审核人 |
 | review_comment | text | 审核意见 |
 | submitted_at | datetime | |
 | reviewed_at | datetime | |
@@ -191,7 +198,7 @@
 |------|------|------|
 | id | bigint | |
 | skill_id | bigint | |
-| user_id | bigint | |
+| user_id | varchar(128) | |
 | created_at | datetime | |
 
 唯一约束：`(skill_id, user_id)`
@@ -202,7 +209,7 @@
 |------|------|------|
 | id | bigint | |
 | skill_id | bigint | |
-| user_id | bigint | |
+| user_id | varchar(128) | |
 | score | tinyint | 1-5 |
 | created_at | datetime | |
 | updated_at | datetime | |
@@ -218,7 +225,7 @@
 | email | varchar(256) | |
 | avatar_url | varchar(512) | |
 | status | enum | `ACTIVE` / `PENDING` / `DISABLED` / `MERGED` |
-| merged_to_user_id | bigint | 合并目标用户 ID，仅 MERGED 状态有值 |
+| merged_to_user_id | varchar(128) | 合并目标用户 ID，仅 MERGED 状态有值 |
 | created_at | datetime | |
 | updated_at | datetime | |
 
@@ -234,7 +241,7 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | bigint | |
-| user_id | bigint | |
+| user_id | varchar(128) | |
 | provider_code | varchar(64) | 如 `github` |
 | subject | varchar(256) | OAuth Provider 返回的唯一用户标识 |
 | login_name | varchar(128) | 如 GitHub login |
@@ -251,8 +258,8 @@
 |------|------|------|
 | id | bigint | |
 | subject_type | varchar(32) | `USER`（一期）/ `SERVICE_ACCOUNT`（预留） |
-| subject_id | bigint | 关联主体 ID（一期等同于 user_id） |
-| user_id | bigint | 兼容字段，一期与 subject_id 相同 |
+| subject_id | varchar(128) | 关联主体 ID（一期等同于 user_id） |
+| user_id | varchar(128) | 兼容字段，一期与 subject_id 相同 |
 | name | varchar(128) | Token 名称（必填），如"CI/CD"、"本地开发" |
 | token_prefix | varchar(16) | |
 | token_hash | varchar(64) | |
@@ -267,7 +274,7 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | bigint | |
-| actor_user_id | bigint | |
+| actor_user_id | varchar(128) | |
 | action | varchar(64) | |
 | target_type | varchar(64) | |
 | target_id | bigint | |
@@ -326,7 +333,7 @@
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | bigint | |
-| user_id | bigint | |
+| user_id | varchar(128) | |
 | role_id | bigint | |
 | created_at | datetime | |
 
@@ -341,7 +348,7 @@
 | id | bigint | |
 | skill_id | bigint | 唯一，一 skill 一条 |
 | namespace_id | bigint | 用于空间过滤 |
-| owner_id | bigint | 用于 PRIVATE 可见性判定 |
+| owner_id | varchar(128) | 用于 PRIVATE 可见性判定 |
 | title | varchar(256) | |
 | summary | varchar(512) | |
 | keywords | varchar(512) | |

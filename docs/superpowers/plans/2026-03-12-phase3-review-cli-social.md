@@ -11,6 +11,8 @@
 - 兼容层：Canonical slug 映射实现 ClawHub CLI 协议兼容
 - 幂等去重：Redis SETNX + PostgreSQL 双层防护
 
+**身份主键约束：** 用户身份主键全链路统一使用 `string`。本计划里所有 `userId`、`submittedBy`、`reviewedBy`、`ownerId`、`actorUserId` 等用户标识字段均按字符串实现；历史 `Long` / `BIGINT` 描述不再有效。
+
 **Tech Stack:**
 - 后端：Spring Boot 3.x + JDK 21 + PostgreSQL 16 + Redis 7 + Spring Security + Flyway
 - 前端：React 19 + TypeScript + Vite + TanStack Router + TanStack Query + shadcn/ui
@@ -53,8 +55,8 @@ CREATE TABLE review_task (
     namespace_id BIGINT NOT NULL REFERENCES namespace(id),
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     version INT NOT NULL DEFAULT 1,
-    submitted_by BIGINT NOT NULL REFERENCES user_account(id),
-    reviewed_by BIGINT REFERENCES user_account(id),
+    submitted_by VARCHAR(128) NOT NULL REFERENCES user_account(id),
+    reviewed_by VARCHAR(128) REFERENCES user_account(id),
     review_comment TEXT,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP
@@ -73,8 +75,8 @@ CREATE TABLE promotion_request (
     target_skill_id BIGINT REFERENCES skill(id),
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     version INT NOT NULL DEFAULT 1,
-    submitted_by BIGINT NOT NULL REFERENCES user_account(id),
-    reviewed_by BIGINT REFERENCES user_account(id),
+    submitted_by VARCHAR(128) NOT NULL REFERENCES user_account(id),
+    reviewed_by VARCHAR(128) REFERENCES user_account(id),
     review_comment TEXT,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP
@@ -88,7 +90,7 @@ CREATE UNIQUE INDEX idx_promotion_request_version_pending ON promotion_request(s
 CREATE TABLE skill_star (
     id BIGSERIAL PRIMARY KEY,
     skill_id BIGINT NOT NULL REFERENCES skill(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, user_id)
 );
@@ -100,7 +102,7 @@ CREATE INDEX idx_skill_star_skill_id ON skill_star(skill_id);
 CREATE TABLE skill_rating (
     id BIGSERIAL PRIMARY KEY,
     skill_id BIGINT NOT NULL REFERENCES skill(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     score SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -205,10 +207,10 @@ public class ReviewTask {
     private Integer version = 1;
 
     @Column(name = "submitted_by", nullable = false)
-    private Long submittedBy;
+    private String submittedBy;
 
     @Column(name = "reviewed_by")
-    private Long reviewedBy;
+    private String reviewedBy;
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
@@ -222,7 +224,7 @@ public class ReviewTask {
     // Constructors
     protected ReviewTask() {}
 
-    public ReviewTask(Long skillVersionId, Long namespaceId, Long submittedBy) {
+    public ReviewTask(Long skillVersionId, Long namespaceId, String submittedBy) {
         this.skillVersionId = skillVersionId;
         this.namespaceId = namespaceId;
         this.submittedBy = submittedBy;
@@ -237,7 +239,7 @@ public class ReviewTask {
     public Integer getVersion() { return version; }
     public Long getSubmittedBy() { return submittedBy; }
     public Long getReviewedBy() { return reviewedBy; }
-    public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
+    public void setReviewedBy(String reviewedBy) { this.reviewedBy = reviewedBy; }
     public String getReviewComment() { return reviewComment; }
     public void setReviewComment(String reviewComment) { this.reviewComment = reviewComment; }
     public Instant getSubmittedAt() { return submittedAt; }
@@ -285,10 +287,10 @@ public class PromotionRequest {
     private Integer version = 1;
 
     @Column(name = "submitted_by", nullable = false)
-    private Long submittedBy;
+    private String submittedBy;
 
     @Column(name = "reviewed_by")
-    private Long reviewedBy;
+    private String reviewedBy;
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
@@ -303,7 +305,7 @@ public class PromotionRequest {
     protected PromotionRequest() {}
 
     public PromotionRequest(Long sourceSkillId, Long sourceVersionId,
-                           Long targetNamespaceId, Long submittedBy) {
+                           Long targetNamespaceId, String submittedBy) {
         this.sourceSkillId = sourceSkillId;
         this.sourceVersionId = sourceVersionId;
         this.targetNamespaceId = targetNamespaceId;
@@ -322,7 +324,7 @@ public class PromotionRequest {
     public Integer getVersion() { return version; }
     public Long getSubmittedBy() { return submittedBy; }
     public Long getReviewedBy() { return reviewedBy; }
-    public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
+    public void setReviewedBy(String reviewedBy) { this.reviewedBy = reviewedBy; }
     public String getReviewComment() { return reviewComment; }
     public void setReviewComment(String reviewComment) { this.reviewComment = reviewComment; }
     public Instant getSubmittedAt() { return submittedAt; }
@@ -371,9 +373,9 @@ public interface ReviewTaskRepository {
     Optional<ReviewTask> findById(Long id);
     Optional<ReviewTask> findBySkillVersionIdAndStatus(Long skillVersionId, ReviewTaskStatus status);
     Page<ReviewTask> findByNamespaceIdAndStatus(Long namespaceId, ReviewTaskStatus status, Pageable pageable);
-    Page<ReviewTask> findBySubmittedByAndStatus(Long submittedBy, ReviewTaskStatus status, Pageable pageable);
+    Page<ReviewTask> findBySubmittedByAndStatus(String submittedBy, ReviewTaskStatus status, Pageable pageable);
     void delete(ReviewTask reviewTask);
-    int updateStatusWithVersion(Long id, ReviewTaskStatus status, Long reviewedBy,
+    int updateStatusWithVersion(Long id, ReviewTaskStatus status, String reviewedBy,
                                String reviewComment, Integer expectedVersion);
 }
 ```
@@ -405,7 +407,7 @@ public interface ReviewTaskJpaRepository extends JpaRepository<ReviewTask, Long>
 
     Page<ReviewTask> findByNamespaceIdAndStatus(Long namespaceId, ReviewTaskStatus status, Pageable pageable);
 
-    Page<ReviewTask> findBySubmittedByAndStatus(Long submittedBy, ReviewTaskStatus status, Pageable pageable);
+    Page<ReviewTask> findBySubmittedByAndStatus(String submittedBy, ReviewTaskStatus status, Pageable pageable);
 
     @Modifying
     @Query("""
@@ -419,7 +421,7 @@ public interface ReviewTaskJpaRepository extends JpaRepository<ReviewTask, Long>
     """)
     int updateStatusWithVersion(@Param("id") Long id,
                                @Param("status") ReviewTaskStatus status,
-                               @Param("reviewedBy") Long reviewedBy,
+                               @Param("reviewedBy") String reviewedBy,
                                @Param("reviewComment") String reviewComment,
                                @Param("expectedVersion") Integer expectedVersion);
 }
@@ -441,7 +443,7 @@ public interface PromotionRequestRepository {
     Optional<PromotionRequest> findById(Long id);
     Optional<PromotionRequest> findBySourceVersionIdAndStatus(Long sourceVersionId, ReviewTaskStatus status);
     Page<PromotionRequest> findByStatus(ReviewTaskStatus status, Pageable pageable);
-    int updateStatusWithVersion(Long id, ReviewTaskStatus status, Long reviewedBy,
+    int updateStatusWithVersion(Long id, ReviewTaskStatus status, String reviewedBy,
                                String reviewComment, Long targetSkillId, Integer expectedVersion);
 }
 ```
@@ -484,7 +486,7 @@ public interface PromotionRequestJpaRepository extends JpaRepository<PromotionRe
     """)
     int updateStatusWithVersion(@Param("id") Long id,
                                @Param("status") ReviewTaskStatus status,
-                               @Param("reviewedBy") Long reviewedBy,
+                               @Param("reviewedBy") String reviewedBy,
                                @Param("reviewComment") String reviewComment,
                                @Param("targetSkillId") Long targetSkillId,
                                @Param("expectedVersion") Integer expectedVersion);
@@ -534,7 +536,7 @@ class ReviewPermissionCheckerTest {
 
     @Test
     void cannotReviewOwnSubmission() {
-        Long userId = 1L;
+        String userId = 1L;
         ReviewTask task = createTask(1L, NamespaceType.TEAM, userId);
 
         boolean canReview = checker.canReview(task, userId, Map.of(), Set.of());
@@ -572,7 +574,7 @@ class ReviewPermissionCheckerTest {
         assertFalse(canReview, "SKILL_ADMIN cannot review team skill");
     }
 
-    private ReviewTask createTask(Long namespaceId, NamespaceType type, Long submittedBy) {
+    private ReviewTask createTask(Long namespaceId, NamespaceType type, String submittedBy) {
         // Mock ReviewTask with namespace info
         return new ReviewTask(1L, namespaceId, submittedBy);
     }
@@ -600,7 +602,7 @@ import java.util.Set;
 @Component
 public class ReviewPermissionChecker {
 
-    public boolean canReview(ReviewTask task, Long userId,
+    public boolean canReview(ReviewTask task, String userId,
                             Map<Long, NamespaceRole> userNamespaceRoles,
                             Set<String> platformRoles) {
         // Cannot review own submission
@@ -622,7 +624,7 @@ public class ReviewPermissionChecker {
         return role == NamespaceRole.ADMIN || role == NamespaceRole.OWNER;
     }
 
-    public boolean canReviewPromotion(PromotionRequest request, Long userId,
+    public boolean canReviewPromotion(PromotionRequest request, String userId,
                                      Set<String> platformRoles) {
         // Only SKILL_ADMIN or SUPER_ADMIN can review promotion
         return platformRoles.contains("SKILL_ADMIN")
@@ -669,10 +671,10 @@ git commit -m "feat(review): add permission checker with tests
 package com.iflytek.skillhub.domain.review;
 
 public interface ReviewService {
-    ReviewTask submitReview(Long skillVersionId, Long namespaceId, Long userId);
-    void approveReview(Long reviewTaskId, Long reviewerId, String comment);
-    void rejectReview(Long reviewTaskId, Long reviewerId, String comment);
-    void withdrawReview(Long skillVersionId, Long userId);
+    ReviewTask submitReview(Long skillVersionId, Long namespaceId, String userId);
+    void approveReview(Long reviewTaskId, String reviewerId, String comment);
+    void rejectReview(Long reviewTaskId, String reviewerId, String comment);
+    void withdrawReview(Long skillVersionId, String userId);
 }
 ```
 
@@ -758,10 +760,10 @@ public class PromotionRequest {
     private Integer version = 1;
 
     @Column(name = "submitted_by", nullable = false)
-    private Long submittedBy;
+    private String submittedBy;
 
     @Column(name = "reviewed_by")
-    private Long reviewedBy;
+    private String reviewedBy;
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
@@ -775,7 +777,7 @@ public class PromotionRequest {
     // Constructors
     public PromotionRequest() {}
 
-    public PromotionRequest(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, Long submittedBy) {
+    public PromotionRequest(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, String submittedBy) {
         this.sourceSkillId = sourceSkillId;
         this.sourceVersionId = sourceVersionId;
         this.targetNamespaceId = targetNamespaceId;
@@ -844,7 +846,7 @@ public class PromotionRequest {
         return submittedBy;
     }
 
-    public void setSubmittedBy(Long submittedBy) {
+    public void setSubmittedBy(String submittedBy) {
         this.submittedBy = submittedBy;
     }
 
@@ -852,7 +854,7 @@ public class PromotionRequest {
         return reviewedBy;
     }
 
-    public void setReviewedBy(Long reviewedBy) {
+    public void setReviewedBy(String reviewedBy) {
         this.reviewedBy = reviewedBy;
     }
 
@@ -907,7 +909,7 @@ public interface PromotionRequestRepository extends JpaRepository<PromotionReque
     Page<PromotionRequest> findByTargetNamespaceAndStatus(Long targetNamespaceId, PromotionStatus status, Pageable pageable);
 
     @Query("SELECT pr FROM PromotionRequest pr WHERE pr.submittedBy = :userId")
-    Page<PromotionRequest> findBySubmittedBy(Long userId, Pageable pageable);
+    Page<PromotionRequest> findBySubmittedBy(String userId, Pageable pageable);
 }
 ```
 
@@ -961,7 +963,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest submitPromotion(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, Long userId) {
+    public PromotionRequest submitPromotion(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, String userId) {
         // 1. Check if source skill and version exist
         Skill sourceSkill = skillRepository.findById(sourceSkillId)
                 .orElseThrow(() -> new IllegalArgumentException("Source skill not found"));
@@ -998,7 +1000,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest approvePromotion(Long promotionId, Long reviewerId, String comment) {
+    public PromotionRequest approvePromotion(Long promotionId, String reviewerId, String comment) {
         // 1. Load promotion request with optimistic lock
         PromotionRequest request = promotionRequestRepository.findById(promotionId)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
@@ -1089,7 +1091,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest rejectPromotion(Long promotionId, Long reviewerId, String comment) {
+    public PromotionRequest rejectPromotion(Long promotionId, String reviewerId, String comment) {
         // 1. Load promotion request with optimistic lock
         PromotionRequest request = promotionRequestRepository.findById(promotionId)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
@@ -1113,7 +1115,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest withdrawPromotion(Long promotionId, Long userId) {
+    public PromotionRequest withdrawPromotion(Long promotionId, String userId) {
         // 1. Load promotion request
         PromotionRequest request = promotionRequestRepository.findById(promotionId)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
@@ -1146,7 +1148,7 @@ public class PromotionService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PromotionRequest> listMyPromotions(Long userId, Pageable pageable) {
+    public Page<PromotionRequest> listMyPromotions(String userId, Pageable pageable) {
         return promotionRequestRepository.findBySubmittedBy(userId, pageable);
     }
 
@@ -1169,7 +1171,7 @@ public record PromotionApprovedEvent(
         Long promotionId,
         Long targetSkillId,
         Long targetVersionId,
-        Long reviewerId
+        String reviewerId
 ) {}
 ```
 
@@ -1223,7 +1225,7 @@ class PromotionServiceTest {
     private Namespace globalNamespace;
     private Skill teamSkill;
     private SkillVersion publishedVersion;
-    private Long userId = 1L;
+    private String userId = 1L;
 
     @BeforeEach
     void setUp() {
@@ -1350,9 +1352,9 @@ public record ReviewTaskResponse(
         String skillSlug,
         String version,
         String status,
-        Long submittedBy,
+        String submittedBy,
         String submittedByUsername,
-        Long reviewedBy,
+        String reviewedBy,
         String reviewedByUsername,
         String reviewComment,
         LocalDateTime submittedAt,
@@ -1400,9 +1402,9 @@ public record PromotionResponseDto(
         String targetNamespace,
         Long targetSkillId,
         String status,
-        Long submittedBy,
+        String submittedBy,
         String submittedByUsername,
-        Long reviewedBy,
+        String reviewedBy,
         String reviewedByUsername,
         String reviewComment,
         LocalDateTime submittedAt,
@@ -1484,7 +1486,7 @@ public class ReviewController {
     @PostMapping
     public ResponseEntity<ReviewTaskResponse> submitReview(
             @RequestBody ReviewTaskRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         ReviewTask task = reviewService.submitReview(request.skillVersionId(), userId);
         return ResponseEntity.ok(toResponse(task));
@@ -1494,7 +1496,7 @@ public class ReviewController {
     public ResponseEntity<ReviewTaskResponse> approveReview(
             @PathVariable Long id,
             @RequestBody(required = false) ReviewActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         String comment = request != null ? request.comment() : null;
         ReviewTask task = reviewService.approveReview(id, userId, comment);
@@ -1505,7 +1507,7 @@ public class ReviewController {
     public ResponseEntity<ReviewTaskResponse> rejectReview(
             @PathVariable Long id,
             @RequestBody ReviewActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         ReviewTask task = reviewService.rejectReview(id, userId, request.comment());
         return ResponseEntity.ok(toResponse(task));
@@ -1514,7 +1516,7 @@ public class ReviewController {
     @PostMapping("/{id}/withdraw")
     public ResponseEntity<ReviewTaskResponse> withdrawReview(
             @PathVariable Long id,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         ReviewTask task = reviewService.withdrawReview(id, userId);
         return ResponseEntity.ok(toResponse(task));
@@ -1525,7 +1527,7 @@ public class ReviewController {
             @RequestParam(required = false) String namespace,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         Page<ReviewTask> tasks;
         if (namespace != null) {
@@ -1551,7 +1553,7 @@ public class ReviewController {
     public ResponseEntity<Page<ReviewTaskResponse>> listMySubmissions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         Page<ReviewTask> tasks = reviewTaskRepository.findBySubmittedBy(userId, PageRequest.of(page, size));
         return ResponseEntity.ok(tasks.map(this::toResponse));
@@ -1560,7 +1562,7 @@ public class ReviewController {
     @GetMapping("/{id}")
     public ResponseEntity<ReviewTaskResponse> getReviewDetail(
             @PathVariable Long id,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         ReviewTask task = reviewTaskRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Review task not found: " + id));
@@ -1665,7 +1667,7 @@ public class PromotionController {
     @PostMapping
     public ResponseEntity<PromotionResponseDto> submitPromotion(
             @RequestBody PromotionRequestDto request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         PromotionRequest promotion = promotionService.submitPromotion(
                 request.sourceSkillId(),
@@ -1681,7 +1683,7 @@ public class PromotionController {
     public ResponseEntity<PromotionResponseDto> approvePromotion(
             @PathVariable Long id,
             @RequestBody(required = false) PromotionActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         String comment = request != null ? request.comment() : null;
         PromotionRequest promotion = promotionService.approvePromotion(id, userId, comment);
@@ -1692,7 +1694,7 @@ public class PromotionController {
     public ResponseEntity<PromotionResponseDto> rejectPromotion(
             @PathVariable Long id,
             @RequestBody PromotionActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         PromotionRequest promotion = promotionService.rejectPromotion(id, userId, request.comment());
         return ResponseEntity.ok(toResponse(promotion));
@@ -1702,7 +1704,7 @@ public class PromotionController {
     public ResponseEntity<Page<PromotionResponseDto>> listPendingPromotions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         // Only SKILL_ADMIN can list pending promotions
         if (!rbacService.hasRole(userId, "SKILL_ADMIN")) {
@@ -1720,7 +1722,7 @@ public class PromotionController {
     @GetMapping("/{id}")
     public ResponseEntity<PromotionResponseDto> getPromotionDetail(
             @PathVariable Long id,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         PromotionRequest promotion = promotionRequestRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Promotion request not found: " + id));
@@ -2032,7 +2034,7 @@ class SkillPublishServiceReviewTest {
     @Test
     void publishFromEntries_shouldCreatePendingReviewVersion() {
         // Arrange
-        Long publisherId = 100L;
+        String publisherId = 100L;
         String namespaceSlug = "test-ns";
         
         Namespace namespace = new Namespace();
@@ -2071,7 +2073,7 @@ class SkillPublishServiceReviewTest {
     @Test
     void publishFromEntries_shouldAutoCreateReviewTask() {
         // Arrange
-        Long publisherId = 100L;
+        String publisherId = 100L;
         String namespaceSlug = "test-ns";
         
         Namespace namespace = new Namespace();
@@ -2145,7 +2147,7 @@ public record ReviewApprovedEvent(
         Long reviewTaskId,
         Long skillId,
         Long versionId,
-        Long reviewerId,
+        String reviewerId,
         String comment
 ) {}
 ```
@@ -2159,7 +2161,7 @@ public record ReviewRejectedEvent(
         Long reviewTaskId,
         Long skillId,
         Long versionId,
-        Long reviewerId,
+        String reviewerId,
         String comment
 ) {}
 ```
@@ -2174,7 +2176,7 @@ public record PromotionApprovedEvent(
         Long sourceSkillId,
         Long sourceVersionId,
         Long targetSkillId,
-        Long reviewerId
+        String reviewerId
 ) {}
 ```
 
@@ -2226,7 +2228,7 @@ public class AuditLog {
     private Long entityId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(name = "details", columnDefinition = "TEXT")
     private String details;
@@ -2237,7 +2239,7 @@ public class AuditLog {
     // Constructors
     public AuditLog() {}
 
-    public AuditLog(AuditAction action, String entityType, Long entityId, Long userId, String details) {
+    public AuditLog(AuditAction action, String entityType, Long entityId, String userId, String details) {
         this.action = action;
         this.entityType = entityType;
         this.entityId = entityId;
@@ -2283,7 +2285,7 @@ public class AuditLog {
         return userId;
     }
 
-    public void setUserId(Long userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 
@@ -2594,7 +2596,7 @@ class ReviewEventListenerTest {
         // Given
         Long skillId = 1L;
         Long versionId = 10L;
-        Long reviewerId = 5L;
+        String reviewerId = 5L;
         
         SkillVersion version = new SkillVersion();
         version.setId(versionId);
@@ -2632,7 +2634,7 @@ class ReviewEventListenerTest {
         // Given
         Long skillId = 1L;
         Long versionId = 10L;
-        Long reviewerId = 5L;
+        String reviewerId = 5L;
         
         SkillVersion version = new SkillVersion();
         version.setId(versionId);
@@ -3085,14 +3087,14 @@ public class SkillStar {
     private Long skillId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 
     protected SkillStar() {}
 
-    public SkillStar(Long skillId, Long userId) {
+    public SkillStar(Long skillId, String userId) {
         this.skillId = skillId;
         this.userId = userId;
     }
@@ -3124,7 +3126,7 @@ public class SkillRating {
     private Long skillId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(nullable = false)
     private Short score;
@@ -3137,7 +3139,7 @@ public class SkillRating {
 
     protected SkillRating() {}
 
-    public SkillRating(Long skillId, Long userId, short score) {
+    public SkillRating(Long skillId, String userId, short score) {
         if (score < 1 || score > 5) throw new IllegalArgumentException("Score must be 1-5");
         this.skillId = skillId;
         this.userId = userId;
@@ -3172,9 +3174,9 @@ import org.springframework.data.domain.Pageable;
 
 public interface SkillStarRepository {
     SkillStar save(SkillStar star);
-    Optional<SkillStar> findBySkillIdAndUserId(Long skillId, Long userId);
+    Optional<SkillStar> findBySkillIdAndUserId(Long skillId, String userId);
     void delete(SkillStar star);
-    Page<SkillStar> findByUserId(Long userId, Pageable pageable);
+    Page<SkillStar> findByUserId(String userId, Pageable pageable);
     long countBySkillId(Long skillId);
 }
 ```
@@ -3187,7 +3189,7 @@ import java.util.Optional;
 
 public interface SkillRatingRepository {
     SkillRating save(SkillRating rating);
-    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, Long userId);
+    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, String userId);
     double averageScoreBySkillId(Long skillId);
     int countBySkillId(Long skillId);
 }
@@ -3209,8 +3211,8 @@ import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface JpaSkillStarRepository extends JpaRepository<SkillStar, Long>, SkillStarRepository {
-    Optional<SkillStar> findBySkillIdAndUserId(Long skillId, Long userId);
-    Page<SkillStar> findByUserId(Long userId, Pageable pageable);
+    Optional<SkillStar> findBySkillIdAndUserId(Long skillId, String userId);
+    Page<SkillStar> findByUserId(String userId, Pageable pageable);
     long countBySkillId(Long skillId);
 }
 ```
@@ -3228,7 +3230,7 @@ import java.util.Optional;
 
 @Repository
 public interface JpaSkillRatingRepository extends JpaRepository<SkillRating, Long>, SkillRatingRepository {
-    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, Long userId);
+    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, String userId);
 
     @Query("SELECT COALESCE(AVG(r.score), 0) FROM SkillRating r WHERE r.skillId = :skillId")
     double averageScoreBySkillId(Long skillId);
@@ -3268,21 +3270,21 @@ git commit -m "feat(social): add SkillStar and SkillRating entities and reposito
 ```java
 package com.iflytek.skillhub.domain.social.event;
 
-public record SkillStarredEvent(Long skillId, Long userId) {}
+public record SkillStarredEvent(Long skillId, String userId) {}
 ```
 
 `SkillUnstarredEvent.java`:
 ```java
 package com.iflytek.skillhub.domain.social.event;
 
-public record SkillUnstarredEvent(Long skillId, Long userId) {}
+public record SkillUnstarredEvent(Long skillId, String userId) {}
 ```
 
 `SkillRatedEvent.java`:
 ```java
 package com.iflytek.skillhub.domain.social.event;
 
-public record SkillRatedEvent(Long skillId, Long userId, short score) {}
+public record SkillRatedEvent(Long skillId, String userId, short score) {}
 ```
 
 - [ ] **Step 2: 编写 SkillStarService 测试**
@@ -3390,7 +3392,7 @@ public class SkillStarService {
     }
 
     @Transactional
-    public void star(Long skillId, Long userId) {
+    public void star(Long skillId, String userId) {
         if (starRepository.findBySkillIdAndUserId(skillId, userId).isPresent()) {
             return; // idempotent
         }
@@ -3399,14 +3401,14 @@ public class SkillStarService {
     }
 
     @Transactional
-    public void unstar(Long skillId, Long userId) {
+    public void unstar(Long skillId, String userId) {
         starRepository.findBySkillIdAndUserId(skillId, userId).ifPresent(star -> {
             starRepository.delete(star);
             eventPublisher.publishEvent(new SkillUnstarredEvent(skillId, userId));
         });
     }
 
-    public boolean isStarred(Long skillId, Long userId) {
+    public boolean isStarred(Long skillId, String userId) {
         return starRepository.findBySkillIdAndUserId(skillId, userId).isPresent();
     }
 }
@@ -3505,7 +3507,7 @@ public class SkillRatingService {
     }
 
     @Transactional
-    public void rate(Long skillId, Long userId, short score) {
+    public void rate(Long skillId, String userId, short score) {
         if (score < 1 || score > 5) {
             throw new IllegalArgumentException("Score must be 1-5");
         }
@@ -3519,7 +3521,7 @@ public class SkillRatingService {
         eventPublisher.publishEvent(new SkillRatedEvent(skillId, userId, score));
     }
 
-    public Optional<Short> getUserRating(Long skillId, Long userId) {
+    public Optional<Short> getUserRating(Long skillId, String userId) {
         return ratingRepository.findBySkillIdAndUserId(skillId, userId)
             .map(SkillRating::getScore);
     }
@@ -3781,21 +3783,21 @@ public class SkillStarController {
 
     @PutMapping
     public ResponseEntity<Void> star(@PathVariable Long skillId,
-                                     @AuthenticationPrincipal Long userId) {
+                                     @AuthenticationPrincipal String userId) {
         starService.star(skillId, userId);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping
     public ResponseEntity<Void> unstar(@PathVariable Long skillId,
-                                       @AuthenticationPrincipal Long userId) {
+                                       @AuthenticationPrincipal String userId) {
         starService.unstar(skillId, userId);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping
     public ResponseEntity<Boolean> isStarred(@PathVariable Long skillId,
-                                             @AuthenticationPrincipal Long userId) {
+                                             @AuthenticationPrincipal String userId) {
         return ResponseEntity.ok(starService.isStarred(skillId, userId));
     }
 }
@@ -3877,7 +3879,7 @@ public class SkillRatingController {
 
     @PutMapping
     public ResponseEntity<Void> rate(@PathVariable Long skillId,
-                                     @AuthenticationPrincipal Long userId,
+                                     @AuthenticationPrincipal String userId,
                                      @RequestBody Map<String, Integer> body) {
         short score = body.get("score").shortValue();
         ratingService.rate(skillId, userId, score);
@@ -3886,7 +3888,7 @@ public class SkillRatingController {
 
     @GetMapping
     public ResponseEntity<?> getUserRating(@PathVariable Long skillId,
-                                           @AuthenticationPrincipal Long userId) {
+                                           @AuthenticationPrincipal String userId) {
         Optional<Short> score = ratingService.getUserRating(skillId, userId);
         return ResponseEntity.ok(Map.of("score", score.orElse(null), "rated", score.isPresent()));
     }
@@ -5540,12 +5542,12 @@ public class DeviceCodeData implements Serializable {
     private String deviceCode;
     private String userCode;
     private DeviceCodeStatus status;
-    private Long userId;
+    private String userId;
 
     public DeviceCodeData() {}
 
     public DeviceCodeData(String deviceCode, String userCode,
-                          DeviceCodeStatus status, Long userId) {
+                          DeviceCodeStatus status, String userId) {
         this.deviceCode = deviceCode;
         this.userCode = userCode;
         this.status = status;
@@ -5557,7 +5559,7 @@ public class DeviceCodeData implements Serializable {
     public DeviceCodeStatus getStatus() { return status; }
     public void setStatus(DeviceCodeStatus status) { this.status = status; }
     public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 }
 ```
 
@@ -5728,7 +5730,7 @@ public class DeviceAuthService {
             "/device", 900, 5);
     }
 
-    public void authorizeDeviceCode(String userCode, Long userId) {
+    public void authorizeDeviceCode(String userCode, String userId) {
         String deviceCode = (String) redisTemplate.opsForValue()
             .get(USER_CODE_PREFIX + userCode);
         if (deviceCode == null) {
@@ -5913,7 +5915,7 @@ public class DeviceAuthWebController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> authorizeDevice(
             @RequestBody Map<String, String> body,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         deviceAuthService.authorizeDeviceCode(body.get("userCode"), userId);
         return ResponseEntity.ok().build();
     }
@@ -6005,7 +6007,7 @@ public class CliApiController {
 
     @GetMapping("/whoami")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<?> whoami(@AuthenticationPrincipal Long userId) {
+    public ResponseEntity<?> whoami(@AuthenticationPrincipal String userId) {
         // 查询用户信息 + 所属 namespace 列表
         return ResponseEntity.ok(Map.of("code", 0, "data", Map.of("userId", userId)));
     }
@@ -6014,7 +6016,7 @@ public class CliApiController {
     public ResponseEntity<?> resolve(
             @RequestParam String skill,
             @RequestParam(defaultValue = "latest") String version,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         // 解析 @namespace/slug 格式
         // 调用 SkillQueryService 获取版本详情
         return ResponseEntity.ok(Map.of("code", 0));
@@ -6033,7 +6035,7 @@ public class CliApiController {
             @RequestParam("file") MultipartFile file,
             @RequestParam String namespace,
             @RequestParam(defaultValue = "PUBLIC") String visibility,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         // 调用 SkillPublishService
         return ResponseEntity.ok(Map.of("code", 0));
     }
@@ -6482,7 +6484,7 @@ public record ClawHubPublishResponse(String slug, String version, String status)
 // ClawHubWhoamiResponse.java
 package com.iflytek.skillhub.app.compat.dto;
 
-public record ClawHubWhoamiResponse(Long userId, String username, String email) {}
+public record ClawHubWhoamiResponse(String userId, String username, String email) {}
 ```
 
 - [ ] **Step 4: 运行测试验证通过**
@@ -6606,14 +6608,14 @@ public class ClawHubCompatController {
     public ClawHubPublishResponse publish(
             @RequestParam("file") MultipartFile file,
             @RequestParam(defaultValue = "global") String namespace,
-            @AuthenticationPrincipal Long userId) {
+            @AuthenticationPrincipal String userId) {
         // TODO: 调用 SkillPublishService
         return new ClawHubPublishResponse("", "", "pending_review");
     }
 
     @GetMapping("/whoami")
     @PreAuthorize("isAuthenticated()")
-    public ClawHubWhoamiResponse whoami(@AuthenticationPrincipal Long userId) {
+    public ClawHubWhoamiResponse whoami(@AuthenticationPrincipal String userId) {
         // TODO: 查询用户信息
         return new ClawHubWhoamiResponse(userId, "", "");
     }
@@ -7241,14 +7243,14 @@ public class UserManagementController {
     }
 
     @GetMapping("/{userId}")
-    public ResponseEntity<?> getUserDetail(@PathVariable Long userId) {
+    public ResponseEntity<?> getUserDetail(@PathVariable String userId) {
         // TODO: 查询用户详情 + 角色 + namespace 成员
         return ResponseEntity.ok(Map.of("userId", userId));
     }
 
     @PutMapping("/{userId}/roles")
     public ResponseEntity<Void> updateUserRoles(
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestBody Map<String, List<String>> body) {
         // TODO: 更新用户平台角色
         return ResponseEntity.noContent().build();
@@ -7256,7 +7258,7 @@ public class UserManagementController {
 
     @PutMapping("/{userId}/status")
     public ResponseEntity<Void> updateUserStatus(
-            @PathVariable Long userId,
+            @PathVariable String userId,
             @RequestBody Map<String, String> body) {
         // TODO: 封禁/解封用户
         return ResponseEntity.noContent().build();
@@ -7374,7 +7376,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
 
 export function useAuditLogs(params: {
-  action?: string; actorUserId?: number;
+  action?: string; actorUserId?: string;
   startTime?: string; endTime?: string; page: number;
 }) {
   return useQuery({
@@ -7390,7 +7392,7 @@ import { apiClient } from '@/api/client';
 export function useUpdateUserRoles() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, roles }: { userId: number; roles: string[] }) =>
+    mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
       apiClient.put(`/api/v1/admin/users/${userId}/roles`, { roles }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   });
@@ -7585,4 +7587,3 @@ git commit -m "feat(admin): add admin dashboard pages (users, audit-logs)"
 1. **使用 superpowers:subagent-driven-development** — 为每个 Chunk 派发独立的子代理
 2. **渐进式实施** — 先完成 Chunk 1，验收通过后再进行 Chunk 2
 3. **参考设计文档** — 每个任务的详细实现逻辑参考 `docs/superpowers/specs/2026-03-12-phase3-review-cli-social-design.md`
-

@@ -638,7 +638,7 @@ CREATE TABLE user_account (
     email VARCHAR(256),
     avatar_url VARCHAR(512),
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    merged_to_user_id BIGINT,
+    merged_to_user_id VARCHAR(128),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -649,7 +649,7 @@ CREATE INDEX idx_user_account_status ON user_account(status);
 -- OAuth 身份绑定表
 CREATE TABLE identity_binding (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     provider_code VARCHAR(64) NOT NULL,
     subject VARCHAR(256) NOT NULL,
     login_name VARCHAR(128),
@@ -665,8 +665,8 @@ CREATE INDEX idx_identity_binding_user_id ON identity_binding(user_id);
 CREATE TABLE api_token (
     id BIGSERIAL PRIMARY KEY,
     subject_type VARCHAR(32) NOT NULL DEFAULT 'USER',
-    subject_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    subject_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     name VARCHAR(128) NOT NULL,
     token_prefix VARCHAR(16) NOT NULL,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -708,7 +708,7 @@ CREATE TABLE role_permission (
 -- 用户角色绑定表
 CREATE TABLE user_role_binding (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     role_id BIGINT NOT NULL REFERENCES role(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, role_id)
@@ -725,7 +725,7 @@ CREATE TABLE namespace (
     description TEXT,
     avatar_url VARCHAR(512),
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -734,7 +734,7 @@ CREATE TABLE namespace (
 CREATE TABLE namespace_member (
     id BIGSERIAL PRIMARY KEY,
     namespace_id BIGINT NOT NULL REFERENCES namespace(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     role VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -747,7 +747,7 @@ CREATE INDEX idx_namespace_member_namespace_id ON namespace_member(namespace_id)
 -- 审计日志表
 CREATE TABLE audit_log (
     id BIGSERIAL PRIMARY KEY,
-    actor_user_id BIGINT REFERENCES user_account(id),
+    actor_user_id VARCHAR(128) REFERENCES user_account(id),
     action VARCHAR(64) NOT NULL,
     target_type VARCHAR(64),
     target_id BIGINT,
@@ -1537,7 +1537,7 @@ public class NamespaceMember {
     private Long namespaceId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -1548,7 +1548,7 @@ public class NamespaceMember {
 
     protected NamespaceMember() {}
 
-    public NamespaceMember(Long namespaceId, Long userId, NamespaceRole role) {
+    public NamespaceMember(Long namespaceId, String userId, NamespaceRole role) {
         this.namespaceId = namespaceId;
         this.userId = userId;
         this.role = role;
@@ -1589,8 +1589,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface NamespaceMemberRepository {
-    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, Long userId);
-    List<NamespaceMember> findByUserId(Long userId);
+    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, String userId);
+    List<NamespaceMember> findByUserId(String userId);
     NamespaceMember save(NamespaceMember member);
 }
 ```
@@ -1663,8 +1663,8 @@ import java.util.Optional;
 @Repository
 public interface NamespaceMemberJpaRepository
         extends JpaRepository<NamespaceMember, Long>, NamespaceMemberRepository {
-    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, Long userId);
-    List<NamespaceMember> findByUserId(Long userId);
+    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, String userId);
+    List<NamespaceMember> findByUserId(String userId);
 }
 ```
 
@@ -1704,7 +1704,7 @@ public class IdentityBinding {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(name = "provider_code", nullable = false, length = 64)
     private String providerCode;
@@ -1726,7 +1726,7 @@ public class IdentityBinding {
 
     protected IdentityBinding() {}
 
-    public IdentityBinding(Long userId, String providerCode, String subject, String loginName) {
+    public IdentityBinding(String userId, String providerCode, String subject, String loginName) {
         this.userId = userId;
         this.providerCode = providerCode;
         this.subject = subject;
@@ -1778,7 +1778,7 @@ public class ApiToken {
     private Long subjectId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(nullable = false, length = 128)
     private String name;
@@ -1806,7 +1806,7 @@ public class ApiToken {
 
     protected ApiToken() {}
 
-    public ApiToken(Long userId, String name, String tokenPrefix, String tokenHash, String scopeJson) {
+    public ApiToken(String userId, String name, String tokenPrefix, String tokenHash, String scopeJson) {
         this.subjectType = "USER";
         this.subjectId = userId;
         this.userId = userId;
@@ -1950,7 +1950,7 @@ public class UserRoleBinding {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(name = "role_id", nullable = false)
     private Long roleId;
@@ -1960,7 +1960,7 @@ public class UserRoleBinding {
 
     protected UserRoleBinding() {}
 
-    public UserRoleBinding(Long userId, Long roleId) {
+    public UserRoleBinding(String userId, Long roleId) {
         this.userId = userId;
         this.roleId = roleId;
     }
@@ -2002,7 +2002,7 @@ import java.util.Optional;
 @Repository
 public interface ApiTokenRepository extends JpaRepository<ApiToken, Long> {
     Optional<ApiToken> findByTokenHash(String tokenHash);
-    List<ApiToken> findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(Long userId);
+    List<ApiToken> findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(String userId);
 }
 
 // RoleRepository.java
@@ -2028,7 +2028,7 @@ import java.util.List;
 
 @Repository
 public interface UserRoleBindingRepository extends JpaRepository<UserRoleBinding, Long> {
-    List<UserRoleBinding> findByUserId(Long userId);
+    List<UserRoleBinding> findByUserId(String userId);
 }
 ```
 
@@ -2370,7 +2370,7 @@ import java.io.Serializable;
 import java.util.Set;
 
 public record PlatformPrincipal(
-    Long userId,
+    String userId,
     String displayName,
     String email,
     String avatarUrl,
@@ -2634,7 +2634,7 @@ public class ApiTokenService {
 
     /** 创建 Token，返回明文（仅此一次） */
     @Transactional
-    public String createToken(Long userId, String name, List<String> scopes,
+    public String createToken(String userId, String name, List<String> scopes,
                               LocalDateTime expiresAt) {
         byte[] randomBytes = new byte[32];
         RANDOM.nextBytes(randomBytes);
@@ -2682,12 +2682,12 @@ public class ApiTokenService {
             });
     }
 
-    public List<ApiToken> listByUser(Long userId) {
+    public List<ApiToken> listByUser(String userId) {
         return tokenRepo.findByUserIdAndRevokedAtIsNull(userId);
     }
 
     @Transactional
-    public void revoke(Long tokenId, Long userId) {
+    public void revoke(Long tokenId, String userId) {
         tokenRepo.findById(tokenId)
             .filter(t -> t.getUserId().equals(userId))
             .ifPresent(t -> {
@@ -2847,20 +2847,20 @@ public class RbacService {
     }
 
     /** 检查用户在指定命名空间的角色是否 >= 要求的最低角色 */
-    public boolean hasNamespaceRole(Long userId, Long namespaceId, NamespaceRole minRole) {
+    public boolean hasNamespaceRole(String userId, Long namespaceId, NamespaceRole minRole) {
         Optional<NamespaceMember> member = namespaceMemberRepo
             .findByNamespaceIdAndUserId(namespaceId, userId);
         return member.map(m -> m.getRole().ordinal() <= minRole.ordinal()).orElse(false);
     }
 
     /** 获取用户在指定命名空间的角色 */
-    public Optional<NamespaceRole> getNamespaceRole(Long userId, Long namespaceId) {
+    public Optional<NamespaceRole> getNamespaceRole(String userId, Long namespaceId) {
         return namespaceMemberRepo.findByNamespaceIdAndUserId(namespaceId, userId)
             .map(NamespaceMember::getRole);
     }
 
     /** 获取用户所有平台角色码 */
-    public Set<String> getPlatformRoleCodes(Long userId) {
+    public Set<String> getPlatformRoleCodes(String userId) {
         return roleBindingRepo.findByUserId(userId).stream()
             .map(rb -> rb.getRole().getCode())
             .collect(Collectors.toSet());
@@ -3121,7 +3121,7 @@ public class MockAuthFilter extends OncePerRequestFilter {
                                      FilterChain filterChain) throws ServletException, IOException {
         String mockUserId = request.getHeader("X-Mock-User-Id");
         if (mockUserId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            Long userId = Long.parseLong(mockUserId);
+            String userId = mockUserId;
             userRepo.findById(userId)
                 .filter(UserAccount::isActive)
                 .ifPresent(user -> {
@@ -3967,7 +3967,7 @@ git commit -m "feat(web): add TanStack Router with page skeleton
 import { useQuery } from '@tanstack/react-query'
 
 interface User {
-  userId: number
+  userId: string
   displayName: string
   email: string
   avatarUrl: string

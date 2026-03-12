@@ -1,5 +1,71 @@
 # skillhub API 设计
 
+## 0. 标识类型约束
+
+- 所有 API 中出现的用户标识一律为 `string`。
+- 该约束覆盖路径参数、query 参数、请求体字段、响应 DTO 字段，以及统一响应结构中的业务数据内容。
+- 任何旧草案中的整型用户标识写法都已失效，前后端正式契约只允许字符串用户标识。
+
+## 1. 响应结构规范
+
+除文件下载、文件内容读取这类二进制流接口外，所有 JSON API 必须统一使用以下成功响应结构：
+
+```json
+{
+  "code": 0,
+  "msg": "成功",
+  "data": {},
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
+}
+```
+
+约束如下：
+
+- `code`：成功时固定为 `0`；失败时固定为 HTTP 状态码，例如 `400`、`401`、`403`、`500`。
+- `msg`：返回给调用方的用户可读提示文案，必须通过 Spring Boot `MessageSource` + i18n 机制生成，禁止在 controller 中硬编码。
+- `msg` 的 locale 必须在响应封装层或全局异常处理层通过 `LocaleContextHolder` 从请求上下文自动获取，禁止在 controller/service 中显式传递 `Locale`。
+- `data` 承载实际业务数据；列表、分页对象、详情对象、操作结果对象都必须放在 `data` 下。
+- 分页响应统一使用 `{ items, total, page, size }`，禁止直接暴露 Spring `Page` 的 `content/pageable/sort/first/last` 等内部结构。
+- `timestamp`：响应创建时间戳，由后端统一自动生成。
+- `requestId`：请求链路 ID，由后端统一注入，便于日志追踪。
+- Controller 层禁止直接返回 `Map`、裸 DTO、裸 `Page`、裸 `List` 作为 JSON 成功响应。
+- 普通 JSON 接口应直接返回统一响应 DTO；仅文件下载、文件预览等需要自定义状态码或 header 的二进制接口保留 `ResponseEntity`。
+- 删除、撤销、移动标签等操作也必须返回统一 JSON 结构；如无实体数据，返回 `data.message` 或 `data=null`，但外层结构不得变化。
+- 错误响应与成功响应使用同一外层结构，不再使用单独的异常 JSON 结构。
+- 异常链路中的 `msg` 也必须通过 Spring Boot 标准 i18n 机制生成；参数校验异常、领域异常、认证鉴权异常都必须进入统一的 `@RestControllerAdvice` 出口。
+- 二进制流接口保持原始 HTTP 语义，不套 `code/data` 包装：
+  - `/download`
+  - `/file`
+  - 其他返回 `application/octet-stream`、`application/zip` 等内容类型的接口
+
+成功响应示例：
+
+```json
+{
+  "code": 0,
+  "msg": "发布成功",
+  "data": {
+    "skillId": 123,
+    "version": "1.0.0"
+  },
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
+}
+```
+
+错误响应示例：
+
+```json
+{
+  "code": 403,
+  "msg": "需要命名空间管理员或所有者权限",
+  "data": null,
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
+}
+```
+
 ## 7.1 Public API（匿名可访问）
 
 | 方法 | 路径 | 说明 |
@@ -24,6 +90,11 @@ Public API 的可见性规则：
 - `NAMESPACE_ONLY` 技能：仅该命名空间成员可访问（需登录）
 - `PRIVATE` 技能：owner 本人 + 该 namespace 的 ADMIN 以上可访问（需登录）
 
+`GET /api/v1/skills/{namespace}/{slug}/versions/{version}` 的 `data` 字段除版本基础信息外，还必须包含：
+
+- `parsedMetadataJson`：`SKILL.md` frontmatter 的完整 JSON 序列化结果
+- `manifestJson`：版本文件清单摘要 JSON
+
 ## 7.2 Auth API（OAuth2 登录相关）
 
 | 方法 | 路径 | 说明 |
@@ -38,9 +109,13 @@ Public API 的可见性规则：
 
 ```json
 {
+  "code": 0,
+  "msg": "获取成功",
   "data": [
     { "id": "github", "name": "GitHub", "authorizationUrl": "/oauth2/authorization/github" }
-  ]
+  ],
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
 }
 ```
 
@@ -79,6 +154,16 @@ Public API 的可见性规则：
 | POST | `/api/v1/skills/{namespace}/{slug}/archive` | 归档技能（namespace ADMIN 或 owner） |
 | POST | `/api/v1/skills/{namespace}/{slug}/unarchive` | 恢复归档（namespace ADMIN 或 owner） |
 | DELETE | `/api/v1/skills/{namespace}/{slug}/versions/{version}` | 删除 DRAFT/REJECTED 版本 |
+
+发布成功响应中的 `data` 至少包含以下字段：
+
+- `skillId`
+- `namespace`
+- `slug`
+- `version`
+- `status`
+- `fileCount`
+- `totalSize`
 
 ## 7.4 Token API（需登录）
 
@@ -205,6 +290,8 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
 
 ```json
 {
+  "code": 0,
+  "msg": "获取成功",
   "data": {
     "skillId": 456,
     "namespace": "team-name",
@@ -213,7 +300,9 @@ Admin API 按最小权限拆分，不再统一要求 SUPER_ADMIN：
     "versionId": 123,
     "fingerprint": "sha256:abc123...",
     "downloadUrl": "/api/v1/skills/team-name/my-skill/versions/1.2.0/download"
-  }
+  },
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
 }
 ```
 

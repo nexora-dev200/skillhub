@@ -4,6 +4,9 @@
 
 > **前置条件:** Phase 1 完成（工程骨架 + 认证授权）+ Phase 2 完成（命名空间 + 技能核心链路）+ Phase 3 完成（审核流程 + CLI API + 评分收藏 + 兼容层）
 
+> **重要修订：身份主键约束**
+> 用户身份主键全链路统一使用 `string`。本文中出现的 `user_id`、`primary_user_id`、`secondary_user_id`、`hidden_by`、`yanked_by`、`actor_user_id` 等用户关联字段都应按字符串设计，任何整型用户主键描述都不再有效。
+
 ## 关键设计决策
 
 | 决策点 | 选择 | 理由 |
@@ -38,7 +41,7 @@ Phase 3 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | BIGSERIAL PK | |
-| user_id | BIGINT NOT NULL FK → user_account | 关联用户 |
+| user_id | VARCHAR(128) NOT NULL FK → user_account | 关联用户 |
 | username | VARCHAR(64) NOT NULL UNIQUE | 登录用户名（字母数字下划线，3-64 字符） |
 | password_hash | VARCHAR(255) NOT NULL | BCrypt 哈希值 |
 | failed_attempts | INT NOT NULL DEFAULT 0 | 连续失败次数 |
@@ -55,8 +58,8 @@ Phase 3 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | id | BIGSERIAL PK | |
-| primary_user_id | BIGINT NOT NULL FK → user_account | 主账号（保留） |
-| secondary_user_id | BIGINT NOT NULL FK → user_account | 副账号（合并后停用） |
+| primary_user_id | VARCHAR(128) NOT NULL FK → user_account | 主账号（保留） |
+| secondary_user_id | VARCHAR(128) NOT NULL FK → user_account | 副账号（合并后停用） |
 | status | VARCHAR(32) NOT NULL DEFAULT 'PENDING' | PENDING / VERIFIED / COMPLETED / CANCELLED |
 | verification_token | VARCHAR(255) | 副账号验证令牌（BCrypt 哈希存储） |
 | token_expires_at | TIMESTAMP | 令牌过期时间（30 分钟） |
@@ -75,7 +78,7 @@ Phase 3 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 ```sql
 ALTER TABLE skill ADD COLUMN hidden BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE skill ADD COLUMN hidden_at TIMESTAMP;
-ALTER TABLE skill ADD COLUMN hidden_by BIGINT REFERENCES user_account(id);
+ALTER TABLE skill ADD COLUMN hidden_by VARCHAR(128) REFERENCES user_account(id);
 CREATE INDEX idx_skill_hidden ON skill(hidden) WHERE hidden = TRUE;
 ```
 
@@ -87,7 +90,7 @@ CREATE INDEX idx_skill_hidden ON skill(hidden) WHERE hidden = TRUE;
 -- YANKED 状态的版本：精确版本号仍可下载，但不出现在版本列表和搜索结果中
 -- 借鉴 crates.io 语义：yank 不是删除，是标记"不推荐"
 ALTER TABLE skill_version ADD COLUMN yanked_at TIMESTAMP;
-ALTER TABLE skill_version ADD COLUMN yanked_by BIGINT REFERENCES user_account(id);
+ALTER TABLE skill_version ADD COLUMN yanked_by VARCHAR(128) REFERENCES user_account(id);
 ALTER TABLE skill_version ADD COLUMN yank_reason TEXT;
 ```
 

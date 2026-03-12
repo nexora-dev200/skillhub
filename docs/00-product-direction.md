@@ -14,6 +14,13 @@
 
 同时，一期必须提供 ClawHub CLI 协议兼容层：服务端需要暴露一组与 ClawHub CLI 兼容的 registry API，使现有 ClawHub CLI 在不修改或仅最小配置修改的前提下可完成 registry 侧查询、解析、下载、发布、校验等核心操作。
 
+## 1.2 身份主键约束（已冻结）
+
+- 用户身份主键全链路统一使用 `string`，不得使用 `int` / `long` / `bigint` 作为平台用户标识的正式契约类型。
+- 该约束覆盖认证主体、API 入参/出参、权限判定、审计、资源 owner、creator、updater、reviewer、actor、submittedBy 等全部用户关联字段。
+- 原因：平台需要兼容外部 SSO / OAuth / OIDC / SCIM 等身份源，外部 UID 通常是稳定字符串，不应先压缩为本地自增整数再作为系统主契约继续传播。
+- 旧版草案中任何“整型用户标识”写法都已失效，当前唯一有效约束是“平台用户标识全链路使用字符串主键”。
+
 ### 1.1 技能坐标体系（已冻结）
 
 skillhub 内部使用 namespace 坐标模型：`@{namespace_slug}/{skill_slug}`。

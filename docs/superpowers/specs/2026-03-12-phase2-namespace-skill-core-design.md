@@ -4,6 +4,9 @@
 
 > **前置条件:** Phase 1 全部 3 个 Chunk 完成（后端骨架 + 认证授权 + 前端骨架）
 
+> **重要修订：身份主键约束**
+> 用户身份主键全链路统一使用 `string`。本文中涉及 `user_id`、`owner_id`、`created_by`、`updated_by`、`submitted_by`、`reviewed_by` 等用户关联字段时，均应按字符串类型实现，任何整型用户主键描述都不再有效。
+
 ## 关键设计决策
 
 | 决策 | 选择 | 理由 |
@@ -40,7 +43,7 @@ Phase 1 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | slug | VARCHAR(128) NOT NULL | URL 友好标识，来自 SKILL.md name |
 | display_name | VARCHAR(256) | |
 | summary | VARCHAR(512) | |
-| owner_id | BIGINT NOT NULL FK → user_account | 主要维护人 |
+| owner_id | VARCHAR(128) NOT NULL FK → user_account | 主要维护人 |
 | source_skill_id | BIGINT | 派生来源（团队提升到全局时记录） |
 | visibility | VARCHAR(32) NOT NULL DEFAULT 'PUBLIC' | PUBLIC / NAMESPACE_ONLY / PRIVATE |
 | status | VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' | ACTIVE / HIDDEN / ARCHIVED |
@@ -49,9 +52,9 @@ Phase 1 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | star_count | INT NOT NULL DEFAULT 0 | |
 | rating_avg | DECIMAL(3,2) NOT NULL DEFAULT 0.00 | |
 | rating_count | INT NOT NULL DEFAULT 0 | |
-| created_by | BIGINT FK → user_account | |
+| created_by | VARCHAR(128) FK → user_account | |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
-| updated_by | BIGINT FK → user_account | |
+| updated_by | VARCHAR(128) FK → user_account | |
 | updated_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 
 索引：
@@ -72,7 +75,7 @@ Phase 1 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | file_count | INT NOT NULL DEFAULT 0 | |
 | total_size | BIGINT NOT NULL DEFAULT 0 | 总字节数 |
 | published_at | TIMESTAMP | 发布时间 |
-| created_by | BIGINT FK → user_account | |
+| created_by | VARCHAR(128) FK → user_account | |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 
 索引：
@@ -103,7 +106,7 @@ Phase 1 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | skill_id | BIGINT NOT NULL FK → skill | |
 | tag_name | VARCHAR(64) NOT NULL | 标签名 |
 | version_id | BIGINT NOT NULL FK → skill_version | 指向的版本 |
-| created_by | BIGINT FK → user_account | |
+| created_by | VARCHAR(128) FK → user_account | |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 
@@ -118,7 +121,7 @@ Phase 1 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | skill_id | BIGINT NOT NULL UNIQUE FK → skill | 一 skill 一条 |
 | namespace_id | BIGINT NOT NULL | 用于空间过滤 |
 | namespace_slug | VARCHAR(64) NOT NULL | 冗余，搜索结果直接返回无需 join |
-| owner_id | BIGINT NOT NULL | 用于 PRIVATE 可见性判定 |
+| owner_id | VARCHAR(128) NOT NULL | 用于 PRIVATE 可见性判定 |
 | title | VARCHAR(256) | |
 | summary | VARCHAR(512) | |
 | keywords | VARCHAR(512) | |
@@ -280,7 +283,7 @@ listMembers(namespaceId, page, size) → Page<NamespaceMember>
 getMemberRole(namespaceId, userId) → Optional<NamespaceRole>
 ```
 
-> **Repository 补充** — Phase 1 的 `NamespaceRepository` 需新增 `Page<Namespace> findByStatus(NamespaceStatus status, Pageable pageable)` 方法。`NamespaceMemberRepository` 需新增 `Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable)` 和 `void deleteByNamespaceIdAndUserId(Long namespaceId, Long userId)` 方法。
+> **Repository 补充** — Phase 1 的 `NamespaceRepository` 需新增 `Page<Namespace> findByStatus(NamespaceStatus status, Pageable pageable)` 方法。`NamespaceMemberRepository` 需新增 `Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable)` 和 `void deleteByNamespaceIdAndUserId(Long namespaceId, String userId)` 方法。
 
 ### 3.2 Slug 校验规则
 
@@ -430,7 +433,7 @@ public interface PrePublishValidator {
 public record SkillPackageContext(
     List<PackageEntry> entries,
     SkillMetadata metadata,
-    Long publisherId,
+    String publisherId,
     Long namespaceId
 ) {}
 
@@ -598,7 +601,7 @@ public class VisibilityChecker {
      * @param currentUser 当前用户（null 表示匿名）
      * @param userNamespaceRoles 用户在各 namespace 的角色（预加载）
      */
-    public boolean canAccess(Skill skill, Long currentUserId,
+    public boolean canAccess(Skill skill, String currentUserId,
                              Map<Long, NamespaceRole> userNamespaceRoles) {
         return switch (skill.getVisibility()) {
             case PUBLIC -> true;
@@ -836,7 +839,7 @@ Response:
 ### 7.1 事件定义（`domain.event` 包）
 
 ```java
-public record SkillPublishedEvent(Long skillId, Long versionId, Long publisherId) {}
+public record SkillPublishedEvent(Long skillId, Long versionId, String publisherId) {}
 public record SkillDownloadedEvent(Long skillId, Long versionId) {}
 public record SkillStatusChangedEvent(Long skillId, SkillStatus oldStatus, SkillStatus newStatus) {}
 ```

@@ -1,5 +1,12 @@
 # skillhub 认证与授权设计
 
+## 0. 身份标识约束
+
+- `PlatformPrincipal.userId` 必须是稳定的字符串标识，而不是 `Long`。
+- 用户身份在系统内的主契约是字符串 `userId`；认证、授权、审计、资源 owner 判定都基于该字符串进行。
+- 外部身份源的 `subject`、企业 SSO UID、工号型字符串等都必须可以原样或经确定性映射后进入系统，禁止先压缩成自增整数再作为正式用户主键在全链路传播。
+- 历史草案里的整型用户主键描述全部废弃，当前认证与授权设计只承认字符串身份主键。
+
 ## 1. 认证架构
 
 ```
@@ -387,6 +394,8 @@ Session 中存储以下字段：
 
 ```json
 {
+  "code": 0,
+  "msg": "获取成功",
   "data": {
     "userId": 42,
     "displayName": "zhangsan",
@@ -398,11 +407,19 @@ Session 中存储以下字段：
       { "slug": "ai-team", "role": "ADMIN" },
       { "slug": "global", "role": "MEMBER" }
     ]
-  }
+  },
+  "timestamp": "2026-03-12T06:00:00Z",
+  "requestId": "req-123"
 }
 ```
 
 前端权限判定基于 `platformRoles` + `namespaces[].role`，后端通过 `role_permission` 表查询权限码。
+
+统一约束：
+- `/api/v1/auth/me`、`/api/v1/auth/providers` 等 JSON 响应必须统一使用 `code/msg/data/timestamp/requestId` 外层结构。
+- `msg` 必须走 Spring Boot 标准 `MessageSource` i18n 机制。
+- locale 必须通过请求上下文自动获取，不在 controller 中显式传递。
+- 认证失败返回 `401`，但 JSON 外层结构仍保持一致，例如 `{"code":401,"msg":"需要先登录","data":null,...}`。
 
 ### 9.2 usePermission() Hook
 

@@ -4,6 +4,9 @@
 
 > **前置条件:** Phase 1 完成（工程骨架 + 认证授权）+ Phase 2 完成（命名空间 + 技能核心链路）
 
+> **重要修订：身份主键约束**
+> 用户身份主键全链路统一使用 `string`。本文中出现的 `submitted_by`、`reviewed_by`、`user_id`、`owner_id`、`actor_user_id` 等用户关联字段都应按字符串设计，任何整型用户主键描述都不再有效。
+
 ## 关键设计决策
 
 | 决策点 | 选择 | 理由 |
@@ -40,8 +43,8 @@ Phase 2 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | namespace_id | BIGINT NOT NULL FK → namespace | 所属空间（决定谁能审核） |
 | status | VARCHAR(32) NOT NULL DEFAULT 'PENDING' | PENDING / APPROVED / REJECTED |
 | version | INT NOT NULL DEFAULT 1 | 乐观锁版本号 |
-| submitted_by | BIGINT NOT NULL FK → user_account | 提交人 |
-| reviewed_by | BIGINT FK → user_account | 审核人 |
+| submitted_by | VARCHAR(128) NOT NULL FK → user_account | 提交人 |
+| reviewed_by | VARCHAR(128) FK → user_account | 审核人 |
 | review_comment | TEXT | 审核意见 |
 | submitted_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 | reviewed_at | TIMESTAMP | |
@@ -66,8 +69,8 @@ Phase 2 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 | target_skill_id | BIGINT FK → skill | 审批通过后生成的全局 skill ID |
 | status | VARCHAR(32) NOT NULL DEFAULT 'PENDING' | PENDING / APPROVED / REJECTED |
 | version | INT NOT NULL DEFAULT 1 | 乐观锁版本号 |
-| submitted_by | BIGINT NOT NULL FK → user_account | 提交人 |
-| reviewed_by | BIGINT FK → user_account | 审核人 |
+| submitted_by | VARCHAR(128) NOT NULL FK → user_account | 提交人 |
+| reviewed_by | VARCHAR(128) FK → user_account | 审核人 |
 | review_comment | TEXT | 审核意见 |
 | submitted_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 | reviewed_at | TIMESTAMP | |
@@ -87,7 +90,7 @@ Phase 2 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 |------|------|------|
 | id | BIGSERIAL PK | |
 | skill_id | BIGINT NOT NULL FK → skill | |
-| user_id | BIGINT NOT NULL FK → user_account | |
+| user_id | VARCHAR(128) NOT NULL FK → user_account | |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 
 索引：
@@ -101,7 +104,7 @@ Phase 2 已有表：`user_account`, `identity_binding`, `api_token`, `role`, `pe
 |------|------|------|
 | id | BIGSERIAL PK | |
 | skill_id | BIGINT NOT NULL FK → skill | |
-| user_id | BIGINT NOT NULL FK → user_account | |
+| user_id | VARCHAR(128) NOT NULL FK → user_account | |
 | score | SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5) | 1-5 分 |
 | created_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
 | updated_at | TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP | |
@@ -281,7 +284,7 @@ public class ReviewPermissionChecker {
     /**
      * 检查用户是否有权审核指定的 review_task
      */
-    public boolean canReview(ReviewTask task, Long userId,
+    public boolean canReview(ReviewTask task, String userId,
                              Map<Long, NamespaceRole> userNamespaceRoles,
                              Set<String> platformRoles) {
         // 不能审核自己提交的
@@ -303,7 +306,7 @@ public class ReviewPermissionChecker {
     /**
      * 检查用户是否有权审核提升请求
      */
-    public boolean canReviewPromotion(PromotionRequest request, Long userId,
+    public boolean canReviewPromotion(PromotionRequest request, String userId,
                                       Set<String> platformRoles) {
         // 只有平台 SKILL_ADMIN 或 SUPER_ADMIN 可以审核提升请求
         return platformRoles.contains("SKILL_ADMIN")
@@ -331,7 +334,7 @@ public class ReviewPermissionChecker {
 public class ReviewService {
 
     @Transactional
-    public void approveReview(Long reviewTaskId, Long reviewerId, String comment) {
+    public void approveReview(Long reviewTaskId, String reviewerId, String comment) {
         // 1. 加载 review_task（带 version）
         ReviewTask task = reviewTaskRepository.findById(reviewTaskId)
             .orElseThrow(() -> new NotFoundException("Review task not found"));
@@ -394,7 +397,7 @@ public interface ReviewTaskRepository extends JpaRepository<ReviewTask, Long> {
     int updateStatusWithVersion(
         @Param("id") Long id,
         @Param("status") ReviewTaskStatus status,
-        @Param("reviewerId") Long reviewerId,
+        @Param("reviewerId") String reviewerId,
         @Param("comment") String comment,
         @Param("expectedVersion") Integer expectedVersion
     );
@@ -422,7 +425,7 @@ public class SkillStarService {
      * 收藏技能
      */
     @Transactional
-    public void starSkill(Long skillId, Long userId) {
+    public void starSkill(Long skillId, String userId) {
         // 1. 检查技能存在性和可见性
         Skill skill = skillRepository.findById(skillId)
             .orElseThrow(() -> new NotFoundException("Skill not found"));
@@ -448,7 +451,7 @@ public class SkillStarService {
      * 取消收藏
      */
     @Transactional
-    public void unstarSkill(Long skillId, Long userId) {
+    public void unstarSkill(Long skillId, String userId) {
         int deleted = skillStarRepository.deleteBySkillIdAndUserId(skillId, userId);
 
         if (deleted > 0) {
@@ -460,14 +463,14 @@ public class SkillStarService {
     /**
      * 检查是否已收藏
      */
-    public boolean isStarred(Long skillId, Long userId) {
+    public boolean isStarred(Long skillId, String userId) {
         return skillStarRepository.existsBySkillIdAndUserId(skillId, userId);
     }
 
     /**
      * 获取用户的收藏列表
      */
-    public Page<Skill> getStarredSkills(Long userId, Pageable pageable) {
+    public Page<Skill> getStarredSkills(String userId, Pageable pageable) {
         return skillStarRepository.findStarredSkillsByUserId(userId, pageable);
     }
 }
@@ -521,7 +524,7 @@ public class SkillRatingService {
      * 提交评分（新增或更新）
      */
     @Transactional
-    public void rateSkill(Long skillId, Long userId, int score) {
+    public void rateSkill(Long skillId, String userId, int score) {
         // 1. 校验评分范围
         if (score < 1 || score > 5) {
             throw new IllegalArgumentException("Score must be between 1 and 5");
@@ -551,7 +554,7 @@ public class SkillRatingService {
     /**
      * 获取用户对技能的评分
      */
-    public Optional<Integer> getUserRating(Long skillId, Long userId) {
+    public Optional<Integer> getUserRating(Long skillId, String userId) {
         return skillRatingRepository.findBySkillIdAndUserId(skillId, userId)
             .map(SkillRating::getScore);
     }
@@ -602,7 +605,7 @@ public class SkillRatingEventListener {
 @Repository
 public interface SkillRatingRepository extends JpaRepository<SkillRating, Long> {
 
-    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, Long userId);
+    Optional<SkillRating> findBySkillIdAndUserId(Long skillId, String userId);
 
     @Query("""
         SELECT new com.iflytek.skillhub.domain.skill.RatingStats(
@@ -708,7 +711,7 @@ public class DeviceAuthService {
     /**
      * 用户授权 device code
      */
-    public void authorizeDeviceCode(String userCode, Long userId) {
+    public void authorizeDeviceCode(String userCode, String userId) {
         // 1. 通过 user_code 查找 device_code
         String deviceCode = findDeviceCodeByUserCode(userCode);
         if (deviceCode == null) {
