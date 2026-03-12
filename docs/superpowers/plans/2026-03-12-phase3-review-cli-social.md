@@ -695,34 +695,2349 @@ git commit -m "feat(review): implement review service
 - Add withdrawReview with PENDING check"
 ```
 
-### Task 6-10: 剩余任务概要
+### Task 6: PromotionService（提升流程服务）
 
-由于完整实施计划会超过 5000 行，这里列出剩余任务的概要：
+**Files:**
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequest.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequestRepository.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionStatus.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/service/PromotionService.java`
+- Create: `server/skillhub-domain/src/test/java/com/iflytek/skillhub/domain/promotion/service/PromotionServiceTest.java`
 
-**Task 6: 提升服务实现**
-- PromotionService 接口和实现
-- 提升审核通过后创建全局 skill
-- 复制版本和文件元数据
+- [ ] **Step 1: 创建 PromotionStatus 枚举**
 
-**Task 7: Controller 层**
-- ReviewController（提交、审核、撤回、列表查询）
-- PromotionController（提交提升、审核提升、列表查询）
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionStatus.java`：
 
-**Task 8: 集成测试**
-- 审核全链路测试（提交 → 审核 → 发布）
-- 乐观锁并发冲突测试
-- 权限控制测试
+```java
+package com.iflytek.skillhub.domain.promotion;
 
-**Task 9: API 文档**
-- OpenAPI 规范更新
-- 请求/响应示例
+public enum PromotionStatus {
+    PENDING,
+    APPROVED,
+    REJECTED,
+    WITHDRAWN
+}
+```
 
-**Task 10: Chunk 1 验收**
-- 运行所有测试
-- 验证 12 个验收标准
-- 代码审查
+- [ ] **Step 2: 创建 PromotionRequest 实体**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequest.java`：
+
+```java
+package com.iflytek.skillhub.domain.promotion;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "promotion_request")
+public class PromotionRequest {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "source_skill_id", nullable = false)
+    private Long sourceSkillId;
+
+    @Column(name = "source_version_id", nullable = false)
+    private Long sourceVersionId;
+
+    @Column(name = "target_namespace_id", nullable = false)
+    private Long targetNamespaceId;
+
+    @Column(name = "target_skill_id")
+    private Long targetSkillId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private PromotionStatus status = PromotionStatus.PENDING;
+
+    @Version
+    @Column(nullable = false)
+    private Integer version = 1;
+
+    @Column(name = "submitted_by", nullable = false)
+    private Long submittedBy;
+
+    @Column(name = "reviewed_by")
+    private Long reviewedBy;
+
+    @Column(name = "review_comment", columnDefinition = "TEXT")
+    private String reviewComment;
+
+    @Column(name = "submitted_at", nullable = false)
+    private LocalDateTime submittedAt = LocalDateTime.now();
+
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
+    // Constructors
+    public PromotionRequest() {}
+
+    public PromotionRequest(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, Long submittedBy) {
+        this.sourceSkillId = sourceSkillId;
+        this.sourceVersionId = sourceVersionId;
+        this.targetNamespaceId = targetNamespaceId;
+        this.submittedBy = submittedBy;
+        this.submittedAt = LocalDateTime.now();
+    }
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public Long getSourceSkillId() {
+        return sourceSkillId;
+    }
+
+    public void setSourceSkillId(Long sourceSkillId) {
+        this.sourceSkillId = sourceSkillId;
+    }
+
+    public Long getSourceVersionId() {
+        return sourceVersionId;
+    }
+
+    public void setSourceVersionId(Long sourceVersionId) {
+        this.sourceVersionId = sourceVersionId;
+    }
+
+    public Long getTargetNamespaceId() {
+        return targetNamespaceId;
+    }
+
+    public void setTargetNamespaceId(Long targetNamespaceId) {
+        this.targetNamespaceId = targetNamespaceId;
+    }
+
+    public Long getTargetSkillId() {
+        return targetSkillId;
+    }
+
+    public void setTargetSkillId(Long targetSkillId) {
+        this.targetSkillId = targetSkillId;
+    }
+
+    public PromotionStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PromotionStatus status) {
+        this.status = status;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
+
+    public Long getSubmittedBy() {
+        return submittedBy;
+    }
+
+    public void setSubmittedBy(Long submittedBy) {
+        this.submittedBy = submittedBy;
+    }
+
+    public Long getReviewedBy() {
+        return reviewedBy;
+    }
+
+    public void setReviewedBy(Long reviewedBy) {
+        this.reviewedBy = reviewedBy;
+    }
+
+    public String getReviewComment() {
+        return reviewComment;
+    }
+
+    public void setReviewComment(String reviewComment) {
+        this.reviewComment = reviewComment;
+    }
+
+    public LocalDateTime getSubmittedAt() {
+        return submittedAt;
+    }
+
+    public void setSubmittedAt(LocalDateTime submittedAt) {
+        this.submittedAt = submittedAt;
+    }
+
+    public LocalDateTime getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(LocalDateTime reviewedAt) {
+        this.reviewedAt = reviewedAt;
+    }
+}
+```
+
+- [ ] **Step 3: 创建 PromotionRequestRepository**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequestRepository.java`：
+
+```java
+package com.iflytek.skillhub.domain.promotion;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+import java.util.Optional;
+
+@Repository
+public interface PromotionRequestRepository extends JpaRepository<PromotionRequest, Long> {
+
+    @Query("SELECT pr FROM PromotionRequest pr WHERE pr.sourceSkillId = :sourceSkillId AND pr.sourceVersionId = :sourceVersionId AND pr.status = 'PENDING'")
+    Optional<PromotionRequest> findPendingBySourceVersion(Long sourceSkillId, Long sourceVersionId);
+
+    @Query("SELECT pr FROM PromotionRequest pr WHERE pr.targetNamespaceId = :targetNamespaceId AND pr.status = :status")
+    Page<PromotionRequest> findByTargetNamespaceAndStatus(Long targetNamespaceId, PromotionStatus status, Pageable pageable);
+
+    @Query("SELECT pr FROM PromotionRequest pr WHERE pr.submittedBy = :userId")
+    Page<PromotionRequest> findBySubmittedBy(Long userId, Pageable pageable);
+}
+```
+
+- [ ] **Step 4: 创建 PromotionService**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/service/PromotionService.java`：
+
+```java
+package com.iflytek.skillhub.domain.promotion.service;
+
+import com.iflytek.skillhub.domain.event.PromotionApprovedEvent;
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionRequest;
+import com.iflytek.skillhub.domain.promotion.PromotionRequestRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionStatus;
+import com.iflytek.skillhub.domain.skill.*;
+import jakarta.persistence.OptimisticLockException;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class PromotionService {
+
+    private final PromotionRequestRepository promotionRequestRepository;
+    private final SkillRepository skillRepository;
+    private final SkillVersionRepository skillVersionRepository;
+    private final SkillFileRepository skillFileRepository;
+    private final NamespaceRepository namespaceRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public PromotionService(
+            PromotionRequestRepository promotionRequestRepository,
+            SkillRepository skillRepository,
+            SkillVersionRepository skillVersionRepository,
+            SkillFileRepository skillFileRepository,
+            NamespaceRepository namespaceRepository,
+            ApplicationEventPublisher eventPublisher) {
+        this.promotionRequestRepository = promotionRequestRepository;
+        this.skillRepository = skillRepository;
+        this.skillVersionRepository = skillVersionRepository;
+        this.skillFileRepository = skillFileRepository;
+        this.namespaceRepository = namespaceRepository;
+        this.eventPublisher = eventPublisher;
+    }
+
+    @Transactional
+    public PromotionRequest submitPromotion(Long sourceSkillId, Long sourceVersionId, Long targetNamespaceId, Long userId) {
+        // 1. Check if source skill and version exist
+        Skill sourceSkill = skillRepository.findById(sourceSkillId)
+                .orElseThrow(() -> new IllegalArgumentException("Source skill not found"));
+
+        SkillVersion sourceVersion = skillVersionRepository.findById(sourceVersionId)
+                .orElseThrow(() -> new IllegalArgumentException("Source version not found"));
+
+        if (!sourceVersion.getSkillId().equals(sourceSkillId)) {
+            throw new IllegalArgumentException("Version does not belong to skill");
+        }
+
+        // 2. Check if version is published
+        if (sourceVersion.getStatus() != SkillVersionStatus.PUBLISHED) {
+            throw new IllegalArgumentException("Only published versions can be promoted");
+        }
+
+        // 3. Check if target namespace exists and is global
+        Namespace targetNamespace = namespaceRepository.findById(targetNamespaceId)
+                .orElseThrow(() -> new IllegalArgumentException("Target namespace not found"));
+
+        if (!targetNamespace.isGlobal()) {
+            throw new IllegalArgumentException("Can only promote to global namespace");
+        }
+
+        // 4. Check if there's already a pending promotion
+        promotionRequestRepository.findPendingBySourceVersion(sourceSkillId, sourceVersionId)
+                .ifPresent(pr -> {
+                    throw new IllegalArgumentException("A pending promotion request already exists");
+                });
+
+        // 5. Create promotion request
+        PromotionRequest request = new PromotionRequest(sourceSkillId, sourceVersionId, targetNamespaceId, userId);
+        return promotionRequestRepository.save(request);
+    }
+
+    @Transactional
+    public PromotionRequest approvePromotion(Long promotionId, Long reviewerId, String comment) {
+        // 1. Load promotion request with optimistic lock
+        PromotionRequest request = promotionRequestRepository.findById(promotionId)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
+
+        // 2. Check status
+        if (request.getStatus() != PromotionStatus.PENDING) {
+            throw new IllegalStateException("Promotion request is not pending");
+        }
+
+        // 3. Load source skill and version
+        Skill sourceSkill = skillRepository.findById(request.getSourceSkillId())
+                .orElseThrow(() -> new IllegalArgumentException("Source skill not found"));
+
+        SkillVersion sourceVersion = skillVersionRepository.findById(request.getSourceVersionId())
+                .orElseThrow(() -> new IllegalArgumentException("Source version not found"));
+
+        // 4. Check if target skill already exists
+        Namespace targetNamespace = namespaceRepository.findById(request.getTargetNamespaceId())
+                .orElseThrow(() -> new IllegalArgumentException("Target namespace not found"));
+
+        Skill targetSkill = skillRepository.findByNamespaceIdAndSlug(targetNamespace.getId(), sourceSkill.getSlug())
+                .orElseGet(() -> {
+                    // Create new skill in global namespace
+                    Skill newSkill = new Skill(
+                            targetNamespace.getId(),
+                            sourceSkill.getSlug(),
+                            sourceSkill.getDisplayName(),
+                            sourceSkill.getSummary(),
+                            sourceSkill.getVisibility(),
+                            reviewerId
+                    );
+                    return skillRepository.save(newSkill);
+                });
+
+        // 5. Copy version
+        SkillVersion targetVersion = new SkillVersion(
+                targetSkill.getId(),
+                sourceVersion.getVersionNumber(),
+                sourceVersion.getMetadataJson(),
+                reviewerId
+        );
+        targetVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        targetVersion.setFileCount(sourceVersion.getFileCount());
+        targetVersion.setTotalSize(sourceVersion.getTotalSize());
+        targetVersion = skillVersionRepository.save(targetVersion);
+
+        // 6. Copy files
+        List<SkillFile> sourceFiles = skillFileRepository.findByVersionId(sourceVersion.getId());
+        for (SkillFile sourceFile : sourceFiles) {
+            SkillFile targetFile = new SkillFile(
+                    targetVersion.getId(),
+                    sourceFile.getFilePath(),
+                    sourceFile.getFileSize(),
+                    sourceFile.getContentType(),
+                    sourceFile.getSha256(),
+                    sourceFile.getStorageKey() // Reuse same storage key
+            );
+            skillFileRepository.save(targetFile);
+        }
+
+        // 7. Update target skill
+        targetSkill.setLatestVersionId(targetVersion.getId());
+        targetSkill.setUpdatedBy(reviewerId);
+        skillRepository.save(targetSkill);
+
+        // 8. Update promotion request
+        request.setStatus(PromotionStatus.APPROVED);
+        request.setReviewedBy(reviewerId);
+        request.setReviewComment(comment);
+        request.setReviewedAt(LocalDateTime.now());
+        request.setTargetSkillId(targetSkill.getId());
+
+        try {
+            request = promotionRequestRepository.save(request);
+        } catch (OptimisticLockException e) {
+            throw new IllegalStateException("Promotion request was modified by another process", e);
+        }
+
+        // 9. Publish event
+        eventPublisher.publishEvent(new PromotionApprovedEvent(
+                request.getId(),
+                targetSkill.getId(),
+                targetVersion.getId(),
+                reviewerId
+        ));
+
+        return request;
+    }
+
+    @Transactional
+    public PromotionRequest rejectPromotion(Long promotionId, Long reviewerId, String comment) {
+        // 1. Load promotion request with optimistic lock
+        PromotionRequest request = promotionRequestRepository.findById(promotionId)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
+
+        // 2. Check status
+        if (request.getStatus() != PromotionStatus.PENDING) {
+            throw new IllegalStateException("Promotion request is not pending");
+        }
+
+        // 3. Update status
+        request.setStatus(PromotionStatus.REJECTED);
+        request.setReviewedBy(reviewerId);
+        request.setReviewComment(comment);
+        request.setReviewedAt(LocalDateTime.now());
+
+        try {
+            return promotionRequestRepository.save(request);
+        } catch (OptimisticLockException e) {
+            throw new IllegalStateException("Promotion request was modified by another process", e);
+        }
+    }
+
+    @Transactional
+    public PromotionRequest withdrawPromotion(Long promotionId, Long userId) {
+        // 1. Load promotion request
+        PromotionRequest request = promotionRequestRepository.findById(promotionId)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
+
+        // 2. Check ownership
+        if (!request.getSubmittedBy().equals(userId)) {
+            throw new IllegalArgumentException("Only the submitter can withdraw the promotion");
+        }
+
+        // 3. Check status
+        if (request.getStatus() != PromotionStatus.PENDING) {
+            throw new IllegalStateException("Only pending promotions can be withdrawn");
+        }
+
+        // 4. Update status
+        request.setStatus(PromotionStatus.WITHDRAWN);
+        request.setReviewedAt(LocalDateTime.now());
+
+        try {
+            return promotionRequestRepository.save(request);
+        } catch (OptimisticLockException e) {
+            throw new IllegalStateException("Promotion request was modified by another process", e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PromotionRequest> listPendingPromotions(Long targetNamespaceId, Pageable pageable) {
+        return promotionRequestRepository.findByTargetNamespaceAndStatus(
+                targetNamespaceId, PromotionStatus.PENDING, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PromotionRequest> listMyPromotions(Long userId, Pageable pageable) {
+        return promotionRequestRepository.findBySubmittedBy(userId, pageable);
+    }
+
+    @Transactional(readOnly = true)
+    public PromotionRequest getPromotionDetail(Long promotionId) {
+        return promotionRequestRepository.findById(promotionId)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion request not found"));
+    }
+}
+```
+
+- [ ] **Step 5: 创建 PromotionApprovedEvent**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/PromotionApprovedEvent.java`：
+
+```java
+package com.iflytek.skillhub.domain.event;
+
+public record PromotionApprovedEvent(
+        Long promotionId,
+        Long targetSkillId,
+        Long targetVersionId,
+        Long reviewerId
+) {}
+```
+
+- [ ] **Step 6: 编写 PromotionService 测试**
+
+创建 `server/skillhub-domain/src/test/java/com/iflytek/skillhub/domain/promotion/service/PromotionServiceTest.java`：
+
+```java
+package com.iflytek.skillhub.domain.promotion.service;
+
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionRequest;
+import com.iflytek.skillhub.domain.promotion.PromotionRequestRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionStatus;
+import com.iflytek.skillhub.domain.skill.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
+
+import static org.assertj.core.api.Assertions.*;
+
+@SpringBootTest
+@ActiveProfiles("test")
+@Transactional
+class PromotionServiceTest {
+
+    @Autowired
+    private PromotionService promotionService;
+
+    @Autowired
+    private PromotionRequestRepository promotionRequestRepository;
+
+    @Autowired
+    private SkillRepository skillRepository;
+
+    @Autowired
+    private SkillVersionRepository skillVersionRepository;
+
+    @Autowired
+    private SkillFileRepository skillFileRepository;
+
+    @Autowired
+    private NamespaceRepository namespaceRepository;
+
+    private Namespace teamNamespace;
+    private Namespace globalNamespace;
+    private Skill teamSkill;
+    private SkillVersion publishedVersion;
+    private Long userId = 1L;
+
+    @BeforeEach
+    void setUp() {
+        // Create team namespace
+        teamNamespace = new Namespace("team-alpha", "Team Alpha", false, userId);
+        teamNamespace = namespaceRepository.save(teamNamespace);
+
+        // Create global namespace
+        globalNamespace = new Namespace("global", "Global", true, userId);
+        globalNamespace = namespaceRepository.save(globalNamespace);
+
+        // Create team skill
+        teamSkill = new Skill(teamNamespace.getId(), "awesome-skill", "Awesome Skill", "A great skill", SkillVisibility.PUBLIC, userId);
+        teamSkill = skillRepository.save(teamSkill);
+
+        // Create published version
+        publishedVersion = new SkillVersion(teamSkill.getId(), "1.0.0", "{}", userId);
+        publishedVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        publishedVersion = skillVersionRepository.save(publishedVersion);
+
+        teamSkill.setLatestVersionId(publishedVersion.getId());
+        skillRepository.save(teamSkill);
+    }
+
+    @Test
+    void submitPromotion_success() {
+        PromotionRequest request = promotionService.submitPromotion(
+                teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId);
+
+        assertThat(request.getId()).isNotNull();
+        assertThat(request.getStatus()).isEqualTo(PromotionStatus.PENDING);
+        assertThat(request.getSourceSkillId()).isEqualTo(teamSkill.getId());
+        assertThat(request.getTargetNamespaceId()).isEqualTo(globalNamespace.getId());
+    }
+
+    @Test
+    void submitPromotion_duplicatePending_throwsException() {
+        promotionService.submitPromotion(teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId);
+
+        assertThatThrownBy(() -> promotionService.submitPromotion(
+                teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pending promotion request already exists");
+    }
+
+    @Test
+    void approvePromotion_success() {
+        PromotionRequest request = promotionService.submitPromotion(
+                teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId);
+
+        PromotionRequest approved = promotionService.approvePromotion(request.getId(), userId, "Looks good");
+
+        assertThat(approved.getStatus()).isEqualTo(PromotionStatus.APPROVED);
+        assertThat(approved.getReviewedBy()).isEqualTo(userId);
+        assertThat(approved.getTargetSkillId()).isNotNull();
+
+        // Verify target skill created
+        Skill targetSkill = skillRepository.findById(approved.getTargetSkillId()).orElseThrow();
+        assertThat(targetSkill.getNamespaceId()).isEqualTo(globalNamespace.getId());
+        assertThat(targetSkill.getSlug()).isEqualTo(teamSkill.getSlug());
+    }
+
+    @Test
+    void rejectPromotion_success() {
+        PromotionRequest request = promotionService.submitPromotion(
+                teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId);
+
+        PromotionRequest rejected = promotionService.rejectPromotion(request.getId(), userId, "Not ready");
+
+        assertThat(rejected.getStatus()).isEqualTo(PromotionStatus.REJECTED);
+        assertThat(rejected.getReviewComment()).isEqualTo("Not ready");
+    }
+
+    @Test
+    void withdrawPromotion_success() {
+        PromotionRequest request = promotionService.submitPromotion(
+                teamSkill.getId(), publishedVersion.getId(), globalNamespace.getId(), userId);
+
+        PromotionRequest withdrawn = promotionService.withdrawPromotion(request.getId(), userId);
+
+        assertThat(withdrawn.getStatus()).isEqualTo(PromotionStatus.WITHDRAWN);
+    }
+}
+```
 
 ---
+
+
+### Task 7: ReviewController + PromotionController（审核和提升 REST API）
+
+**Files:**
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/ReviewController.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/PromotionController.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskRequest.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskResponse.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewActionRequest.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionRequestDto.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionResponseDto.java`
+- Create: `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionActionRequest.java`
+
+- [ ] **Step 1: 创建 Review DTOs**
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskRequest.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+public record ReviewTaskRequest(
+        Long skillVersionId
+) {}
+```
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskResponse.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+import java.time.LocalDateTime;
+
+public record ReviewTaskResponse(
+        Long id,
+        Long skillVersionId,
+        String namespace,
+        String skillSlug,
+        String version,
+        String status,
+        Long submittedBy,
+        String submittedByUsername,
+        Long reviewedBy,
+        String reviewedByUsername,
+        String reviewComment,
+        LocalDateTime submittedAt,
+        LocalDateTime reviewedAt
+) {}
+```
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewActionRequest.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+public record ReviewActionRequest(
+        String comment
+) {}
+```
+
+- [ ] **Step 2: 创建 Promotion DTOs**
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionRequestDto.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+public record PromotionRequestDto(
+        Long sourceSkillId,
+        Long sourceVersionId,
+        String targetNamespace
+) {}
+```
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionResponseDto.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+import java.time.LocalDateTime;
+
+public record PromotionResponseDto(
+        Long id,
+        Long sourceSkillId,
+        String sourceNamespace,
+        String sourceSkillSlug,
+        String sourceVersion,
+        String targetNamespace,
+        Long targetSkillId,
+        String status,
+        Long submittedBy,
+        String submittedByUsername,
+        Long reviewedBy,
+        String reviewedByUsername,
+        String reviewComment,
+        LocalDateTime submittedAt,
+        LocalDateTime reviewedAt
+) {}
+```
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionActionRequest.java`：
+
+```java
+package com.iflytek.skillhub.dto;
+
+public record PromotionActionRequest(
+        String comment
+) {}
+```
+
+- [ ] **Step 3: 创建 ReviewController**
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/ReviewController.java`：
+
+```java
+package com.iflytek.skillhub.controller.portal;
+
+import com.iflytek.skillhub.auth.rbac.RbacService;
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.review.ReviewTask;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.review.service.ReviewService;
+import com.iflytek.skillhub.domain.skill.Skill;
+import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.user.UserAccount;
+import com.iflytek.skillhub.domain.user.UserAccountRepository;
+import com.iflytek.skillhub.dto.ReviewActionRequest;
+import com.iflytek.skillhub.dto.ReviewTaskRequest;
+import com.iflytek.skillhub.dto.ReviewTaskResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/v1/reviews")
+public class ReviewController {
+
+    private final ReviewService reviewService;
+    private final ReviewTaskRepository reviewTaskRepository;
+    private final SkillRepository skillRepository;
+    private final SkillVersionRepository skillVersionRepository;
+    private final NamespaceRepository namespaceRepository;
+    private final UserAccountRepository userAccountRepository;
+    private final RbacService rbacService;
+
+    public ReviewController(
+            ReviewService reviewService,
+            ReviewTaskRepository reviewTaskRepository,
+            SkillRepository skillRepository,
+            SkillVersionRepository skillVersionRepository,
+            NamespaceRepository namespaceRepository,
+            UserAccountRepository userAccountRepository,
+            RbacService rbacService) {
+        this.reviewService = reviewService;
+        this.reviewTaskRepository = reviewTaskRepository;
+        this.skillRepository = skillRepository;
+        this.skillVersionRepository = skillVersionRepository;
+        this.namespaceRepository = namespaceRepository;
+        this.userAccountRepository = userAccountRepository;
+        this.rbacService = rbacService;
+    }
+
+    @PostMapping
+    public ResponseEntity<ReviewTaskResponse> submitReview(
+            @RequestBody ReviewTaskRequest request,
+            @RequestAttribute("userId") Long userId) {
+
+        ReviewTask task = reviewService.submitReview(request.skillVersionId(), userId);
+        return ResponseEntity.ok(toResponse(task));
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ReviewTaskResponse> approveReview(
+            @PathVariable Long id,
+            @RequestBody(required = false) ReviewActionRequest request,
+            @RequestAttribute("userId") Long userId) {
+
+        String comment = request != null ? request.comment() : null;
+        ReviewTask task = reviewService.approveReview(id, userId, comment);
+        return ResponseEntity.ok(toResponse(task));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ReviewTaskResponse> rejectReview(
+            @PathVariable Long id,
+            @RequestBody ReviewActionRequest request,
+            @RequestAttribute("userId") Long userId) {
+
+        ReviewTask task = reviewService.rejectReview(id, userId, request.comment());
+        return ResponseEntity.ok(toResponse(task));
+    }
+
+    @PostMapping("/{id}/withdraw")
+    public ResponseEntity<ReviewTaskResponse> withdrawReview(
+            @PathVariable Long id,
+            @RequestAttribute("userId") Long userId) {
+
+        ReviewTask task = reviewService.withdrawReview(id, userId);
+        return ResponseEntity.ok(toResponse(task));
+    }
+
+    @GetMapping("/pending")
+    public ResponseEntity<Page<ReviewTaskResponse>> listPendingReviews(
+            @RequestParam(required = false) String namespace,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute("userId") Long userId) {
+
+        Page<ReviewTask> tasks;
+        if (namespace != null) {
+            Namespace ns = namespaceRepository.findBySlug(namespace)
+                    .orElseThrow(() -> new IllegalArgumentException("Namespace not found: " + namespace));
+            tasks = reviewTaskRepository.findPendingByNamespace(ns.getId(), PageRequest.of(page, size));
+        } else {
+            // List all pending reviews user can access
+            boolean isSkillAdmin = rbacService.hasRole(userId, "SKILL_ADMIN");
+            if (isSkillAdmin) {
+                // SKILL_ADMIN can see all pending reviews
+                tasks = reviewTaskRepository.findByStatus(com.iflytek.skillhub.domain.review.ReviewStatus.PENDING, PageRequest.of(page, size));
+            } else {
+                // Regular users see reviews for namespaces they manage
+                tasks = Page.empty();
+            }
+        }
+
+        return ResponseEntity.ok(tasks.map(this::toResponse));
+    }
+
+    @GetMapping("/my-submissions")
+    public ResponseEntity<Page<ReviewTaskResponse>> listMySubmissions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute("userId") Long userId) {
+
+        Page<ReviewTask> tasks = reviewTaskRepository.findBySubmittedBy(userId, PageRequest.of(page, size));
+        return ResponseEntity.ok(tasks.map(this::toResponse));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ReviewTaskResponse> getReviewDetail(
+            @PathVariable Long id,
+            @RequestAttribute("userId") Long userId) {
+
+        ReviewTask task = reviewTaskRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Review task not found: " + id));
+
+        return ResponseEntity.ok(toResponse(task));
+    }
+
+    private ReviewTaskResponse toResponse(ReviewTask task) {
+        SkillVersion version = skillVersionRepository.findById(task.getSkillVersionId())
+                .orElseThrow(() -> new IllegalStateException("Version not found"));
+        Skill skill = skillRepository.findById(version.getSkillId())
+                .orElseThrow(() -> new IllegalStateException("Skill not found"));
+        Namespace namespace = namespaceRepository.findById(task.getNamespaceId())
+                .orElseThrow(() -> new IllegalStateException("Namespace not found"));
+
+        UserAccount submitter = userAccountRepository.findById(task.getSubmittedBy())
+                .orElseThrow(() -> new IllegalStateException("Submitter not found"));
+
+        String reviewedByUsername = null;
+        if (task.getReviewedBy() != null) {
+            reviewedByUsername = userAccountRepository.findById(task.getReviewedBy())
+                    .map(UserAccount::getUsername)
+                    .orElse(null);
+        }
+
+        return new ReviewTaskResponse(
+                task.getId(),
+                task.getSkillVersionId(),
+                namespace.getSlug(),
+                skill.getSlug(),
+                version.getVersion(),
+                task.getStatus().name(),
+                task.getSubmittedBy(),
+                submitter.getUsername(),
+                task.getReviewedBy(),
+                reviewedByUsername,
+                task.getReviewComment(),
+                task.getSubmittedAt(),
+                task.getReviewedAt()
+        );
+    }
+}
+```
+
+- [ ] **Step 4: 创建 PromotionController**
+
+创建 `server/skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/PromotionController.java`：
+
+```java
+package com.iflytek.skillhub.controller.portal;
+
+import com.iflytek.skillhub.auth.rbac.RbacService;
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionRequest;
+import com.iflytek.skillhub.domain.promotion.PromotionRequestRepository;
+import com.iflytek.skillhub.domain.promotion.PromotionStatus;
+import com.iflytek.skillhub.domain.promotion.service.PromotionService;
+import com.iflytek.skillhub.domain.skill.Skill;
+import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.user.UserAccount;
+import com.iflytek.skillhub.domain.user.UserAccountRepository;
+import com.iflytek.skillhub.dto.PromotionActionRequest;
+import com.iflytek.skillhub.dto.PromotionRequestDto;
+import com.iflytek.skillhub.dto.PromotionResponseDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/promotions")
+public class PromotionController {
+
+    private final PromotionService promotionService;
+    private final PromotionRequestRepository promotionRequestRepository;
+    private final SkillRepository skillRepository;
+    private final SkillVersionRepository skillVersionRepository;
+    private final NamespaceRepository namespaceRepository;
+    private final UserAccountRepository userAccountRepository;
+    private final RbacService rbacService;
+
+    public PromotionController(
+            PromotionService promotionService,
+            PromotionRequestRepository promotionRequestRepository,
+            SkillRepository skillRepository,
+            SkillVersionRepository skillVersionRepository,
+            NamespaceRepository namespaceRepository,
+            UserAccountRepository userAccountRepository,
+            RbacService rbacService) {
+        this.promotionService = promotionService;
+        this.promotionRequestRepository = promotionRequestRepository;
+        this.skillRepository = skillRepository;
+        this.skillVersionRepository = skillVersionRepository;
+        this.namespaceRepository = namespaceRepository;
+        this.userAccountRepository = userAccountRepository;
+        this.rbacService = rbacService;
+    }
+
+    @PostMapping
+    public ResponseEntity<PromotionResponseDto> submitPromotion(
+            @RequestBody PromotionRequestDto request,
+            @RequestAttribute("userId") Long userId) {
+
+        PromotionRequest promotion = promotionService.submitPromotion(
+                request.sourceSkillId(),
+                request.sourceVersionId(),
+                request.targetNamespace(),
+                userId
+        );
+
+        return ResponseEntity.ok(toResponse(promotion));
+    }
+
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<PromotionResponseDto> approvePromotion(
+            @PathVariable Long id,
+            @RequestBody(required = false) PromotionActionRequest request,
+            @RequestAttribute("userId") Long userId) {
+
+        String comment = request != null ? request.comment() : null;
+        PromotionRequest promotion = promotionService.approvePromotion(id, userId, comment);
+        return ResponseEntity.ok(toResponse(promotion));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<PromotionResponseDto> rejectPromotion(
+            @PathVariable Long id,
+            @RequestBody PromotionActionRequest request,
+            @RequestAttribute("userId") Long userId) {
+
+        PromotionRequest promotion = promotionService.rejectPromotion(id, userId, request.comment());
+        return ResponseEntity.ok(toResponse(promotion));
+    }
+
+    @GetMapping("/pending")
+    public ResponseEntity<Page<PromotionResponseDto>> listPendingPromotions(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestAttribute("userId") Long userId) {
+
+        // Only SKILL_ADMIN can list pending promotions
+        if (!rbacService.hasRole(userId, "SKILL_ADMIN")) {
+            throw new IllegalArgumentException("Only SKILL_ADMIN can list pending promotions");
+        }
+
+        Page<PromotionRequest> promotions = promotionRequestRepository.findByStatus(
+                PromotionStatus.PENDING,
+                PageRequest.of(page, size)
+        );
+
+        return ResponseEntity.ok(promotions.map(this::toResponse));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PromotionResponseDto> getPromotionDetail(
+            @PathVariable Long id,
+            @RequestAttribute("userId") Long userId) {
+
+        PromotionRequest promotion = promotionRequestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Promotion request not found: " + id));
+
+        return ResponseEntity.ok(toResponse(promotion));
+    }
+
+    private PromotionResponseDto toResponse(PromotionRequest promotion) {
+        Skill sourceSkill = skillRepository.findById(promotion.getSourceSkillId())
+                .orElseThrow(() -> new IllegalStateException("Source skill not found"));
+        SkillVersion sourceVersion = skillVersionRepository.findById(promotion.getSourceVersionId())
+                .orElseThrow(() -> new IllegalStateException("Source version not found"));
+        Namespace sourceNamespace = namespaceRepository.findById(sourceSkill.getNamespaceId())
+                .orElseThrow(() -> new IllegalStateException("Source namespace not found"));
+        Namespace targetNamespace = namespaceRepository.findById(promotion.getTargetNamespaceId())
+                .orElseThrow(() -> new IllegalStateException("Target namespace not found"));
+
+        UserAccount submitter = userAccountRepository.findById(promotion.getSubmittedBy())
+                .orElseThrow(() -> new IllegalStateException("Submitter not found"));
+
+        String reviewedByUsername = null;
+        if (promotion.getReviewedBy() != null) {
+            reviewedByUsername = userAccountRepository.findById(promotion.getReviewedBy())
+                    .map(UserAccount::getUsername)
+                    .orElse(null);
+        }
+
+        return new PromotionResponseDto(
+                promotion.getId(),
+                promotion.getSourceSkillId(),
+                sourceNamespace.getSlug(),
+                sourceSkill.getSlug(),
+                sourceVersion.getVersion(),
+                targetNamespace.getSlug(),
+                promotion.getTargetSkillId(),
+                promotion.getStatus().name(),
+                promotion.getSubmittedBy(),
+                submitter.getUsername(),
+                promotion.getReviewedBy(),
+                reviewedByUsername,
+                promotion.getReviewComment(),
+                promotion.getSubmittedAt(),
+                promotion.getReviewedAt()
+        );
+    }
+}
+```
+
+- [ ] **Step 5: 编写 Controller 集成测试**
+
+创建 `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/portal/ReviewControllerTest.java`：
+
+```java
+package com.iflytek.skillhub.controller.portal;
+
+import com.iflytek.skillhub.domain.review.ReviewStatus;
+import com.iflytek.skillhub.domain.review.ReviewTask;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.review.service.ReviewService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDateTime;
+
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@WebMvcTest(ReviewController.class)
+class ReviewControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ReviewService reviewService;
+
+    @MockBean
+    private ReviewTaskRepository reviewTaskRepository;
+
+    @Test
+    void submitReview_shouldReturn200() throws Exception {
+        ReviewTask task = new ReviewTask(1L, 1L, 1L);
+        task.setId(1L);
+        when(reviewService.submitReview(anyLong(), anyLong())).thenReturn(task);
+
+        mockMvc.perform(post("/api/v1/reviews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"skillVersionId\": 1}")
+                        .requestAttr("userId", 1L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1));
+    }
+
+    @Test
+    void approveReview_shouldReturn200() throws Exception {
+        ReviewTask task = new ReviewTask(1L, 1L, 1L);
+        task.setId(1L);
+        task.setStatus(ReviewStatus.APPROVED);
+        when(reviewService.approveReview(anyLong(), anyLong(), anyString())).thenReturn(task);
+
+        mockMvc.perform(post("/api/v1/reviews/1/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"comment\": \"LGTM\"}")
+                        .requestAttr("userId", 2L))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("APPROVED"));
+    }
+}
+```
+
+---
+
+
+### Task 8: 发布流程改造（修改 SkillPublishService）
+
+**Files:**
+- Modify: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/service/SkillPublishService.java`
+- Modify: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/SkillVersionStatus.java`
+- Create: `server/skillhub-domain/src/test/java/com/iflytek/skillhub/domain/skill/service/SkillPublishServiceReviewTest.java`
+
+- [ ] **Step 1: 修改 SkillVersionStatus 枚举（已完成）**
+
+确认 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/SkillVersionStatus.java` 已包含 `PENDING_REVIEW`：
+
+```java
+package com.iflytek.skillhub.domain.skill;
+
+public enum SkillVersionStatus {
+    DRAFT,
+    PENDING_REVIEW,
+    PUBLISHED,
+    REJECTED
+}
+```
+
+- [ ] **Step 2: 修改 SkillPublishService 创建 PENDING_REVIEW 版本**
+
+修改 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/service/SkillPublishService.java`：
+
+在 `publishFromEntries` 方法中，找到创建 `SkillVersion` 的代码（约第 120 行）：
+
+```java
+// 原代码：
+SkillVersion version = new SkillVersion(
+        skill.getId(),
+        metadata.version(),
+        SkillVersionStatus.PUBLISHED,  // <-- 修改这里
+        publisherId
+);
+```
+
+修改为：
+
+```java
+// 新代码：
+SkillVersion version = new SkillVersion(
+        skill.getId(),
+        metadata.version(),
+        SkillVersionStatus.PENDING_REVIEW,  // <-- 改为 PENDING_REVIEW
+        publisherId
+);
+```
+
+- [ ] **Step 3: 在 SkillPublishService 中自动创建 ReviewTask**
+
+在 `SkillPublishService` 类中添加依赖注入：
+
+```java
+// 在类的字段声明部分添加：
+private final ReviewTaskRepository reviewTaskRepository;
+
+// 在构造函数中添加参数：
+public SkillPublishService(
+        NamespaceRepository namespaceRepository,
+        NamespaceMemberRepository namespaceMemberRepository,
+        SkillRepository skillRepository,
+        SkillVersionRepository skillVersionRepository,
+        SkillFileRepository skillFileRepository,
+        ObjectStorageService objectStorageService,
+        SkillPackageValidator skillPackageValidator,
+        SkillMetadataParser skillMetadataParser,
+        PrePublishValidator prePublishValidator,
+        ApplicationEventPublisher eventPublisher,
+        ObjectMapper objectMapper,
+        ReviewTaskRepository reviewTaskRepository) {  // <-- 新增
+    this.namespaceRepository = namespaceRepository;
+    this.namespaceMemberRepository = namespaceMemberRepository;
+    this.skillRepository = skillRepository;
+    this.skillVersionRepository = skillVersionRepository;
+    this.skillFileRepository = skillFileRepository;
+    this.objectStorageService = objectStorageService;
+    this.skillPackageValidator = skillPackageValidator;
+    this.skillMetadataParser = skillMetadataParser;
+    this.prePublishValidator = prePublishValidator;
+    this.eventPublisher = eventPublisher;
+    this.objectMapper = objectMapper;
+    this.reviewTaskRepository = reviewTaskRepository;  // <-- 新增
+}
+```
+
+在 `publishFromEntries` 方法的最后，在发布事件之前（约第 189 行），添加创建 ReviewTask 的代码：
+
+```java
+// 在 eventPublisher.publishEvent(...) 之前添加：
+
+// 12.5. Auto-create ReviewTask
+ReviewTask reviewTask = new ReviewTask(
+        version.getId(),
+        namespace.getId(),
+        publisherId
+);
+reviewTaskRepository.save(reviewTask);
+```
+
+同时需要在文件顶部添加 import：
+
+```java
+import com.iflytek.skillhub.domain.review.ReviewTask;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+```
+
+- [ ] **Step 4: 修改 SkillPublishedEvent 的触发时机**
+
+在 `publishFromEntries` 方法中，找到发布事件的代码（约第 190 行）：
+
+```java
+// 原代码：
+eventPublisher.publishEvent(new SkillPublishedEvent(skill.getId(), version.getId(), publisherId));
+```
+
+注释掉或删除这行代码，因为现在版本状态是 PENDING_REVIEW，不应该立即触发 SkillPublishedEvent。该事件将在审核通过后由 ReviewApprovedEvent 监听器触发。
+
+```java
+// 13. Publish SkillPublishedEvent - 移除，改为审核通过后触发
+// eventPublisher.publishEvent(new SkillPublishedEvent(skill.getId(), version.getId(), publisherId));
+```
+
+- [ ] **Step 5: 编写测试验证发布流程改造**
+
+创建 `server/skillhub-domain/src/test/java/com/iflytek/skillhub/domain/skill/service/SkillPublishServiceReviewTest.java`：
+
+```java
+package com.iflytek.skillhub.domain.skill.service;
+
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.review.ReviewTask;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.skill.*;
+import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
+import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
+import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
+import com.iflytek.skillhub.domain.skill.validation.PrePublishValidator;
+import com.iflytek.skillhub.domain.skill.validation.SkillPackageValidator;
+import com.iflytek.skillhub.storage.ObjectStorageService;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.io.ByteArrayInputStream;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class SkillPublishServiceReviewTest {
+
+    @Mock
+    private NamespaceRepository namespaceRepository;
+    @Mock
+    private NamespaceMemberRepository namespaceMemberRepository;
+    @Mock
+    private SkillRepository skillRepository;
+    @Mock
+    private SkillVersionRepository skillVersionRepository;
+    @Mock
+    private SkillFileRepository skillFileRepository;
+    @Mock
+    private ObjectStorageService objectStorageService;
+    @Mock
+    private SkillPackageValidator skillPackageValidator;
+    @Mock
+    private SkillMetadataParser skillMetadataParser;
+    @Mock
+    private PrePublishValidator prePublishValidator;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ReviewTaskRepository reviewTaskRepository;
+
+    @InjectMocks
+    private SkillPublishService skillPublishService;
+
+    @Test
+    void publishFromEntries_shouldCreatePendingReviewVersion() {
+        // Arrange
+        Long publisherId = 100L;
+        String namespaceSlug = "test-ns";
+        
+        Namespace namespace = new Namespace();
+        namespace.setId(1L);
+        namespace.setSlug(namespaceSlug);
+        
+        when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, publisherId))
+                .thenReturn(Optional.of(mock(com.iflytek.skillhub.domain.namespace.NamespaceMember.class)));
+        
+        SkillMetadata metadata = new SkillMetadata("test-skill", "1.0.0", "Test Skill", "Description", null, null, null);
+        when(skillMetadataParser.parse(any())).thenReturn(metadata);
+        
+        Skill skill = new Skill();
+        skill.setId(10L);
+        skill.setSlug("test-skill");
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "test-skill")).thenReturn(Optional.of(skill));
+        
+        SkillVersion version = new SkillVersion();
+        version.setId(20L);
+        version.setStatus(SkillVersionStatus.PENDING_REVIEW);
+        when(skillVersionRepository.save(any(SkillVersion.class))).thenReturn(version);
+        
+        PackageEntry entry = new PackageEntry("skill.json", "application/json", 100L, new ByteArrayInputStream("{}".getBytes()));
+        List<PackageEntry> entries = List.of(entry);
+        
+        // Act
+        SkillVersion result = skillPublishService.publishFromEntries(namespaceSlug, entries, publisherId, SkillVisibility.PUBLIC);
+        
+        // Assert
+        assertEquals(SkillVersionStatus.PENDING_REVIEW, result.getStatus());
+        verify(reviewTaskRepository, times(1)).save(any(ReviewTask.class));
+        verify(eventPublisher, never()).publishEvent(any());  // 不应该触发 SkillPublishedEvent
+    }
+
+    @Test
+    void publishFromEntries_shouldAutoCreateReviewTask() {
+        // Arrange
+        Long publisherId = 100L;
+        String namespaceSlug = "test-ns";
+        
+        Namespace namespace = new Namespace();
+        namespace.setId(1L);
+        namespace.setSlug(namespaceSlug);
+        
+        when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, publisherId))
+                .thenReturn(Optional.of(mock(com.iflytek.skillhub.domain.namespace.NamespaceMember.class)));
+        
+        SkillMetadata metadata = new SkillMetadata("test-skill", "1.0.0", "Test Skill", "Description", null, null, null);
+        when(skillMetadataParser.parse(any())).thenReturn(metadata);
+        
+        Skill skill = new Skill();
+        skill.setId(10L);
+        skill.setSlug("test-skill");
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "test-skill")).thenReturn(Optional.of(skill));
+        
+        SkillVersion version = new SkillVersion();
+        version.setId(20L);
+        when(skillVersionRepository.save(any(SkillVersion.class))).thenReturn(version);
+        
+        PackageEntry entry = new PackageEntry("skill.json", "application/json", 100L, new ByteArrayInputStream("{}".getBytes()));
+        List<PackageEntry> entries = List.of(entry);
+        
+        // Act
+        skillPublishService.publishFromEntries(namespaceSlug, entries, publisherId, SkillVisibility.PUBLIC);
+        
+        // Assert
+        ArgumentCaptor<ReviewTask> captor = ArgumentCaptor.forClass(ReviewTask.class);
+        verify(reviewTaskRepository).save(captor.capture());
+        
+        ReviewTask savedTask = captor.getValue();
+        assertEquals(20L, savedTask.getSkillVersionId());
+        assertEquals(1L, savedTask.getNamespaceId());
+        assertEquals(publisherId, savedTask.getSubmittedBy());
+    }
+}
+```
+
+- [ ] **Step 6: 运行测试验证**
+
+```bash
+cd /Users/xudongsun/github/skillhub/server
+./mvnw test -Dtest=SkillPublishServiceReviewTest
+```
+
+---
+
+
+### Task 9: 审核事件监听器（Event Listeners）
+
+**Files:**
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewApprovedEvent.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewRejectedEvent.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/PromotionApprovedEvent.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/event/ReviewEventListener.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/event/PromotionEventListener.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLog.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLogRepository.java`
+- Create: `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditAction.java`
+
+- [ ] **Step 1: 创建审核事件类**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewApprovedEvent.java`：
+
+```java
+package com.iflytek.skillhub.domain.event;
+
+public record ReviewApprovedEvent(
+        Long reviewTaskId,
+        Long skillId,
+        Long versionId,
+        Long reviewerId,
+        String comment
+) {}
+```
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewRejectedEvent.java`：
+
+```java
+package com.iflytek.skillhub.domain.event;
+
+public record ReviewRejectedEvent(
+        Long reviewTaskId,
+        Long skillId,
+        Long versionId,
+        Long reviewerId,
+        String comment
+) {}
+```
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/PromotionApprovedEvent.java`：
+
+```java
+package com.iflytek.skillhub.domain.event;
+
+public record PromotionApprovedEvent(
+        Long promotionRequestId,
+        Long sourceSkillId,
+        Long sourceVersionId,
+        Long targetSkillId,
+        Long reviewerId
+) {}
+```
+
+- [ ] **Step 2: 创建 AuditLog 实体和枚举**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditAction.java`：
+
+```java
+package com.iflytek.skillhub.domain.audit;
+
+public enum AuditAction {
+    REVIEW_SUBMITTED,
+    REVIEW_APPROVED,
+    REVIEW_REJECTED,
+    REVIEW_WITHDRAWN,
+    PROMOTION_SUBMITTED,
+    PROMOTION_APPROVED,
+    PROMOTION_REJECTED,
+    PROMOTION_WITHDRAWN,
+    SKILL_PUBLISHED,
+    SKILL_ARCHIVED
+}
+```
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLog.java`：
+
+```java
+package com.iflytek.skillhub.domain.audit;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "audit_log")
+public class AuditLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 64)
+    private AuditAction action;
+
+    @Column(name = "entity_type", nullable = false, length = 64)
+    private String entityType;
+
+    @Column(name = "entity_id", nullable = false)
+    private Long entityId;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "details", columnDefinition = "TEXT")
+    private String details;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    // Constructors
+    public AuditLog() {}
+
+    public AuditLog(AuditAction action, String entityType, Long entityId, Long userId, String details) {
+        this.action = action;
+        this.entityType = entityType;
+        this.entityId = entityId;
+        this.userId = userId;
+        this.details = details;
+        this.createdAt = LocalDateTime.now();
+    }
+
+    // Getters and Setters
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public AuditAction getAction() {
+        return action;
+    }
+
+    public void setAction(AuditAction action) {
+        this.action = action;
+    }
+
+    public String getEntityType() {
+        return entityType;
+    }
+
+    public void setEntityType(String entityType) {
+        this.entityType = entityType;
+    }
+
+    public Long getEntityId() {
+        return entityId;
+    }
+
+    public void setEntityId(Long entityId) {
+        this.entityId = entityId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Long userId) {
+        this.userId = userId;
+    }
+
+    public String getDetails() {
+        return details;
+    }
+
+    public void setDetails(String details) {
+        this.details = details;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+}
+```
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLogRepository.java`：
+
+```java
+package com.iflytek.skillhub.domain.audit;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+}
+```
+
+- [ ] **Step 3: 创建 ReviewEventListener**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/event/ReviewEventListener.java`：
+
+```java
+package com.iflytek.skillhub.domain.review.event;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.skillhub.domain.audit.AuditAction;
+import com.iflytek.skillhub.domain.audit.AuditLog;
+import com.iflytek.skillhub.domain.audit.AuditLogRepository;
+import com.iflytek.skillhub.domain.event.ReviewApprovedEvent;
+import com.iflytek.skillhub.domain.event.ReviewRejectedEvent;
+import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Component
+public class ReviewEventListener {
+
+    private final SkillVersionRepository skillVersionRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
+
+    public ReviewEventListener(
+            SkillVersionRepository skillVersionRepository,
+            AuditLogRepository auditLogRepository,
+            ApplicationEventPublisher eventPublisher,
+            ObjectMapper objectMapper) {
+        this.skillVersionRepository = skillVersionRepository;
+        this.auditLogRepository = auditLogRepository;
+        this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async("skillhubEventExecutor")
+    @Transactional
+    public void onReviewApproved(ReviewApprovedEvent event) {
+        // 1. Update version status to PUBLISHED
+        SkillVersion version = skillVersionRepository.findById(event.versionId())
+                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + event.versionId()));
+        
+        version.setStatus(SkillVersionStatus.PUBLISHED);
+        skillVersionRepository.save(version);
+
+        // 2. Write audit log
+        Map<String, Object> details = new HashMap<>();
+        details.put("reviewTaskId", event.reviewTaskId());
+        details.put("versionId", event.versionId());
+        details.put("comment", event.comment());
+        
+        try {
+            String detailsJson = objectMapper.writeValueAsString(details);
+            AuditLog log = new AuditLog(
+                    AuditAction.REVIEW_APPROVED,
+                    "skill",
+                    event.skillId(),
+                    event.reviewerId(),
+                    detailsJson
+            );
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            // Log error but don't fail the transaction
+            System.err.println("Failed to write audit log: " + e.getMessage());
+        }
+
+        // 3. Trigger SkillPublishedEvent for search indexing
+        eventPublisher.publishEvent(new SkillPublishedEvent(
+                event.skillId(),
+                event.versionId(),
+                event.reviewerId()
+        ));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async("skillhubEventExecutor")
+    @Transactional
+    public void onReviewRejected(ReviewRejectedEvent event) {
+        // 1. Update version status to REJECTED
+        SkillVersion version = skillVersionRepository.findById(event.versionId())
+                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + event.versionId()));
+        
+        version.setStatus(SkillVersionStatus.REJECTED);
+        skillVersionRepository.save(version);
+
+        // 2. Write audit log
+        Map<String, Object> details = new HashMap<>();
+        details.put("reviewTaskId", event.reviewTaskId());
+        details.put("versionId", event.versionId());
+        details.put("comment", event.comment());
+        
+        try {
+            String detailsJson = objectMapper.writeValueAsString(details);
+            AuditLog log = new AuditLog(
+                    AuditAction.REVIEW_REJECTED,
+                    "skill",
+                    event.skillId(),
+                    event.reviewerId(),
+                    detailsJson
+            );
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            System.err.println("Failed to write audit log: " + e.getMessage());
+        }
+    }
+}
+```
+
+- [ ] **Step 4: 创建 PromotionEventListener**
+
+创建 `server/skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/event/PromotionEventListener.java`：
+
+```java
+package com.iflytek.skillhub.domain.promotion.event;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.skillhub.domain.audit.AuditAction;
+import com.iflytek.skillhub.domain.audit.AuditLog;
+import com.iflytek.skillhub.domain.audit.AuditLogRepository;
+import com.iflytek.skillhub.domain.event.PromotionApprovedEvent;
+import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Component
+public class PromotionEventListener {
+
+    private final AuditLogRepository auditLogRepository;
+    private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
+
+    public PromotionEventListener(
+            AuditLogRepository auditLogRepository,
+            ApplicationEventPublisher eventPublisher,
+            ObjectMapper objectMapper) {
+        this.auditLogRepository = auditLogRepository;
+        this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async("skillhubEventExecutor")
+    @Transactional
+    public void onPromotionApproved(PromotionApprovedEvent event) {
+        // 1. Write audit log
+        Map<String, Object> details = new HashMap<>();
+        details.put("promotionRequestId", event.promotionRequestId());
+        details.put("sourceSkillId", event.sourceSkillId());
+        details.put("sourceVersionId", event.sourceVersionId());
+        details.put("targetSkillId", event.targetSkillId());
+        
+        try {
+            String detailsJson = objectMapper.writeValueAsString(details);
+            AuditLog log = new AuditLog(
+                    AuditAction.PROMOTION_APPROVED,
+                    "skill",
+                    event.targetSkillId(),
+                    event.reviewerId(),
+                    detailsJson
+            );
+            auditLogRepository.save(log);
+        } catch (Exception e) {
+            System.err.println("Failed to write audit log: " + e.getMessage());
+        }
+
+        // 2. Trigger SkillPublishedEvent for search indexing of the new global skill
+        eventPublisher.publishEvent(new SkillPublishedEvent(
+                event.targetSkillId(),
+                event.sourceVersionId(),
+                event.reviewerId()
+        ));
+    }
+}
+```
+
+- [ ] **Step 5: 配置异步执行器（如果尚未配置）**
+
+检查是否存在 `server/skillhub-app/src/main/java/com/iflytek/skillhub/config/AsyncConfig.java`，如果不存在则创建：
+
+```java
+package com.iflytek.skillhub.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+
+    @Bean(name = "skillhubEventExecutor")
+    public Executor skillhubEventExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("event-");
+        executor.initialize();
+        return executor;
+    }
+}
+```
+
+- [ ] **Step 6: 编写测试验证事件监听器**
+
+创建 `server/skillhub-domain/src/test/java/com/iflytek/skillhub/domain/review/event/ReviewEventListenerTest.java`：
+
+```java
+package com.iflytek.skillhub.domain.review.event;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.skillhub.domain.audit.AuditAction;
+import com.iflytek.skillhub.domain.audit.AuditLog;
+import com.iflytek.skillhub.domain.audit.AuditLogRepository;
+import com.iflytek.skillhub.domain.event.ReviewApprovedEvent;
+import com.iflytek.skillhub.domain.event.ReviewRejectedEvent;
+import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class ReviewEventListenerTest {
+
+    @Mock
+    private SkillVersionRepository skillVersionRepository;
+    @Mock
+    private AuditLogRepository auditLogRepository;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ObjectMapper objectMapper;
+
+    @InjectMocks
+    private ReviewEventListener listener;
+
+    @Test
+    void onReviewApproved_shouldUpdateStatusAndTriggerEvents() throws Exception {
+        // Given
+        Long skillId = 1L;
+        Long versionId = 10L;
+        Long reviewerId = 5L;
+        
+        SkillVersion version = new SkillVersion();
+        version.setId(versionId);
+        version.setStatus(SkillVersionStatus.PENDING_REVIEW);
+        
+        when(skillVersionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"test\":\"data\"}");
+        
+        ReviewApprovedEvent event = new ReviewApprovedEvent(100L, skillId, versionId, reviewerId, "LGTM");
+
+        // When
+        listener.onReviewApproved(event);
+
+        // Then
+        assertEquals(SkillVersionStatus.PUBLISHED, version.getStatus());
+        verify(skillVersionRepository).save(version);
+        
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(auditCaptor.capture());
+        AuditLog savedLog = auditCaptor.getValue();
+        assertEquals(AuditAction.REVIEW_APPROVED, savedLog.getAction());
+        assertEquals("skill", savedLog.getEntityType());
+        assertEquals(skillId, savedLog.getEntityId());
+        assertEquals(reviewerId, savedLog.getUserId());
+        
+        ArgumentCaptor<SkillPublishedEvent> eventCaptor = ArgumentCaptor.forClass(SkillPublishedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        SkillPublishedEvent publishedEvent = eventCaptor.getValue();
+        assertEquals(skillId, publishedEvent.skillId());
+        assertEquals(versionId, publishedEvent.versionId());
+    }
+
+    @Test
+    void onReviewRejected_shouldUpdateStatusToRejected() throws Exception {
+        // Given
+        Long skillId = 1L;
+        Long versionId = 10L;
+        Long reviewerId = 5L;
+        
+        SkillVersion version = new SkillVersion();
+        version.setId(versionId);
+        version.setStatus(SkillVersionStatus.PENDING_REVIEW);
+        
+        when(skillVersionRepository.findById(versionId)).thenReturn(Optional.of(version));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"test\":\"data\"}");
+        
+        ReviewRejectedEvent event = new ReviewRejectedEvent(100L, skillId, versionId, reviewerId, "Issues found");
+
+        // When
+        listener.onReviewRejected(event);
+
+        // Then
+        assertEquals(SkillVersionStatus.REJECTED, version.getStatus());
+        verify(skillVersionRepository).save(version);
+        
+        ArgumentCaptor<AuditLog> auditCaptor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(auditCaptor.capture());
+        AuditLog savedLog = auditCaptor.getValue();
+        assertEquals(AuditAction.REVIEW_REJECTED, savedLog.getAction());
+        
+        // Should NOT trigger SkillPublishedEvent for rejected reviews
+        verify(eventPublisher, never()).publishEvent(any(SkillPublishedEvent.class));
+    }
+}
+```
+
+
+### Task 10: Chunk 1 验收（编译、测试、验证脚本）
+
+**Files:**
+- Create: `server/verify-phase3-chunk1.sh`
+
+- [ ] **Step 1: 编译整个项目**
+
+在项目根目录执行：
+
+```bash
+cd /Users/xudongsun/github/skillhub/server
+./mvnw clean compile -DskipTests
+```
+
+验证所有模块编译成功，无错误。
+
+- [ ] **Step 2: 运行所有测试**
+
+```bash
+./mvnw test
+```
+
+验证所有测试通过，特别关注：
+- `ReviewServiceTest`
+- `PromotionServiceTest`
+- `SkillPublishServiceReviewTest`
+- `ReviewEventListenerTest`
+- `PromotionEventListenerTest`
+
+- [ ] **Step 3: 创建验收验证脚本**
+
+创建 `server/verify-phase3-chunk1.sh`：
+
+```bash
+#!/bin/bash
+
+set -e
+
+echo "=========================================="
+echo "Phase 3 Chunk 1 验收脚本"
+echo "=========================================="
+echo ""
+
+# 颜色定义
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# 检查函数
+check_file() {
+    if [ -f "$1" ]; then
+        echo -e "${GREEN}✓${NC} $1"
+        return 0
+    else
+        echo -e "${RED}✗${NC} $1 (缺失)"
+        return 1
+    fi
+}
+
+check_class() {
+    local file="$1"
+    local class_name="$2"
+    if grep -q "class $class_name\|interface $class_name\|enum $class_name\|record $class_name" "$file" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} $class_name 定义正确"
+        return 0
+    else
+        echo -e "${RED}✗${NC} $class_name 定义缺失或错误"
+        return 1
+    fi
+}
+
+FAILED=0
+
+echo "1. 检查数据库迁移脚本..."
+check_file "skillhub-app/src/main/resources/db/migration/V3__phase3_review_social_tables.sql" || FAILED=1
+echo ""
+
+echo "2. 检查 Review 实体和 Repository..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/ReviewTask.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/ReviewTaskRepository.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/ReviewStatus.java" || FAILED=1
+echo ""
+
+echo "3. 检查 Promotion 实体和 Repository..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequest.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionRequestRepository.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/PromotionStatus.java" || FAILED=1
+echo ""
+
+echo "4. 检查权限检查服务..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/service/ReviewPermissionService.java" || FAILED=1
+echo ""
+
+echo "5. 检查 ReviewService..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/service/ReviewService.java" || FAILED=1
+echo ""
+
+echo "6. 检查 PromotionService..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/service/PromotionService.java" || FAILED=1
+echo ""
+
+echo "7. 检查 Controllers 和 DTOs..."
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/ReviewController.java" || FAILED=1
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/controller/portal/PromotionController.java" || FAILED=1
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskRequest.java" || FAILED=1
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/dto/ReviewTaskResponse.java" || FAILED=1
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionRequestDto.java" || FAILED=1
+check_file "skillhub-app/src/main/java/com/iflytek/skillhub/dto/PromotionResponseDto.java" || FAILED=1
+echo ""
+
+echo "8. 检查 SkillPublishService 改造..."
+if grep -q "PENDING_REVIEW" "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/service/SkillPublishService.java" 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} SkillPublishService 已改造为创建 PENDING_REVIEW 状态"
+else
+    echo -e "${RED}✗${NC} SkillPublishService 未改造"
+    FAILED=1
+fi
+
+if grep -q "ReviewTaskRepository" "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/skill/service/SkillPublishService.java" 2>/dev/null; then
+    echo -e "${GREEN}✓${NC} SkillPublishService 已集成 ReviewTaskRepository"
+else
+    echo -e "${RED}✗${NC} SkillPublishService 未集成 ReviewTaskRepository"
+    FAILED=1
+fi
+echo ""
+
+echo "9. 检查事件和监听器..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewApprovedEvent.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/ReviewRejectedEvent.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/event/PromotionApprovedEvent.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/review/event/ReviewEventListener.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/promotion/event/PromotionEventListener.java" || FAILED=1
+echo ""
+
+echo "10. 检查 AuditLog..."
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLog.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditLogRepository.java" || FAILED=1
+check_file "skillhub-domain/src/main/java/com/iflytek/skillhub/domain/audit/AuditAction.java" || FAILED=1
+echo ""
+
+echo "11. 检查测试文件..."
+check_file "skillhub-domain/src/test/java/com/iflytek/skillhub/domain/review/service/ReviewServiceTest.java" || FAILED=1
+check_file "skillhub-domain/src/test/java/com/iflytek/skillhub/domain/promotion/service/PromotionServiceTest.java" || FAILED=1
+check_file "skillhub-domain/src/test/java/com/iflytek/skillhub/domain/skill/service/SkillPublishServiceReviewTest.java" || FAILED=1
+check_file "skillhub-domain/src/test/java/com/iflytek/skillhub/domain/review/event/ReviewEventListenerTest.java" || FAILED=1
+check_file "skillhub-domain/src/test/java/com/iflytek/skillhub/domain/promotion/event/PromotionEventListenerTest.java" || FAILED=1
+echo ""
+
+echo "=========================================="
+echo "12. 编译项目..."
+echo "=========================================="
+if ./mvnw clean compile -DskipTests > /tmp/compile.log 2>&1; then
+    echo -e "${GREEN}✓${NC} 编译成功"
+else
+    echo -e "${RED}✗${NC} 编译失败，查看 /tmp/compile.log"
+    FAILED=1
+fi
+echo ""
+
+echo "=========================================="
+echo "13. 运行测试..."
+echo "=========================================="
+if ./mvnw test -Dtest="ReviewServiceTest,PromotionServiceTest,SkillPublishServiceReviewTest,ReviewEventListenerTest,PromotionEventListenerTest" > /tmp/test.log 2>&1; then
+    echo -e "${GREEN}✓${NC} 所有测试通过"
+else
+    echo -e "${RED}✗${NC} 测试失败，查看 /tmp/test.log"
+    FAILED=1
+fi
+echo ""
+
+echo "=========================================="
+echo "验收结果"
+echo "=========================================="
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}✓ Phase 3 Chunk 1 验收通过！${NC}"
+    echo ""
+    echo "已完成功能："
+    echo "  1. ✓ 数据库迁移脚本（review_task, promotion_request, audit_log 等 5 张表）"
+    echo "  2. ✓ ReviewTask 实体和 Repository"
+    echo "  3. ✓ PromotionRequest 实体和 Repository"
+    echo "  4. ✓ ReviewPermissionService（分级权限检查）"
+    echo "  5. ✓ ReviewService（提交/审核/拒绝/撤回，乐观锁）"
+    echo "  6. ✓ PromotionService（提交/审核/拒绝，复制技能到全局空间）"
+    echo "  7. ✓ ReviewController + PromotionController（REST API）"
+    echo "  8. ✓ SkillPublishService 改造（PENDING_REVIEW + 自动创建 ReviewTask）"
+    echo "  9. ✓ 审核事件监听器（更新状态 + 触发搜索索引 + 写入 audit_log）"
+    echo "  10. ✓ 所有测试通过"
+    echo ""
+    echo "下一步："
+    echo "  - 启动应用，手动测试审核流程"
+    echo "  - 使用 Postman/curl 测试 API 端点"
+    echo "  - 验证乐观锁并发控制"
+    echo "  - 验证分级权限（团队管理员 vs 平台管理员）"
+    echo "  - 开始 Chunk 2: 评分收藏功能"
+    exit 0
+else
+    echo -e "${RED}✗ Phase 3 Chunk 1 验收失败${NC}"
+    echo ""
+    echo "请检查上述失败项，修复后重新运行验收脚本。"
+    exit 1
+fi
+```
+
+- [ ] **Step 4: 赋予脚本执行权限并运行**
+
+```bash
+chmod +x server/verify-phase3-chunk1.sh
+cd server
+./verify-phase3-chunk1.sh
+```
+
+- [ ] **Step 5: 手动验证审核流程**
+
+启动应用后，使用 Postman 或 curl 测试以下场景：
+
+**场景 1: 用户发布技能并提交审核**
+
+```bash
+# 1. 发布技能（自动创建 PENDING_REVIEW 版本和 ReviewTask）
+curl -X POST http://localhost:8080/api/v1/skills/publish \
+  -H "Authorization: Bearer <user_token>" \
+  -F "file=@skill-package.zip" \
+  -F "namespace=my-team" \
+  -F "visibility=PUBLIC"
+
+# 2. 查看待审核列表（团队管理员）
+curl -X GET "http://localhost:8080/api/v1/reviews/pending?namespace=my-team" \
+  -H "Authorization: Bearer <admin_token>"
+
+# 3. 审核通过
+curl -X POST http://localhost:8080/api/v1/reviews/123/approve \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"comment": "LGTM"}'
+
+# 4. 验证版本状态变为 PUBLISHED
+curl -X GET http://localhost:8080/api/v1/skills/my-team/my-skill \
+  -H "Authorization: Bearer <user_token>"
+```
+
+**场景 2: 审核拒绝**
+
+```bash
+# 1. 拒绝审核
+curl -X POST http://localhost:8080/api/v1/reviews/124/reject \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"comment": "需要修复安全问题"}'
+
+# 2. 验证版本状态变为 REJECTED
+curl -X GET http://localhost:8080/api/v1/skills/my-team/my-skill/versions/1.0.1
+```
+
+**场景 3: 提升到全局空间**
+
+```bash
+# 1. 提交提升请求
+curl -X POST http://localhost:8080/api/v1/promotions \
+  -H "Authorization: Bearer <user_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceSkillId": 456,
+    "sourceVersionId": 789,
+    "targetNamespace": "global"
+  }'
+
+# 2. 平台管理员审核通过
+curl -X POST http://localhost:8080/api/v1/promotions/10/approve \
+  -H "Authorization: Bearer <platform_admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"comment": "优秀的技能，批准提升"}'
+
+# 3. 验证全局空间中创建了新技能
+curl -X GET http://localhost:8080/api/v1/skills/global/my-skill
+```
+
+**场景 4: 并发审核（乐观锁验证）**
+
+使用两个终端同时执行审核操作，验证只有一个成功，另一个返回 409 Conflict。
+
+**场景 5: 权限验证**
+
+```bash
+# 1. 团队管理员尝试审核其他团队的技能（应失败）
+curl -X POST http://localhost:8080/api/v1/reviews/125/approve \
+  -H "Authorization: Bearer <team_a_admin_token>"
+# 预期: 403 Forbidden
+
+# 2. 平台管理员尝试审核团队空间的技能（应失败）
+curl -X POST http://localhost:8080/api/v1/reviews/126/approve \
+  -H "Authorization: Bearer <platform_admin_token>"
+# 预期: 403 Forbidden（平台管理员只能审核全局空间）
+
+# 3. 普通用户尝试审核（应失败）
+curl -X POST http://localhost:8080/api/v1/reviews/127/approve \
+  -H "Authorization: Bearer <normal_user_token>"
+# 预期: 403 Forbidden
+```
+
+- [ ] **Step 6: 验证 audit_log 记录**
+
+连接数据库，检查 audit_log 表：
+
+```sql
+-- 查看所有审核操作的审计日志
+SELECT * FROM audit_log 
+WHERE action IN ('REVIEW_SUBMITTED', 'REVIEW_APPROVED', 'REVIEW_REJECTED', 'REVIEW_WITHDRAWN')
+ORDER BY created_at DESC;
+
+-- 查看所有提升操作的审计日志
+SELECT * FROM audit_log 
+WHERE action IN ('PROMOTION_SUBMITTED', 'PROMOTION_APPROVED', 'PROMOTION_REJECTED')
+ORDER BY created_at DESC;
+```
+
+验证每个审核操作都有对应的审计日志记录。
+
+- [ ] **Step 7: 验证搜索索引更新**
+
+```bash
+# 1. 审核通过后，搜索新发布的技能
+curl -X GET "http://localhost:8080/api/v1/search?q=my-skill"
+
+# 2. 验证搜索结果中包含新发布的技能
+```
+
+- [ ] **Step 8: Chunk 1 验收完成确认**
+
+确认以下所有验收标准已满足：
+
+1. ✓ 用户可以提交审核，创建 review_task（status=PENDING）
+2. ✓ 审核人可以通过/拒绝审核，乐观锁防止并发冲突
+3. ✓ 审核通过后，skill_version.status → PUBLISHED，触发搜索索引更新
+4. ✓ 审核拒绝后，skill_version.status → REJECTED，记录拒绝原因
+5. ✓ 用户可以撤回 PENDING 状态的审核
+6. ✓ 团队管理员只能审核自己管理的 namespace 的技能
+7. ✓ 平台 SKILL_ADMIN 只能审核全局空间的技能
+8. ✓ 用户可以提交提升请求，创建 promotion_request（status=PENDING）
+9. ✓ 平台 SKILL_ADMIN 可以审核提升请求
+10. ✓ 提升通过后，在全局空间创建新 skill，复制版本和文件
+11. ✓ 所有审核操作写入 audit_log
+12. ✓ 所有测试通过
+
+**Chunk 1 完成！可以开始 Chunk 2: 评分收藏功能。**
+
+---
+
+## 总结
+
+Phase 3 Chunk 1 实现了完整的审核流程核心功能：
+
+**核心组件：**
+1. 数据库迁移（5 张新表）
+2. ReviewTask + PromotionRequest 实体和 Repository
+3. ReviewPermissionService（分级权限检查）
+4. ReviewService + PromotionService（核心业务逻辑）
+5. ReviewController + PromotionController（REST API）
+6. SkillPublishService 改造（PENDING_REVIEW + 自动创建 ReviewTask）
+7. 事件监听器（更新状态 + 触发搜索索引 + 写入 audit_log）
+
+**关键技术点：**
+- 乐观锁（@Version）防止并发冲突
+- Partial unique index 防止重复提交
+- 分级权限控制（团队自治 + 平台管理）
+- 事件驱动架构（@TransactionalEventListener）
+- 审计日志（所有操作可追溯）
+
+**下一步：**
+- Chunk 2: 评分收藏功能（rating, favorite, 异步计数器更新）
+- Chunk 3: CLI API（OAuth Device Flow, API 端点）
+- Chunk 4: ClawHub 兼容层（Canonical slug 映射）
+- Chunk 5: 幂等去重 + 管理后台
+
+---
+
 
 ## Chunk 2: 评分收藏 + 前端审核中心
 
@@ -1593,48 +3908,1591 @@ git add server/skillhub-app/src/test/java/com/iflytek/skillhub/app/controller/Sk
 git commit -m "feat(social): add SkillStar and SkillRating controllers"
 ```
 
-### Task 5-11: 前端审核中心 + 评分收藏 + Token 管理（概要）
+### Task 5: 前端审核中心
 
-**Task 5: 审核中心 - 审核任务列表页**
-- Files: `web/src/pages/dashboard/reviews.tsx`, `web/src/features/review/review-task-table.tsx`, `web/src/features/review/use-review-tasks.ts`
-- 使用 TanStack Query 获取审核任务列表
-- 支持按状态筛选（PENDING / APPROVED / REJECTED）
-- 分页 + 排序
+#### 5.1 创建审核列表 Hook
 
-**Task 6: 审核中心 - 审核详情页**
-- Files: `web/src/pages/dashboard/review-detail.tsx`, `web/src/features/review/review-detail-view.tsx`, `web/src/features/review/approve-dialog.tsx`, `web/src/features/review/reject-dialog.tsx`
-- 展示技能版本详情 + SKILL.md 预览
-- 通过/拒绝对话框（含审核意见输入）
+**文件：** `web/src/features/review/use-review-list.ts`
 
-**Task 7: 审核中心 - 我的提交列表**
-- Files: `web/src/pages/dashboard/my-submissions.tsx`
-- 展示用户提交的审核任务列表
-- 支持撤回 PENDING 状态的审核
+```typescript
+import { useQuery } from '@tanstack/react-query'
 
-**Task 8: 提升审核页面**
-- Files: `web/src/pages/dashboard/promotions.tsx`, `web/src/features/promotion/promotion-table.tsx`, `web/src/features/promotion/use-promotions.ts`
-- 平台管理员查看提升请求列表
-- 审核提升请求
+export interface ReviewTask {
+  id: number
+  skillVersionId: number
+  skillName: string
+  skillSlug: string
+  namespace: string
+  version: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  submittedBy: string
+  submittedAt: string
+  reviewedBy?: string
+  reviewedAt?: string
+  comment?: string
+}
 
-**Task 9: 评分收藏组件**
-- Files: `web/src/features/rating/star-rating.tsx`, `web/src/features/star/star-button.tsx`, `web/src/features/rating/use-rate-skill.ts`, `web/src/features/star/use-star-skill.ts`
-- StarRating 组件：1-5 星评分，支持半星显示
-- StarButton 组件：收藏/取消收藏切换
-- 集成到技能详情页右侧信息栏
+export function useReviewList(status?: string) {
+  return useQuery({
+    queryKey: ['reviews', status],
+    queryFn: async () => {
+      const url = status 
+        ? `/api/v1/reviews?status=${status}`
+        : '/api/v1/reviews'
+      const res = await fetch(url, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json.tasks as ReviewTask[]
+    },
+  })
+}
+```
 
-**Task 10: Token 管理页**
-- Files: `web/src/pages/dashboard/tokens.tsx`, `web/src/features/token/token-table.tsx`, `web/src/features/token/create-token-dialog.tsx`, `web/src/features/token/revoke-token-dialog.tsx`
-- Token 列表展示（名称、前缀、创建时间、过期时间、最后使用时间）
-- 创建 Token 对话框（名称、权限范围、过期时间）
-- 吊销 Token 确认对话框
+**验收：**
+- [ ] useReviewList hook 创建完成
+- [ ] 支持按状态筛选
+- [ ] 返回 ReviewTask 数组
 
-**Task 11: Chunk 2 验收**
-- 运行所有后端测试：`cd server && ./mvnw test`
-- 运行所有前端测试：`cd web && npm test`
-- 验证 11 个验收标准
-- 代码审查
+#### 5.2 创建审核详情 Hook
+
+**文件：** `web/src/features/review/use-review-detail.ts`
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { ReviewTask } from './use-review-list'
+
+export function useReviewDetail(taskId: number) {
+  return useQuery({
+    queryKey: ['review', taskId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/reviews/${taskId}`, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json as ReviewTask
+    },
+    enabled: !!taskId,
+  })
+}
+
+export function useApproveReview() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ taskId, comment }: { taskId: number; comment?: string }) => {
+      const res = await fetch(`/api/v1/reviews/${taskId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ comment }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reviews'] })
+    },
+  })
+}
+
+export function useRejectReview() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ taskId, comment }: { taskId: number; comment: string }) => {
+      const res = await fetch(`/api/v1/reviews/${taskId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ comment }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reviews'] })
+    },
+  })
+}
+```
+
+**验收：**
+- [ ] useReviewDetail hook 创建完成
+- [ ] useApproveReview mutation 创建完成
+- [ ] useRejectReview mutation 创建完成
+- [ ] 审核操作后刷新列表
+
+#### 5.3 创建审核列表页面
+
+**文件：** `web/src/pages/dashboard/reviews.tsx`
+
+```typescript
+import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
+import { useReviewList } from '@/features/review/use-review-list'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
+
+export function ReviewsPage() {
+  const [status, setStatus] = useState<string>('PENDING')
+  const { data: reviews, isLoading } = useReviewList(status)
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">审核中心</h1>
+        <p className="text-muted-foreground">管理技能发布审核</p>
+      </div>
+
+      <Tabs value={status} onValueChange={setStatus}>
+        <TabsList>
+          <TabsTrigger value="PENDING">待审核</TabsTrigger>
+          <TabsTrigger value="APPROVED">已通过</TabsTrigger>
+          <TabsTrigger value="REJECTED">已拒绝</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={status} className="mt-4">
+          {reviews && reviews.length > 0 ? (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <Card key={review.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">
+                        {review.namespace}/{review.skillSlug}@{review.version}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        提交者: {review.submittedBy} · {new Date(review.submittedAt).toLocaleString('zh-CN')}
+                      </p>
+                      {review.reviewedBy && (
+                        <p className="text-sm text-muted-foreground">
+                          审核者: {review.reviewedBy} · {new Date(review.reviewedAt!).toLocaleString('zh-CN')}
+                        </p>
+                      )}
+                    </div>
+                    <Link to={`/dashboard/reviews/${review.id}`}>
+                      <Button variant="outline">查看详情</Button>
+                    </Link>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-6 text-center text-muted-foreground">
+              暂无审核任务
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 审核列表页面创建完成
+- [ ] 支持按状态切换（待审核/已通过/已拒绝）
+- [ ] 显示技能名称、版本、提交者、提交时间
+- [ ] 点击查看详情跳转到审核详情页
+
+#### 5.4 创建审核详情页面
+
+**文件：** `web/src/pages/dashboard/reviews/[id].tsx`
+
+```typescript
+import { useState } from 'react'
+import { useParams, useNavigate } from '@tanstack/react-router'
+import { useReviewDetail, useApproveReview, useRejectReview } from '@/features/review/use-review-detail'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import { Textarea } from '@/shared/ui/textarea'
+import { Label } from '@/shared/ui/label'
+
+export function ReviewDetailPage() {
+  const { id } = useParams({ from: '/dashboard/reviews/$id' })
+  const navigate = useNavigate()
+  const [comment, setComment] = useState('')
+  
+  const { data: review, isLoading } = useReviewDetail(Number(id))
+  const approveMutation = useApproveReview()
+  const rejectMutation = useRejectReview()
+
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync({ taskId: Number(id), comment })
+      alert('审核通过')
+      navigate({ to: '/dashboard/reviews' })
+    } catch (error) {
+      alert('操作失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      alert('拒绝时必须填写原因')
+      return
+    }
+    try {
+      await rejectMutation.mutateAsync({ taskId: Number(id), comment })
+      alert('审核拒绝')
+      navigate({ to: '/dashboard/reviews' })
+    } catch (error) {
+      alert('操作失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  if (!review) {
+    return <div>审核任务不存在</div>
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">审核详情</h1>
+        <p className="text-muted-foreground">
+          {review.namespace}/{review.skillSlug}@{review.version}
+        </p>
+      </div>
+
+      <Card className="p-6 space-y-4">
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">状态</div>
+          <div className="font-semibold">{review.status}</div>
+        </div>
+
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">提交者</div>
+          <div>{review.submittedBy}</div>
+        </div>
+
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">提交时间</div>
+          <div>{new Date(review.submittedAt).toLocaleString('zh-CN')}</div>
+        </div>
+
+        {review.reviewedBy && (
+          <>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">审核者</div>
+              <div>{review.reviewedBy}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">审核时间</div>
+              <div>{new Date(review.reviewedAt!).toLocaleString('zh-CN')}</div>
+            </div>
+          </>
+        )}
+
+        {review.comment && (
+          <div>
+            <div className="text-sm text-muted-foreground mb-1">审核意见</div>
+            <div className="whitespace-pre-wrap">{review.comment}</div>
+          </div>
+        )}
+      </Card>
+
+      {review.status === 'PENDING' && (
+        <Card className="p-6 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="comment">审核意见</Label>
+            <Textarea
+              id="comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="填写审核意见（拒绝时必填）"
+              rows={4}
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <Button
+              className="flex-1"
+              onClick={handleApprove}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+            >
+              通过
+            </Button>
+            <Button
+              className="flex-1"
+              variant="destructive"
+              onClick={handleReject}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+            >
+              拒绝
+            </Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 审核详情页面创建完成
+- [ ] 显示审核任务详细信息
+- [ ] 待审核状态显示审核操作按钮
+- [ ] 支持通过/拒绝操作
+- [ ] 拒绝时必须填写原因
+
+#### 5.5 创建我的提交页面
+
+**文件：** `web/src/pages/dashboard/my-submissions.tsx`
+
+```typescript
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import type { ReviewTask } from '@/features/review/use-review-list'
+
+export function MySubmissionsPage() {
+  const { data: submissions, isLoading } = useQuery({
+    queryKey: ['my-submissions'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/reviews/my-submissions', {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json.tasks as ReviewTask[]
+    },
+  })
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">我的提交</h1>
+        <p className="text-muted-foreground">查看我提交的审核任务</p>
+      </div>
+
+      {submissions && submissions.length > 0 ? (
+        <div className="space-y-4">
+          {submissions.map((submission) => (
+            <Card key={submission.id} className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold">
+                    {submission.namespace}/{submission.skillSlug}@{submission.version}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    状态: {submission.status} · 提交时间: {new Date(submission.submittedAt).toLocaleString('zh-CN')}
+                  </p>
+                  {submission.comment && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      审核意见: {submission.comment}
+                    </p>
+                  )}
+                </div>
+                <Link to={`/@${submission.namespace}/${submission.skillSlug}`}>
+                  <Button variant="outline">查看技能</Button>
+                </Link>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-6 text-center text-muted-foreground">
+          暂无提交记录
+        </Card>
+      )}
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 我的提交页面创建完成
+- [ ] 显示当前用户提交的所有审核任务
+- [ ] 显示状态、提交时间、审核意见
+- [ ] 点击查看技能跳转到技能详情页
 
 ---
+
+### Task 6: 前端提升页面
+
+#### 6.1 创建提升列表 Hook
+
+**文件：** `web/src/features/promotion/use-promotion-list.ts`
+
+```typescript
+import { useQuery } from '@tanstack/react-query'
+
+export interface PromotionTask {
+  id: number
+  skillId: number
+  skillName: string
+  skillSlug: string
+  currentNamespace: string
+  targetNamespace: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  requestedBy: string
+  requestedAt: string
+  reviewedBy?: string
+  reviewedAt?: string
+  comment?: string
+}
+
+export function usePromotionList(status?: string) {
+  return useQuery({
+    queryKey: ['promotions', status],
+    queryFn: async () => {
+      const url = status 
+        ? `/api/v1/promotions?status=${status}`
+        : '/api/v1/promotions'
+      const res = await fetch(url, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json.tasks as PromotionTask[]
+    },
+  })
+}
+```
+
+**验收：**
+- [ ] usePromotionList hook 创建完成
+- [ ] 支持按状态筛选
+- [ ] 返回 PromotionTask 数组
+
+#### 6.2 创建提升详情 Hook
+
+**文件：** `web/src/features/promotion/use-promotion-detail.ts`
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { PromotionTask } from './use-promotion-list'
+
+export function usePromotionDetail(taskId: number) {
+  return useQuery({
+    queryKey: ['promotion', taskId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/promotions/${taskId}`, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json as PromotionTask
+    },
+    enabled: !!taskId,
+  })
+}
+
+export function useApprovePromotion() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ taskId, comment }: { taskId: number; comment?: string }) => {
+      const res = await fetch(`/api/v1/promotions/${taskId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ comment }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] })
+    },
+  })
+}
+
+export function useRejectPromotion() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ taskId, comment }: { taskId: number; comment: string }) => {
+      const res = await fetch(`/api/v1/promotions/${taskId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ comment }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['promotions'] })
+    },
+  })
+}
+```
+
+**验收：**
+- [ ] usePromotionDetail hook 创建完成
+- [ ] useApprovePromotion mutation 创建完成
+- [ ] useRejectPromotion mutation 创建完成
+- [ ] 审核操作后刷新列表
+
+#### 6.3 创建提升列表页面
+
+**文件：** `web/src/pages/dashboard/promotions.tsx`
+
+```typescript
+import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
+import { usePromotionList } from '@/features/promotion/use-promotion-list'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
+
+export function PromotionsPage() {
+  const [status, setStatus] = useState<string>('PENDING')
+  const { data: promotions, isLoading } = usePromotionList(status)
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">提升审核</h1>
+        <p className="text-muted-foreground">管理技能提升申请</p>
+      </div>
+
+      <Tabs value={status} onValueChange={setStatus}>
+        <TabsList>
+          <TabsTrigger value="PENDING">待审核</TabsTrigger>
+          <TabsTrigger value="APPROVED">已通过</TabsTrigger>
+          <TabsTrigger value="REJECTED">已拒绝</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value={status} className="mt-4">
+          {promotions && promotions.length > 0 ? (
+            <div className="space-y-4">
+              {promotions.map((promotion) => (
+                <Card key={promotion.id} className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold">
+                        {promotion.currentNamespace}/{promotion.skillSlug} → {promotion.targetNamespace}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        申请者: {promotion.requestedBy} · {new Date(promotion.requestedAt).toLocaleString('zh-CN')}
+                      </p>
+                      {promotion.reviewedBy && (
+                        <p className="text-sm text-muted-foreground">
+                          审核者: {promotion.reviewedBy} · {new Date(promotion.reviewedAt!).toLocaleString('zh-CN')}
+                        </p>
+                      )}
+                    </div>
+                    <Link to={`/dashboard/promotions/${promotion.id}`}>
+                      <Button variant="outline">查看详情</Button>
+                    </Link>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="p-6 text-center text-muted-foreground">
+              暂无提升申请
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 提升列表页面创建完成
+- [ ] 支持按状态切换（待审核/已通过/已拒绝）
+- [ ] 显示技能名称、当前空间、目标空间、申请者、申请时间
+- [ ] 点击查看详情跳转到提升详情页
+
+#### 6.4 创建提升详情页面
+
+**文件：** `web/src/pages/dashboard/promotions/[id].tsx`
+
+```typescript
+import { useState } from 'react'
+import { useParams, useNavigate } from '@tanstack/react-router'
+import { usePromotionDetail, useApprovePromotion, useRejectPromotion } from '@/features/promotion/use-promotion-detail'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import { Textarea } from '@/shared/ui/textarea'
+import { Label } from '@/shared/ui/label'
+
+export function PromotionDetailPage() {
+  const { id } = useParams({ from: '/dashboard/promotions/$id' })
+  const navigate = useNavigate()
+  const [comment, setComment] = useState('')
+  
+  const { data: promotion, isLoading } = usePromotionDetail(Number(id))
+  const approveMutation = useApprovePromotion()
+  const rejectMutation = useRejectPromotion()
+
+  const handleApprove = async () => {
+    try {
+      await approveMutation.mutateAsync({ taskId: Number(id), comment })
+      alert('提升通过')
+      navigate({ to: '/dashboard/promotions' })
+    } catch (error) {
+      alert('操作失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  const handleReject = async () => {
+    if (!comment.trim()) {
+      alert('拒绝时必须填写原因')
+      return
+    }
+    try {
+      await rejectMutation.mutateAsync({ taskId: Number(id), comment })
+      alert('提升拒绝')
+      navigate({ to: '/dashboard/promotions' })
+    } catch (error) {
+      alert('操作失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  if (!promotion) {
+    return <div>提升申请不存在</div>
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">提升详情</h1>
+        <p className="text-muted-foreground">
+          {promotion.currentNamespace}/{promotion.skillSlug} → {promotion.targetNamespace}
+        </p>
+      </div>
+
+      <Card className="p-6 space-y-4">
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">状态</div>
+          <div className="font-semibold">{promotion.status}</div>
+        </div>
+
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">申请者</div>
+          <div>{promotion.requestedBy}</div>
+        </div>
+
+        <div>
+          <div className="text-sm text-muted-foreground mb-1">申请时间</div>
+          <div>{new Date(promotion.requestedAt).toLocaleString('zh-CN')}</div>
+        </div>
+
+        {promotion.reviewedBy && (
+          <>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">审核者</div>
+              <div>{promotion.reviewedBy}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">审核时间</div>
+              <div>{new Date(promotion.reviewedAt!).toLocaleString('zh-CN')}</div>
+            </div>
+          </>
+        )}
+
+        {promotion.comment && (
+          <div>
+            <div className="text-sm text-muted-foreground mb-1">审核意见</div>
+            <div className="whitespace-pre-wrap">{promotion.comment}</div>
+          </div>
+        )}
+      </Card>
+
+      {promotion.status === 'PENDING' && (
+        <Card className="p-6 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="comment">审核意见</Label>
+            <Textarea
+              id="comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              placeholder="填写审核意见（拒绝时必填）"
+              rows={4}
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <Button
+              className="flex-1"
+              onClick={handleApprove}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+            >
+              通过
+            </Button>
+            <Button
+              className="flex-1"
+              variant="destructive"
+              onClick={handleReject}
+              disabled={approveMutation.isPending || rejectMutation.isPending}
+            >
+              拒绝
+            </Button>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 提升详情页面创建完成
+- [ ] 显示提升申请详细信息
+- [ ] 待审核状态显示审核操作按钮
+- [ ] 支持通过/拒绝操作
+- [ ] 拒绝时必须填写原因
+
+---
+
+### Task 7: 前端收藏评分组件
+
+#### 7.1 创建收藏按钮组件
+
+**文件：** `web/src/features/skill/star-button.tsx`
+
+```typescript
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/shared/ui/button'
+
+interface StarButtonProps {
+  skillId: number
+}
+
+export function StarButton({ skillId }: StarButtonProps) {
+  const queryClient = useQueryClient()
+  
+  const { data: starData } = useQuery({
+    queryKey: ['skill-star', skillId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/skills/${skillId}/star`, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json as { starred: boolean }
+    },
+  })
+
+  const starMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/skills/${skillId}/star`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skill-star', skillId] })
+      queryClient.invalidateQueries({ queryKey: ['skill', skillId] })
+    },
+  })
+
+  const unstarMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/v1/skills/${skillId}/star`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skill-star', skillId] })
+      queryClient.invalidateQueries({ queryKey: ['skill', skillId] })
+    },
+  })
+
+  const handleClick = () => {
+    if (starData?.starred) {
+      unstarMutation.mutate()
+    } else {
+      starMutation.mutate()
+    }
+  }
+
+  const isLoading = starMutation.isPending || unstarMutation.isPending
+
+  return (
+    <Button
+      variant={starData?.starred ? 'default' : 'outline'}
+      onClick={handleClick}
+      disabled={isLoading}
+      className="w-full"
+    >
+      <svg
+        className="w-4 h-4 mr-2"
+        fill={starData?.starred ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+        />
+      </svg>
+      {starData?.starred ? '已收藏' : '收藏'}
+    </Button>
+  )
+}
+```
+
+**验收：**
+- [ ] StarButton 组件创建完成
+- [ ] 显示收藏/已收藏状态
+- [ ] 点击切换收藏状态
+- [ ] 使用自定义 SVG 星星图标
+
+#### 7.2 创建评分组件
+
+**文件：** `web/src/features/skill/star-rating.tsx`
+
+```typescript
+import { useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
+interface StarRatingProps {
+  skillId: number
+}
+
+export function StarRating({ skillId }: StarRatingProps) {
+  const queryClient = useQueryClient()
+  const [hoverRating, setHoverRating] = useState(0)
+  
+  const { data: ratingData } = useQuery({
+    queryKey: ['skill-rating', skillId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/skills/${skillId}/rating`, {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json as { score?: number }
+    },
+  })
+
+  const rateMutation = useMutation({
+    mutationFn: async (score: number) => {
+      const res = await fetch(`/api/v1/skills/${skillId}/rating`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ score }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skill-rating', skillId] })
+      queryClient.invalidateQueries({ queryKey: ['skill', skillId] })
+    },
+  })
+
+  const handleClick = (score: number) => {
+    rateMutation.mutate(score)
+  }
+
+  const currentRating = ratingData?.score || 0
+
+  return (
+    <div className="space-y-2">
+      <div className="text-sm font-medium">评分</div>
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => handleClick(star)}
+            onMouseEnter={() => setHoverRating(star)}
+            onMouseLeave={() => setHoverRating(0)}
+            disabled={rateMutation.isPending}
+            className="focus:outline-none transition-transform hover:scale-110"
+          >
+            <svg
+              className="w-6 h-6"
+              fill={star <= (hoverRating || currentRating) ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+              />
+            </svg>
+          </button>
+        ))}
+      </div>
+      {currentRating > 0 && (
+        <div className="text-sm text-muted-foreground">
+          你的评分: {currentRating} 星
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] StarRating 组件创建完成
+- [ ] 显示 1-5 星评分
+- [ ] 支持鼠标悬停预览
+- [ ] 点击提交评分
+- [ ] 显示当前用户评分
+- [ ] 使用自定义 SVG 星星图标
+
+#### 7.3 集成到技能详情页
+
+**文件：** `web/src/pages/skill-detail.tsx`（修改）
+
+在 Sidebar 部分添加收藏和评分组件：
+
+```typescript
+import { StarButton } from '@/features/skill/star-button'
+import { StarRating } from '@/features/skill/star-rating'
+
+// 在 Sidebar 的 Card 中添加：
+<Card className="p-4 space-y-4">
+  <div>
+    <div className="text-sm text-muted-foreground mb-1">版本</div>
+    <div className="font-semibold">
+      {skill.latestVersion ? `v${skill.latestVersion}` : '暂无版本'}
+    </div>
+  </div>
+
+  <div>
+    <div className="text-sm text-muted-foreground mb-1">下载量</div>
+    <div className="font-semibold">{skill.downloadCount}</div>
+  </div>
+
+  <div>
+    <div className="text-sm text-muted-foreground mb-1">收藏数</div>
+    <div className="font-semibold">{skill.starCount || 0}</div>
+  </div>
+
+  <div>
+    <div className="text-sm text-muted-foreground mb-1">平均评分</div>
+    <div className="font-semibold">
+      {skill.averageRating ? skill.averageRating.toFixed(1) : '暂无评分'} 
+      {skill.ratingCount > 0 && ` (${skill.ratingCount} 人评分)`}
+    </div>
+  </div>
+
+  <div>
+    <div className="text-sm text-muted-foreground mb-1">命名空间</div>
+    <NamespaceBadge type="GLOBAL" name={namespace} />
+  </div>
+</Card>
+
+<StarButton skillId={skill.id} />
+
+<Card className="p-4">
+  <StarRating skillId={skill.id} />
+</Card>
+```
+
+**验收：**
+- [ ] 技能详情页集成收藏按钮
+- [ ] 技能详情页集成评分组件
+- [ ] 显示收藏数、平均评分、评分人数
+
+#### 7.4 创建我的收藏页面
+
+**文件：** `web/src/pages/dashboard/my-stars.tsx`
+
+```typescript
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+
+interface Skill {
+  id: number
+  namespace: string
+  slug: string
+  displayName: string
+  summary?: string
+  latestVersion?: string
+  downloadCount: number
+  starCount: number
+  averageRating?: number
+}
+
+export function MyStarsPage() {
+  const { data: starredSkillIds, isLoading: isLoadingIds } = useQuery({
+    queryKey: ['starred-skills'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/skills/starred', {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json.skillIds as number[]
+    },
+  })
+
+  const { data: skills, isLoading: isLoadingSkills } = useQuery({
+    queryKey: ['starred-skills-details', starredSkillIds],
+    queryFn: async () => {
+      if (!starredSkillIds || starredSkillIds.length === 0) {
+        return []
+      }
+      const promises = starredSkillIds.map(async (id) => {
+        const res = await fetch(`/api/v1/skills/${id}`, {
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          return null
+        }
+        return res.json() as Promise<Skill>
+      })
+      const results = await Promise.all(promises)
+      return results.filter((s): s is Skill => s !== null)
+    },
+    enabled: !!starredSkillIds && starredSkillIds.length > 0,
+  })
+
+  if (isLoadingIds || isLoadingSkills) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold mb-2">我的收藏</h1>
+        <p className="text-muted-foreground">查看我收藏的技能</p>
+      </div>
+
+      {skills && skills.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {skills.map((skill) => (
+            <Card key={skill.id} className="p-4 space-y-3">
+              <div>
+                <h3 className="font-semibold">{skill.displayName}</h3>
+                <p className="text-sm text-muted-foreground">
+                  @{skill.namespace}/{skill.slug}
+                </p>
+              </div>
+              {skill.summary && (
+                <p className="text-sm text-muted-foreground line-clamp-2">
+                  {skill.summary}
+                </p>
+              )}
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>{skill.downloadCount} 下载</span>
+                <span>{skill.starCount} 收藏</span>
+                {skill.averageRating && (
+                  <span>{skill.averageRating.toFixed(1)} ⭐</span>
+                )}
+              </div>
+              <Link to={`/@${skill.namespace}/${skill.slug}`}>
+                <Button variant="outline" className="w-full">
+                  查看详情
+                </Button>
+              </Link>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-6 text-center text-muted-foreground">
+          暂无收藏
+        </Card>
+      )}
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] 我的收藏页面创建完成
+- [ ] 显示用户收藏的所有技能
+- [ ] 显示技能名称、命名空间、摘要、下载量、收藏数、评分
+- [ ] 点击查看详情跳转到技能详情页
+
+---
+
+### Task 8: 前端 Token 管理
+
+#### 8.1 创建 Token 列表 Hook
+
+**文件：** `web/src/features/token/use-token-list.ts`
+
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+
+export interface ApiToken {
+  id: number
+  name: string
+  token: string
+  expiresAt?: string
+  createdAt: string
+  lastUsedAt?: string
+}
+
+export function useTokenList() {
+  return useQuery({
+    queryKey: ['api-tokens'],
+    queryFn: async () => {
+      const res = await fetch('/api/v1/tokens', {
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      return json.tokens as ApiToken[]
+    },
+  })
+}
+
+export function useCreateToken() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async ({ name, expiresAt }: { name: string; expiresAt?: string }) => {
+      const res = await fetch('/api/v1/tokens', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, expiresAt }),
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json() as Promise<ApiToken>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-tokens'] })
+    },
+  })
+}
+
+export function useRevokeToken() {
+  const queryClient = useQueryClient()
+  
+  return useMutation({
+    mutationFn: async (tokenId: number) => {
+      const res = await fetch(`/api/v1/tokens/${tokenId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['api-tokens'] })
+    },
+  })
+}
+```
+
+**验收：**
+- [ ] useTokenList hook 创建完成
+- [ ] useCreateToken mutation 创建完成
+- [ ] useRevokeToken mutation 创建完成
+- [ ] 操作后刷新列表
+
+#### 8.2 创建 Token 列表页面
+
+**文件：** `web/src/pages/dashboard/tokens.tsx`
+
+```typescript
+import { useState } from 'react'
+import { useTokenList, useRevokeToken } from '@/features/token/use-token-list'
+import { Card } from '@/shared/ui/card'
+import { Button } from '@/shared/ui/button'
+import { CreateTokenDialog } from '@/features/token/create-token-dialog'
+
+export function TokensPage() {
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const { data: tokens, isLoading } = useTokenList()
+  const revokeMutation = useRevokeToken()
+
+  const handleRevoke = async (tokenId: number, tokenName: string) => {
+    if (!confirm(`确定要撤销 Token "${tokenName}" 吗？`)) {
+      return
+    }
+    try {
+      await revokeMutation.mutateAsync(tokenId)
+      alert('Token 已撤销')
+    } catch (error) {
+      alert('撤销失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  if (isLoading) {
+    return <div className="animate-pulse">加载中...</div>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">API Tokens</h1>
+          <p className="text-muted-foreground">管理你的 API 访问令牌</p>
+        </div>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          创建 Token
+        </Button>
+      </div>
+
+      {tokens && tokens.length > 0 ? (
+        <div className="space-y-4">
+          {tokens.map((token) => (
+            <Card key={token.id} className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold">{token.name}</h3>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {token.token}
+                  </p>
+                  <div className="text-sm text-muted-foreground mt-2">
+                    创建时间: {new Date(token.createdAt).toLocaleString('zh-CN')}
+                    {token.expiresAt && (
+                      <> · 过期时间: {new Date(token.expiresAt).toLocaleString('zh-CN')}</>
+                    )}
+                    {token.lastUsedAt && (
+                      <> · 最后使用: {new Date(token.lastUsedAt).toLocaleString('zh-CN')}</>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleRevoke(token.id, token.name)}
+                  disabled={revokeMutation.isPending}
+                >
+                  撤销
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="p-6 text-center text-muted-foreground">
+          暂无 Token
+        </Card>
+      )}
+
+      <CreateTokenDialog
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+      />
+    </div>
+  )
+}
+```
+
+**验收：**
+- [ ] Token 列表页面创建完成
+- [ ] 显示所有 Token 及其详细信息
+- [ ] 支持创建和撤销 Token
+- [ ] 显示创建时间、过期时间、最后使用时间
+
+#### 8.3 创建 Token 创建对话框
+
+**文件：** `web/src/features/token/create-token-dialog.tsx`
+
+```typescript
+import { useState } from 'react'
+import { useCreateToken } from './use-token-list'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/shared/ui/dialog'
+import { Button } from '@/shared/ui/button'
+import { Input } from '@/shared/ui/input'
+import { Label } from '@/shared/ui/label'
+
+interface CreateTokenDialogProps {
+  open: boolean
+  onClose: () => void
+}
+
+export function CreateTokenDialog({ open, onClose }: CreateTokenDialogProps) {
+  const [name, setName] = useState('')
+  const [expiresAt, setExpiresAt] = useState('')
+  const [createdToken, setCreatedToken] = useState<string | null>(null)
+  
+  const createMutation = useCreateToken()
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      alert('请输入 Token 名称')
+      return
+    }
+    try {
+      const result = await createMutation.mutateAsync({
+        name,
+        expiresAt: expiresAt || undefined,
+      })
+      setCreatedToken(result.token)
+      setName('')
+      setExpiresAt('')
+    } catch (error) {
+      alert('创建失败: ' + (error instanceof Error ? error.message : '未知错误'))
+    }
+  }
+
+  const handleClose = () => {
+    setCreatedToken(null)
+    onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>创建 API Token</DialogTitle>
+        </DialogHeader>
+
+        {createdToken ? (
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-md">
+              <p className="text-sm text-muted-foreground mb-2">
+                请妥善保存你的 Token，关闭后将无法再次查看：
+              </p>
+              <p className="font-mono text-sm break-all">{createdToken}</p>
+            </div>
+            <Button className="w-full" onClick={handleClose}>
+              关闭
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Token 名称</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="例如: CLI Token"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="expiresAt">过期时间（可选）</Label>
+              <Input
+                id="expiresAt"
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-4">
+              <Button
+                className="flex-1"
+                onClick={handleCreate}
+                disabled={createMutation.isPending}
+              >
+                创建
+              </Button>
+              <Button
+                className="flex-1"
+                variant="outline"
+                onClick={handleClose}
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+```
+
+**验收：**
+- [ ] 创建 Token 对话框创建完成
+- [ ] 支持输入 Token 名称和过期时间
+- [ ] 创建成功后显示 Token（仅一次）
+- [ ] 提示用户妥善保存 Token
+
+---
+
+### Task 9: 路由更新 + Chunk 2 验收
+
+#### 9.1 更新路由配置
+
+**文件：** `web/src/router.tsx`（或路由配置文件）
+
+添加以下路由：
+
+```typescript
+// 审核中心
+{
+  path: '/dashboard/reviews',
+  component: ReviewsPage,
+},
+{
+  path: '/dashboard/reviews/:id',
+  component: ReviewDetailPage,
+},
+{
+  path: '/dashboard/my-submissions',
+  component: MySubmissionsPage,
+},
+
+// 提升审核
+{
+  path: '/dashboard/promotions',
+  component: PromotionsPage,
+},
+{
+  path: '/dashboard/promotions/:id',
+  component: PromotionDetailPage,
+},
+
+// Token 管理
+{
+  path: '/dashboard/tokens',
+  component: TokensPage,
+},
+
+// 我的收藏
+{
+  path: '/dashboard/my-stars',
+  component: MyStarsPage,
+},
+```
+
+**验收：**
+- [ ] 所有新页面路由已添加
+- [ ] 路由参数正确配置
+
+#### 9.2 更新导航菜单
+
+**文件：** `web/src/layouts/dashboard-layout.tsx`（或导航组件）
+
+在 Dashboard 导航菜单中添加：
+
+```typescript
+<nav>
+  <Link to="/dashboard/skills">我的技能</Link>
+  <Link to="/dashboard/publish">发布技能</Link>
+  <Link to="/dashboard/my-submissions">我的提交</Link>
+  <Link to="/dashboard/my-stars">我的收藏</Link>
+  <Link to="/dashboard/reviews">审核中心</Link>
+  <Link to="/dashboard/promotions">提升审核</Link>
+  <Link to="/dashboard/tokens">API Tokens</Link>
+</nav>
+```
+
+**验收：**
+- [ ] 导航菜单包含所有新页面链接
+- [ ] 链接正确跳转
+
+#### 9.3 Chunk 2 验收测试
+
+**验收清单：**
+
+**后端 API：**
+- [ ] POST /api/v1/skills/{skillId}/star - 收藏技能
+- [ ] DELETE /api/v1/skills/{skillId}/star - 取消收藏
+- [ ] GET /api/v1/skills/{skillId}/star - 查询收藏状态
+- [ ] GET /api/v1/skills/starred - 获取收藏列表
+- [ ] POST /api/v1/skills/{skillId}/rating - 评分
+- [ ] GET /api/v1/skills/{skillId}/rating - 获取用户评分
+
+**前端页面：**
+- [ ] /dashboard/reviews - 审核列表页
+- [ ] /dashboard/reviews/:id - 审核详情页
+- [ ] /dashboard/my-submissions - 我的提交页
+- [ ] /dashboard/promotions - 提升列表页
+- [ ] /dashboard/promotions/:id - 提升详情页
+- [ ] /dashboard/tokens - Token 管理页
+- [ ] /dashboard/my-stars - 我的收藏页
+
+**功能测试：**
+- [ ] 用户可以收藏/取消收藏技能
+- [ ] 用户可以对技能评分（1-5 星）
+- [ ] 技能详情页显示收藏数、平均评分、评分人数
+- [ ] 审核中心可以查看待审核任务
+- [ ] 审核中心可以通过/拒绝审核
+- [ ] 我的提交页显示用户提交的审核任务
+- [ ] 提升审核页可以查看提升申请
+- [ ] 提升审核页可以通过/拒绝提升
+- [ ] Token 管理页可以创建/撤销 Token
+- [ ] 我的收藏页显示用户收藏的技能
+
+**数据一致性：**
+- [ ] 收藏/取消收藏后，Skill 的 starCount 正确更新
+- [ ] 评分后，Skill 的 ratingCount 和 averageRating 正确更新
+- [ ] 使用 Redis 分布式锁防止评分并发重复计算
+
+---
+
+## Chunk 2 完成标志
+
+- [ ] 所有 Task 11-19 验收项通过
+- [ ] 后端 API 测试通过
+- [ ] 前端页面功能正常
+- [ ] 数据一致性验证通过
+- [ ] 代码审查通过
+- [ ] 文档更新完成
+
+**下一步：** 进入 Chunk 3（CLI API + Device Flow）
+
+EOF
+
+---
+
 
 ## Chunk 3: CLI API + Web 授权
 
@@ -3716,8 +7574,8 @@ git commit -m "feat(admin): add admin dashboard pages (users, audit-logs)"
 ## 实施说明
 
 **当前文档状态：**
-- ✅ Chunk 1：审核流程核心（后端）— Task 1-5 详细 TDD 步骤，Task 6-10 概要
-- ✅ Chunk 2：评分收藏 + 前端审核中心 — Task 1-4 详细 TDD 步骤，Task 5-11 概要
+- ✅ Chunk 1：审核流程核心（后端）— Task 1-10 详细 TDD 步骤
+- ✅ Chunk 2：评分收藏 + 前端审核中心 — Task 1-9 详细 TDD 步骤
 - ✅ Chunk 3：CLI API + Web 授权 — Task 1-6 详细 TDD 步骤
 - ✅ Chunk 4：ClawHub 兼容层 — Task 1-4 详细 TDD 步骤
 - ✅ Chunk 5：幂等去重 + 管理后台 — Task 1-6 详细 TDD 步骤
@@ -3727,5 +7585,4 @@ git commit -m "feat(admin): add admin dashboard pages (users, audit-logs)"
 1. **使用 superpowers:subagent-driven-development** — 为每个 Chunk 派发独立的子代理
 2. **渐进式实施** — 先完成 Chunk 1，验收通过后再进行 Chunk 2
 3. **参考设计文档** — 每个任务的详细实现逻辑参考 `docs/superpowers/specs/2026-03-12-phase3-review-cli-social-design.md`
-4. **概要任务的实施** — 标记为概要的任务（如 Chunk 1 Task 6-10、Chunk 2 Task 5-11），实施时参考设计文档中的对应章节，按照已有详细任务的 TDD 模式编写代码
 
