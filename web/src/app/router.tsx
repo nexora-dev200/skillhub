@@ -13,6 +13,8 @@ import { NamespaceMembersPage } from '@/pages/dashboard/namespace-members'
 import { ReviewsPage } from '@/pages/dashboard/reviews'
 import { ReviewDetailPage } from '@/pages/dashboard/review-detail'
 import { DeviceAuthPage } from '@/pages/device'
+import { AdminUsersPage } from '@/pages/admin/users'
+import { AuditLogPage } from '@/pages/admin/audit-log'
 import { getCurrentUser } from '@/api/client'
 
 const rootRoute = createRootRoute({
@@ -153,6 +155,38 @@ const deviceRoute = createRoute({
   component: DeviceAuthPage,
 })
 
+const adminUsersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/users',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    if (!user.platformRoles?.includes('USER_ADMIN') && !user.platformRoles?.includes('SUPER_ADMIN')) {
+      throw redirect({ to: '/dashboard' })
+    }
+    return { user }
+  },
+  component: AdminUsersPage,
+})
+
+const adminAuditLogRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin/audit-log',
+  beforeLoad: async () => {
+    const user = await getCurrentUser()
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+    if (!user.platformRoles?.includes('AUDITOR') && !user.platformRoles?.includes('SUPER_ADMIN')) {
+      throw redirect({ to: '/dashboard' })
+    }
+    return { user }
+  },
+  component: AuditLogPage,
+})
+
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
@@ -167,6 +201,8 @@ const routeTree = rootRoute.addChildren([
   dashboardReviewsRoute,
   dashboardReviewDetailRoute,
   deviceRoute,
+  adminUsersRoute,
+  adminAuditLogRoute,
 ])
 
 export const router = createRouter({ routeTree })
