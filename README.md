@@ -13,7 +13,7 @@ firewall, with the same polish you'd expect from a public registry.
 
 - **Self-Hosted & Private** — Deploy on your own infrastructure.
   Keep proprietary skills behind your firewall with full data
-  sovereignty. One `docker compose` command to get running.
+  sovereignty. One `make dev-all` command to get running locally.
 - **Publish & Version** — Upload agent skill packages with semantic
   versioning, custom tags (`beta`, `stable`), and automatic
   `latest` tracking.
@@ -37,25 +37,27 @@ firewall, with the same polish you'd expect from a public registry.
 
 - Docker & Docker Compose
 
-### One command
+### Local Development
 
 ```bash
-make prod-up
+make dev-all
 ```
 
-Then open http://localhost in your browser.
+Then open:
 
-### Development
+- Web UI: `http://localhost:3000`
+- Backend API: `http://localhost:8080`
+
+Stop everything with:
 
 ```bash
-# Start infrastructure (PostgreSQL, Redis, MinIO)
-make dev
+make dev-all-down
+```
 
-# Backend (in one terminal)
-make dev-server
+Reset local dependencies and start from a clean slate with:
 
-# Frontend (in another terminal)
-make dev-web
+```bash
+make dev-all-reset
 ```
 
 Run `make help` to see all available commands.
