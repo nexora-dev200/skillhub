@@ -30,7 +30,7 @@ public class ApiTokenService {
     public record TokenCreateResult(String rawToken, ApiToken entity) {}
 
     @Transactional
-    public TokenCreateResult createToken(Long userId, String name, String scopeJson) {
+    public TokenCreateResult createToken(String userId, String name, String scopeJson) {
         byte[] randomBytes = new byte[TOKEN_BYTES];
         secureRandom.nextBytes(randomBytes);
         String rawToken = TOKEN_PREFIX + Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
@@ -48,7 +48,7 @@ public class ApiTokenService {
     }
 
     @Transactional
-    public void revokeToken(Long tokenId, Long userId) {
+    public void revokeToken(Long tokenId, String userId) {
         tokenRepo.findById(tokenId)
             .filter(t -> t.getUserId().equals(userId))
             .ifPresent(t -> {
@@ -57,7 +57,7 @@ public class ApiTokenService {
             });
     }
 
-    public List<ApiToken> listActiveTokens(Long userId) {
+    public List<ApiToken> listActiveTokens(String userId) {
         return tokenRepo.findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(userId);
     }
 

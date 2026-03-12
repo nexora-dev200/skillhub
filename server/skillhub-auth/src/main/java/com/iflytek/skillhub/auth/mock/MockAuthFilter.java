@@ -39,7 +39,7 @@ public class MockAuthFilter extends OncePerRequestFilter {
                                      FilterChain filterChain) throws ServletException, IOException {
         String mockUserId = request.getHeader("X-Mock-User-Id");
         if (mockUserId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            Long userId = Long.parseLong(mockUserId);
+            String userId = mockUserId;
             userRepo.findById(userId)
                 .filter(UserAccount::isActive)
                 .ifPresent(user -> {

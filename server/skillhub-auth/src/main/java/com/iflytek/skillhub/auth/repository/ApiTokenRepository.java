@@ -9,5 +9,5 @@ import java.util.Optional;
 @Repository
 public interface ApiTokenRepository extends JpaRepository<ApiToken, Long> {
     Optional<ApiToken> findByTokenHash(String tokenHash);
-    List<ApiToken> findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(Long userId);
+    List<ApiToken> findByUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(String userId);
 }

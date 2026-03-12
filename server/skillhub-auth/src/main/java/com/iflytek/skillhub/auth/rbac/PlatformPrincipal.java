@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.Set;
 
 public record PlatformPrincipal(
-    Long userId,
+    String userId,
     String displayName,
     String email,
     String avatarUrl,

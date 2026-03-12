@@ -7,5 +7,5 @@ import java.util.List;
 
 @Repository
 public interface UserRoleBindingRepository extends JpaRepository<UserRoleBinding, Long> {
-    List<UserRoleBinding> findByUserId(Long userId);
+    List<UserRoleBinding> findByUserId(String userId);
 }

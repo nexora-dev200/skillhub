@@ -12,7 +12,7 @@ public class IdentityBinding {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(name = "provider_code", nullable = false, length = 64)
     private String providerCode;
@@ -34,7 +34,7 @@ public class IdentityBinding {
 
     protected IdentityBinding() {}
 
-    public IdentityBinding(Long userId, String providerCode, String subject, String loginName) {
+    public IdentityBinding(String userId, String providerCode, String subject, String loginName) {
         this.userId = userId;
         this.providerCode = providerCode;
         this.subject = subject;
@@ -53,8 +53,8 @@ public class IdentityBinding {
     }
 
     public Long getId() { return id; }
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
     public String getProviderCode() { return providerCode; }
     public void setProviderCode(String providerCode) { this.providerCode = providerCode; }
     public String getSubject() { return subject; }

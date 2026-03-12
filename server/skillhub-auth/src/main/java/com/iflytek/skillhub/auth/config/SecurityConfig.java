@@ -3,16 +3,21 @@ package com.iflytek.skillhub.auth.config;
 import com.iflytek.skillhub.auth.oauth.CustomOAuth2UserService;
 import com.iflytek.skillhub.auth.oauth.OAuth2LoginFailureHandler;
 import com.iflytek.skillhub.auth.oauth.OAuth2LoginSuccessHandler;
+import com.iflytek.skillhub.auth.mock.MockAuthFilter;
 import com.iflytek.skillhub.auth.token.ApiTokenAuthenticationFilter;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
@@ -25,15 +30,24 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler successHandler;
     private final OAuth2LoginFailureHandler failureHandler;
     private final ApiTokenAuthenticationFilter apiTokenAuthenticationFilter;
+    private final AuthenticationEntryPoint apiAuthenticationEntryPoint;
+    private final AccessDeniedHandler apiAccessDeniedHandler;
+    private final ObjectProvider<MockAuthFilter> mockAuthFilterProvider;
 
     public SecurityConfig(CustomOAuth2UserService customOAuth2UserService,
                           OAuth2LoginSuccessHandler successHandler,
                           OAuth2LoginFailureHandler failureHandler,
-                          ApiTokenAuthenticationFilter apiTokenAuthenticationFilter) {
+                          ApiTokenAuthenticationFilter apiTokenAuthenticationFilter,
+                          AuthenticationEntryPoint apiAuthenticationEntryPoint,
+                          AccessDeniedHandler apiAccessDeniedHandler,
+                          ObjectProvider<MockAuthFilter> mockAuthFilterProvider) {
         this.customOAuth2UserService = customOAuth2UserService;
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
         this.apiTokenAuthenticationFilter = apiTokenAuthenticationFilter;
+        this.apiAuthenticationEntryPoint = apiAuthenticationEntryPoint;
+        this.apiAccessDeniedHandler = apiAccessDeniedHandler;
+        this.mockAuthFilterProvider = mockAuthFilterProvider;
     }
 
     @Bean
@@ -52,13 +66,13 @@ public class SecurityConfig {
                     "/api/v1/health",
                     "/api/v1/auth/providers",
                     "/api/v1/auth/me",
-                    "/api/v1/skills/**",
-                    "/api/v1/namespaces/**",
                     "/actuator/health",
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/.well-known/**"
                 ).permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/skills", "/api/v1/skills/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/namespaces", "/api/v1/namespaces/*").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasAnyRole("SUPER_ADMIN", "SKILL_ADMIN", "USER_ADMIN", "AUDITOR")
                 .anyRequest().authenticated()
             )
@@ -71,8 +85,9 @@ public class SecurityConfig {
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
             .exceptionHandling(exceptions -> exceptions
+                .accessDeniedHandler(apiAccessDeniedHandler)
                 .defaultAuthenticationEntryPointFor(
-                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                    apiAuthenticationEntryPoint,
                     new AntPathRequestMatcher("/api/**")
                 )
             )
@@ -83,6 +98,11 @@ public class SecurityConfig {
                 .deleteCookies("SESSION")
             )
             .addFilterBefore(apiTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        MockAuthFilter mockAuthFilter = mockAuthFilterProvider.getIfAvailable();
+        if (mockAuthFilter != null) {
+            http.addFilterBefore(mockAuthFilter, AnonymousAuthenticationFilter.class);
+        }
 
         return http.build();
     }

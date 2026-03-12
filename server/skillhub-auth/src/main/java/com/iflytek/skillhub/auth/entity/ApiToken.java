@@ -2,6 +2,8 @@ package com.iflytek.skillhub.auth.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "api_token")
@@ -14,10 +16,10 @@ public class ApiToken {
     private String subjectType = "USER";
 
     @Column(name = "subject_id", nullable = false)
-    private Long subjectId;
+    private String subjectId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Column(nullable = false, length = 128)
     private String name;
@@ -28,6 +30,7 @@ public class ApiToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "scope_json", nullable = false, columnDefinition = "jsonb")
     private String scopeJson;
 
@@ -45,7 +48,7 @@ public class ApiToken {
 
     protected ApiToken() {}
 
-    public ApiToken(Long userId, String name, String tokenPrefix, String tokenHash, String scopeJson) {
+    public ApiToken(String userId, String name, String tokenPrefix, String tokenHash, String scopeJson) {
         this.subjectType = "USER";
         this.subjectId = userId;
         this.userId = userId;
@@ -59,7 +62,7 @@ public class ApiToken {
     void prePersist() { this.createdAt = LocalDateTime.now(); }
 
     public Long getId() { return id; }
-    public Long getUserId() { return userId; }
+    public String getUserId() { return userId; }
     public String getName() { return name; }
     public String getTokenPrefix() { return tokenPrefix; }
     public String getTokenHash() { return tokenHash; }

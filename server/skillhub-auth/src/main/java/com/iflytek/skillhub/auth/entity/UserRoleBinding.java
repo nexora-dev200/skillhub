@@ -12,7 +12,7 @@ public class UserRoleBinding {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = false)
@@ -23,7 +23,7 @@ public class UserRoleBinding {
 
     protected UserRoleBinding() {}
 
-    public UserRoleBinding(Long userId, Role role) {
+    public UserRoleBinding(String userId, Role role) {
         this.userId = userId;
         this.role = role;
     }
@@ -32,6 +32,6 @@ public class UserRoleBinding {
     void prePersist() { this.createdAt = LocalDateTime.now(); }
 
     public Long getId() { return id; }
-    public Long getUserId() { return userId; }
+    public String getUserId() { return userId; }
     public Role getRole() { return role; }
 }

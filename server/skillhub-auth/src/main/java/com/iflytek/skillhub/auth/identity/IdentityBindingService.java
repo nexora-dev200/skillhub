@@ -10,6 +10,7 @@ import com.iflytek.skillhub.domain.user.UserAccountRepository;
 import com.iflytek.skillhub.domain.user.UserStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.UUID;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -46,6 +47,7 @@ public class IdentityBindingService {
             user = userRepo.save(user);
         } else {
             user = new UserAccount(
+                "usr_" + UUID.randomUUID(),
                 claims.providerLogin(),
                 claims.email(),
                 (String) claims.extra().get("avatar_url")
@@ -89,6 +91,7 @@ public class IdentityBindingService {
         }
 
         UserAccount user = new UserAccount(
+            "usr_" + UUID.randomUUID(),
             claims.providerLogin(),
             claims.email(),
             (String) claims.extra().get("avatar_url")

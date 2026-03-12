@@ -22,13 +22,13 @@ public class RbacService {
         this.entityManager = entityManager;
     }
 
-    public Set<String> getUserRoleCodes(Long userId) {
+    public Set<String> getUserRoleCodes(String userId) {
         return roleBindingRepo.findByUserId(userId).stream()
             .map(rb -> rb.getRole().getCode())
             .collect(Collectors.toSet());
     }
 
-    public Set<String> getUserPermissions(Long userId) {
+    public Set<String> getUserPermissions(String userId) {
         List<UserRoleBinding> bindings = roleBindingRepo.findByUserId(userId);
         Set<Long> roleIds = bindings.stream()
             .map(rb -> rb.getRole().getId())
@@ -50,11 +50,11 @@ public class RbacService {
             .getResultList().stream().collect(Collectors.toSet());
     }
 
-    public boolean hasPermission(Long userId, String permissionCode) {
+    public boolean hasPermission(String userId, String permissionCode) {
         return getUserPermissions(userId).contains(permissionCode);
     }
 
-    public boolean hasRole(Long userId, String roleCode) {
+    public boolean hasRole(String userId, String roleCode) {
         return getUserRoleCodes(userId).contains(roleCode);
     }
 }
