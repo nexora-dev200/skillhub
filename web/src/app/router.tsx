@@ -2,6 +2,7 @@ import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/
 import { Layout } from './layout'
 import { HomePage } from '@/pages/home'
 import { LoginPage } from '@/pages/login'
+import { RegisterPage } from '@/pages/register'
 import { DashboardPage } from '@/pages/dashboard'
 import { SearchPage } from '@/pages/search'
 import { NamespacePage } from '@/pages/namespace'
@@ -31,6 +32,12 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
   component: LoginPage,
+})
+
+const registerRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/register',
+  component: RegisterPage,
 })
 
 const searchRoute = createRoute({
@@ -190,6 +197,7 @@ const adminAuditLogRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   homeRoute,
   loginRoute,
+  registerRoute,
   searchRoute,
   namespaceRoute,
   skillDetailRoute,
