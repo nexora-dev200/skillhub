@@ -37,6 +37,66 @@ firewall, with the same polish you'd expect from a public registry.
 
 - Docker & Docker Compose
 
+### One-Command Runtime
+
+Published runtime images are built by GitHub Actions and pushed to GHCR.
+This is the recommended path for anyone who wants a ready-to-use local
+environment without building the backend or frontend on their machine.
+Published images target both `linux/amd64` and `linux/arm64`.
+
+Start the latest runtime from `main`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- up
+```
+
+Start the first beta release explicitly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | \
+  sh -s -- up --version v0.1.0-beta.1
+```
+
+Then open:
+
+- Web UI: `http://localhost`
+- Backend API: `http://localhost:8080`
+
+The script downloads the runtime files into `${TMPDIR:-/tmp}/skillhub-runtime`
+by default and starts Docker Compose from there, so it does not pollute
+your current working directory.
+
+If you want a persistent location instead of the temp directory:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | \
+  SKILLHUB_HOME=$HOME/.skillhub-runtime sh -s -- up --version v0.1.0-beta.1
+```
+
+Other useful commands:
+
+- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- down`
+- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- clean`
+- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- ps`
+- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- logs`
+
+The runtime stack uses its own Compose project name, so it does not
+collide with containers from `make dev-all`.
+
+Use `clean` if you also want to remove the downloaded runtime files from
+`${TMPDIR:-/tmp}/skillhub-runtime`.
+
+The runtime uses the existing `local,docker` profile combination so it
+is immediately usable with the same mock-auth flow as local development.
+Available seeded users:
+
+- `local-user`
+- `local-admin`
+
+Pass `X-Mock-User-Id` to the backend when you need an authenticated
+session without configuring GitHub OAuth. If the GHCR package remains
+private, run `docker login ghcr.io` before `docker compose up -d`.
+
 ### Local Development
 
 ```bash
@@ -68,73 +128,6 @@ make dev-all-reset
 ```
 
 Run `make help` to see all available commands.
-
-### Container Runtime
-
-Published runtime images are built by GitHub Actions and pushed to GHCR.
-This is the supported path for anyone who wants a ready-to-use local
-environment without building the backend or frontend on their machine.
-Published images target both `linux/amd64` and `linux/arm64`.
-
-Start the runtime with one command:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- up
-```
-
-Then open:
-
-- Web UI: `http://localhost`
-- Backend API: `http://localhost:8080`
-
-The script downloads the runtime files into `${TMPDIR:-/tmp}/skillhub-runtime`
-by default and starts Docker Compose from there, so it does not pollute
-your current working directory.
-
-If you want a persistent location instead of the temp directory:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | \
-  SKILLHUB_HOME=$HOME/.skillhub-runtime sh -s -- up
-```
-
-Pin a specific image tag:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | \
-  sh -s -- up --version v0.1.0
-```
-
-Other useful commands:
-
-- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- down`
-- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- clean`
-- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- ps`
-- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- logs`
-- `curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- up --version v0.1.0`
-
-Stop it with:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/iflytek/skillhub/main/scripts/runtime.sh | sh -s -- down
-```
-
-The runtime stack uses its own Compose project name, so it does not
-collide with containers from `make dev-all`.
-
-Use `clean` if you also want to remove the downloaded runtime files from
-`${TMPDIR:-/tmp}/skillhub-runtime`.
-
-The runtime uses the existing `local,docker` profile combination so it
-is immediately usable with the same mock-auth flow as local development.
-Available seeded users:
-
-- `local-user`
-- `local-admin`
-
-Pass `X-Mock-User-Id` to the backend when you need an authenticated
-session without configuring GitHub OAuth. If the GHCR package remains
-private, run `docker login ghcr.io` before `docker compose up -d`.
 
 ## Architecture
 
