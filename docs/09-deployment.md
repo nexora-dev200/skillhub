@@ -9,7 +9,8 @@
   - `docker-compose.yml` 只负责 PostgreSQL、Redis、MinIO
 - 单机交付环境：`docker compose --env-file .env.release -f compose.release.yml up -d`
   - 前端和后端都运行在容器内
-  - 使用 GitHub Actions 发布到 GHCR 的镜像
+- 使用 GitHub Actions 发布到 GHCR 的镜像
+- 默认发布 `linux/amd64` 与 `linux/arm64` 多架构镜像
   - PostgreSQL、Redis 与应用容器一起通过 Compose 启动
 
 不再维护本地构建整套 demo 容器的中间模式，也不再保留 `docker-compose.prod.yml`。
@@ -106,6 +107,7 @@ docker compose --env-file .env.release -f compose.release.yml up -d
 - `compose.release.yml`
   - 使用发布镜像，不在用户机器上执行本地构建
   - 负责拉起 PostgreSQL、Redis、server、web
+  - 使用独立 Compose project name，避免与开发环境容器互相污染
 - `.env.release.example`
   - 运行时变量模板
   - 包含镜像名、镜像版本、端口和数据库凭证
@@ -145,6 +147,7 @@ docker compose --env-file .env.release -f compose.release.yml up -d
    - `ghcr.io/iflytek/skillhub-server`
    - `ghcr.io/iflytek/skillhub-web`
 5. 写入 `edge` / `vX.Y.Z` / `latest` / `sha-*` 标签
+6. 同时发布 `linux/amd64` 与 `linux/arm64` manifest，避免 Apple Silicon / ARM 主机依赖模拟层
 
 ## 7 配置管理
 
