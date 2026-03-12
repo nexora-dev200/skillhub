@@ -1,8 +1,10 @@
 package com.iflytek.skillhub.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyRecord;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyRecordRepository;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyStatus;
+import com.iflytek.skillhub.dto.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -20,13 +22,16 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
     private static final String REDIS_KEY_PREFIX = "idempotency:";
     private static final long EXPIRY_HOURS = 24;
 
-    private final IdempotencyRecordRepository idempotencyRecordRepository;
     private final StringRedisTemplate redisTemplate;
+    private final IdempotencyRecordRepository idempotencyRecordRepository;
+    private final ObjectMapper objectMapper;
 
-    public IdempotencyInterceptor(IdempotencyRecordRepository idempotencyRecordRepository,
-                                  StringRedisTemplate redisTemplate) {
-        this.idempotencyRecordRepository = idempotencyRecordRepository;
+    public IdempotencyInterceptor(StringRedisTemplate redisTemplate,
+                                  IdempotencyRecordRepository idempotencyRecordRepository,
+                                  ObjectMapper objectMapper) {
         this.redisTemplate = redisTemplate;
+        this.idempotencyRecordRepository = idempotencyRecordRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -43,16 +48,14 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
 
         // Check Redis first
         String redisKey = REDIS_KEY_PREFIX + requestId;
-        Boolean isNew = redisTemplate.opsForValue().setIfAbsent(redisKey, "PROCESSING", EXPIRY_HOURS, TimeUnit.HOURS);
-
-        if (Boolean.FALSE.equals(isNew)) {
-            // Duplicate request - check status in Redis or DB
-            String cachedStatus = redisTemplate.opsForValue().get(redisKey);
-            if ("COMPLETED".equals(cachedStatus)) {
-                response.setStatus(HttpServletResponse.SC_CONFLICT);
-                response.getWriter().write("{\"error\":\"Duplicate request\"}");
+        try {
+            String cached = redisTemplate.opsForValue().get(redisKey);
+            if ("COMPLETED".equals(cached)) {
+                writeDuplicateResponse(response);
                 return false;
             }
+        } catch (Exception ignored) {
+            // Redis unavailable, fall through to PostgreSQL
         }
 
         // Check PostgreSQL fallback
@@ -60,30 +63,32 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
         if (existing.isPresent()) {
             IdempotencyRecord record = existing.get();
             if (record.getStatus() == IdempotencyStatus.COMPLETED) {
-                response.setStatus(record.getResponseStatusCode() != null ? record.getResponseStatusCode() : HttpServletResponse.SC_OK);
-                response.getWriter().write("{\"message\":\"Request already processed\"}");
+                int statusCode = record.getResponseStatusCode() != null ? record.getResponseStatusCode() : HttpServletResponse.SC_OK;
+                response.setStatus(statusCode);
+                writeDuplicateResponse(response);
                 return false;
             }
         } else {
             // Create new record
             Instant now = Instant.now();
             IdempotencyRecord newRecord = new IdempotencyRecord(
-                requestId,
-                null,
-                null,
-                IdempotencyStatus.PROCESSING,
-                null,
-                now,
-                now.plusSeconds(EXPIRY_HOURS * 3600)
-            );
+                requestId, (String) null, (Long) null, IdempotencyStatus.PROCESSING,
+                (Integer) null, now, now.plusSeconds(EXPIRY_HOURS * 3600));
             idempotencyRecordRepository.save(newRecord);
+
+            // Cache in Redis
+            try {
+                redisTemplate.opsForValue().set(redisKey, "PROCESSING", EXPIRY_HOURS, TimeUnit.HOURS);
+            } catch (Exception ignored) {
+                // Redis unavailable, PostgreSQL is the source of truth
+            }
         }
 
         return true;
     }
 
     @Override
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
         String method = request.getMethod();
         if (!method.equals("POST") && !method.equals("PUT") && !method.equals("DELETE")) {
             return;
@@ -94,7 +99,6 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
             return;
         }
 
-        // Update record with response status
         Optional<IdempotencyRecord> existing = idempotencyRecordRepository.findByRequestId(requestId);
         if (existing.isPresent()) {
             IdempotencyRecord record = existing.get();
@@ -102,9 +106,19 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
             record.setResponseStatusCode(response.getStatus());
             idempotencyRecordRepository.save(record);
 
-            // Update Redis
-            String redisKey = REDIS_KEY_PREFIX + requestId;
-            redisTemplate.opsForValue().set(redisKey, record.getStatus().name(), EXPIRY_HOURS, TimeUnit.HOURS);
+            try {
+                String redisKey = REDIS_KEY_PREFIX + requestId;
+                redisTemplate.opsForValue().set(redisKey, record.getStatus().name(), EXPIRY_HOURS, TimeUnit.HOURS);
+            } catch (Exception ignored) {
+                // Redis unavailable
+            }
         }
+    }
+
+    private void writeDuplicateResponse(HttpServletResponse response) throws Exception {
+        ApiResponse<Void> body = new ApiResponse<>(409, "error.request.duplicate", null,
+                Instant.now(), null);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 }
