@@ -55,8 +55,9 @@ class AuditLogControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/audit-logs").with(authentication(auth)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.logs").isArray())
-            .andExpect(jsonPath("$.total").value(2));
+            .andExpect(jsonPath("$.code").value(0))
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.total").value(2));
     }
 
     @Test
@@ -70,7 +71,7 @@ class AuditLogControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/audit-logs").with(authentication(auth)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.logs").isArray());
+            .andExpect(jsonPath("$.data.items").isArray());
     }
 
     @Test
@@ -87,6 +88,6 @@ class AuditLogControllerTest {
                 .param("action", "CREATE_SKILL")
                 .with(authentication(auth)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.logs").isArray());
+            .andExpect(jsonPath("$.data.items").isArray());
     }
 }

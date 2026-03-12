@@ -1,48 +1,41 @@
 package com.iflytek.skillhub.controller.admin;
 
+import com.iflytek.skillhub.controller.BaseApiController;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
+import com.iflytek.skillhub.dto.AuditLogItemResponse;
+import com.iflytek.skillhub.dto.PageResponse;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
-public class AuditLogController {
+public class AuditLogController extends BaseApiController {
+
+    public AuditLogController(ApiResponseFactory responseFactory) {
+        super(responseFactory);
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('AUDITOR', 'SUPER_ADMIN')")
-    public Map<String, Object> listAuditLogs(
+    public ApiResponse<PageResponse<AuditLogItemResponse>> listAuditLogs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String userId,
             @RequestParam(required = false) String action) {
-        // Placeholder implementation
-        return Map.of(
-            "logs", List.of(
-                Map.of(
-                    "id", "log-1",
-                    "userId", "user-1",
-                    "action", "CREATE_SKILL",
-                    "resourceType", "SKILL",
-                    "resourceId", "skill-123",
-                    "timestamp", Instant.now().toString(),
-                    "ipAddress", "192.168.1.1"
+        List<AuditLogItemResponse> logs = List.of(
+                new AuditLogItemResponse(
+                        "log-1", "user-1", "CREATE_SKILL", "SKILL", "skill-123", Instant.now(), "192.168.1.1"
                 ),
-                Map.of(
-                    "id", "log-2",
-                    "userId", "user-2",
-                    "action", "UPDATE_NAMESPACE",
-                    "resourceType", "NAMESPACE",
-                    "resourceId", "ns-456",
-                    "timestamp", Instant.now().minusSeconds(3600).toString(),
-                    "ipAddress", "192.168.1.2"
+                new AuditLogItemResponse(
+                        "log-2", "user-2", "UPDATE_NAMESPACE", "NAMESPACE", "ns-456",
+                        Instant.now().minusSeconds(3600), "192.168.1.2"
                 )
-            ),
-            "total", 2,
-            "page", page,
-            "size", size
         );
+        return ok("response.success.read", PageResponse.from(new PageImpl<>(logs)));
     }
 }

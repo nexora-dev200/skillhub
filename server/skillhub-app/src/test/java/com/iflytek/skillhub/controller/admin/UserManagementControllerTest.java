@@ -58,8 +58,9 @@ class UserManagementControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/users").with(authentication(auth)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.users").isArray())
-            .andExpect(jsonPath("$.total").value(2));
+            .andExpect(jsonPath("$.code").value(0))
+            .andExpect(jsonPath("$.data.items").isArray())
+            .andExpect(jsonPath("$.data.total").value(2));
     }
 
     @Test
@@ -73,7 +74,7 @@ class UserManagementControllerTest {
 
         mockMvc.perform(get("/api/v1/admin/users").with(authentication(auth)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.users").isArray());
+            .andExpect(jsonPath("$.data.items").isArray());
     }
 
     @Test
@@ -93,8 +94,9 @@ class UserManagementControllerTest {
                 .contentType(APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.userId").value("user-123"))
-            .andExpect(jsonPath("$.role").value("MODERATOR"));
+            .andExpect(jsonPath("$.code").value(0))
+            .andExpect(jsonPath("$.data.userId").value("user-123"))
+            .andExpect(jsonPath("$.data.role").value("MODERATOR"));
     }
 
     @Test
@@ -114,7 +116,8 @@ class UserManagementControllerTest {
                 .contentType(APPLICATION_JSON)
                 .content(requestBody))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.userId").value("user-123"))
-            .andExpect(jsonPath("$.status").value("BANNED"));
+            .andExpect(jsonPath("$.code").value(0))
+            .andExpect(jsonPath("$.data.userId").value("user-123"))
+            .andExpect(jsonPath("$.data.status").value("BANNED"));
     }
 }

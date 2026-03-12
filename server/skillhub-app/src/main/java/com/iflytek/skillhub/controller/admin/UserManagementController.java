@@ -1,57 +1,53 @@
 package com.iflytek.skillhub.controller.admin;
 
+import com.iflytek.skillhub.controller.BaseApiController;
+import com.iflytek.skillhub.dto.AdminUserMutationResponse;
+import com.iflytek.skillhub.dto.AdminUserRoleUpdateRequest;
+import com.iflytek.skillhub.dto.AdminUserStatusUpdateRequest;
+import com.iflytek.skillhub.dto.AdminUserSummaryResponse;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
+import com.iflytek.skillhub.dto.PageResponse;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/admin/users")
-public class UserManagementController {
+public class UserManagementController extends BaseApiController {
+
+    public UserManagementController(ApiResponseFactory responseFactory) {
+        super(responseFactory);
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('USER_ADMIN', 'SUPER_ADMIN')")
-    public Map<String, Object> listUsers(
+    public ApiResponse<PageResponse<AdminUserSummaryResponse>> listUsers(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        // Placeholder implementation
-        return Map.of(
-            "users", List.of(
-                Map.of("id", "user-1", "username", "alice", "role", "USER", "status", "ACTIVE"),
-                Map.of("id", "user-2", "username", "bob", "role", "USER", "status", "ACTIVE")
-            ),
-            "total", 2,
-            "page", page,
-            "size", size
+        List<AdminUserSummaryResponse> users = List.of(
+                new AdminUserSummaryResponse("user-1", "alice", "USER", "ACTIVE"),
+                new AdminUserSummaryResponse("user-2", "bob", "USER", "ACTIVE")
         );
+        return ok("response.success.read", PageResponse.from(new PageImpl<>(users)));
     }
 
     @PutMapping("/{userId}/role")
     @PreAuthorize("hasAnyRole('USER_ADMIN', 'SUPER_ADMIN')")
-    public Map<String, Object> updateUserRole(
+    public ApiResponse<AdminUserMutationResponse> updateUserRole(
             @PathVariable String userId,
-            @RequestBody Map<String, String> request) {
-        String newRole = request.get("role");
-        // Placeholder implementation
-        return Map.of(
-            "userId", userId,
-            "role", newRole,
-            "message", "Role updated successfully"
-        );
+            @Valid @RequestBody AdminUserRoleUpdateRequest request) {
+        return ok("response.success.updated", new AdminUserMutationResponse(userId, request.role(), null));
     }
 
     @PutMapping("/{userId}/status")
     @PreAuthorize("hasAnyRole('USER_ADMIN', 'SUPER_ADMIN')")
-    public Map<String, Object> updateUserStatus(
+    public ApiResponse<AdminUserMutationResponse> updateUserStatus(
             @PathVariable String userId,
-            @RequestBody Map<String, String> request) {
-        String newStatus = request.get("status");
-        // Placeholder implementation
-        return Map.of(
-            "userId", userId,
-            "status", newStatus,
-            "message", "Status updated successfully"
-        );
+            @Valid @RequestBody AdminUserStatusUpdateRequest request) {
+        return ok("response.success.updated", new AdminUserMutationResponse(userId, null, request.status()));
     }
 }
