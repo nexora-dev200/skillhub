@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchJson } from '@/api/client'
+import { fetchJson, getCsrfHeaders } from '@/api/client'
 
 export interface AdminUser {
   id: string
@@ -36,31 +36,19 @@ async function getAdminUsers(params: AdminUsersParams): Promise<PagedAdminUsers>
 }
 
 async function updateUserRole(userId: string, role: string): Promise<void> {
-  const csrfToken = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1]
-  const res = await fetch(`/api/v1/admin/users/${userId}/role`, {
+  await fetchJson<void>(`/api/v1/admin/users/${userId}/role`, {
     method: 'PUT',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(csrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(csrfToken) } : {}),
-    },
+    headers: getCsrfHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ role }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
 }
 
 async function updateUserStatus(userId: string, status: 'ACTIVE' | 'DISABLED'): Promise<void> {
-  const csrfToken = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1]
-  const res = await fetch(`/api/v1/admin/users/${userId}/status`, {
+  await fetchJson<void>(`/api/v1/admin/users/${userId}/status`, {
     method: 'PUT',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(csrfToken ? { 'X-XSRF-TOKEN': decodeURIComponent(csrfToken) } : {}),
-    },
+    headers: getCsrfHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ status }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
 }
 
 export function useAdminUsers(params: AdminUsersParams) {
