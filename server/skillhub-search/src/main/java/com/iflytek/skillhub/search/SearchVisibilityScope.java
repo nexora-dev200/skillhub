@@ -3,7 +3,7 @@ package com.iflytek.skillhub.search;
 import java.util.Set;
 
 public record SearchVisibilityScope(
-        Long userId,
+        String userId,
         Set<Long> memberNamespaceIds,
         Set<Long> adminNamespaceIds
 ) {

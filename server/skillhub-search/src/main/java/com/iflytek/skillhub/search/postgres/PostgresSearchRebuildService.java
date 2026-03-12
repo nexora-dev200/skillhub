@@ -31,9 +31,12 @@ public class PostgresSearchRebuildService implements SearchRebuildService {
 
     @Override
     public void rebuildAll() {
-        // This would need a findAll method in SkillRepository
-        // For now, we'll leave it as a placeholder
-        throw new UnsupportedOperationException("rebuildAll not yet implemented");
+        List<SkillSearchDocument> documents = skillRepository.findAll().stream()
+                .filter(skill -> skill.getStatus() == SkillStatus.ACTIVE)
+                .map(this::toDocument)
+                .flatMap(Optional::stream)
+                .toList();
+        searchIndexService.batchIndex(documents);
     }
 
     @Override
@@ -52,30 +55,7 @@ public class PostgresSearchRebuildService implements SearchRebuildService {
             return;
         }
 
-        Skill skill = skillOpt.get();
-        Optional<Namespace> namespaceOpt = namespaceRepository.findById(skill.getNamespaceId());
-        if (namespaceOpt.isEmpty()) {
-            return;
-        }
-
-        Namespace namespace = namespaceOpt.get();
-
-        String searchText = buildSearchText(skill);
-
-        SkillSearchDocument document = new SkillSearchDocument(
-                skill.getId(),
-                skill.getNamespaceId(),
-                namespace.getSlug(),
-                skill.getOwnerId(),
-                skill.getDisplayName() != null ? skill.getDisplayName() : skill.getSlug(),
-                skill.getSummary(),
-                "", // keywords - could be extracted from metadata
-                searchText,
-                skill.getVisibility().name(),
-                skill.getStatus().name()
-        );
-
-        searchIndexService.index(document);
+        toDocument(skillOpt.get()).ifPresent(searchIndexService::index);
     }
 
     private String buildSearchText(Skill skill) {
@@ -88,5 +68,28 @@ public class PostgresSearchRebuildService implements SearchRebuildService {
             sb.append(skill.getSummary()).append(" ");
         }
         return sb.toString().trim();
+    }
+
+    private Optional<SkillSearchDocument> toDocument(Skill skill) {
+        Optional<Namespace> namespaceOpt = namespaceRepository.findById(skill.getNamespaceId());
+        if (namespaceOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Namespace namespace = namespaceOpt.get();
+        String searchText = buildSearchText(skill);
+
+        return Optional.of(new SkillSearchDocument(
+                skill.getId(),
+                skill.getNamespaceId(),
+                namespace.getSlug(),
+                skill.getOwnerId(),
+                skill.getDisplayName() != null ? skill.getDisplayName() : skill.getSlug(),
+                skill.getSummary(),
+                "",
+                searchText,
+                skill.getVisibility().name(),
+                skill.getStatus().name()
+        ));
     }
 }

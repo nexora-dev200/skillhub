@@ -4,7 +4,7 @@ public record SkillSearchDocument(
         Long skillId,
         Long namespaceId,
         String namespaceSlug,
-        Long ownerId,
+        String ownerId,
         String title,
         String summary,
         String keywords,

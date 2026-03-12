@@ -8,6 +8,7 @@ import jakarta.persistence.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class PostgresFullTextQueryService implements SearchQueryService {
@@ -20,14 +21,21 @@ public class PostgresFullTextQueryService implements SearchQueryService {
 
     @Override
     public SearchResult search(SearchQuery query) {
+        Set<Long> memberNamespaceIds = query.visibilityScope().memberNamespaceIds().isEmpty()
+                ? Set.of(-1L)
+                : query.visibilityScope().memberNamespaceIds();
+        Set<Long> adminNamespaceIds = query.visibilityScope().adminNamespaceIds().isEmpty()
+                ? Set.of(-1L)
+                : query.visibilityScope().adminNamespaceIds();
+
         StringBuilder sql = new StringBuilder();
         sql.append("SELECT skill_id FROM skill_search_document WHERE 1=1 ");
 
         // Visibility filtering
         sql.append("AND (visibility = 'PUBLIC' ");
         if (query.visibilityScope().userId() != null) {
-            sql.append("OR (visibility = 'NAMESPACE' AND namespace_id IN :memberNamespaceIds) ");
-            sql.append("OR (visibility = 'PRIVATE' AND namespace_id IN :adminNamespaceIds) ");
+            sql.append("OR (visibility = 'NAMESPACE_ONLY' AND namespace_id IN :memberNamespaceIds) ");
+            sql.append("OR (visibility = 'PRIVATE' AND (namespace_id IN :adminNamespaceIds OR owner_id = :userId)) ");
         }
         sql.append(") ");
 
@@ -41,16 +49,18 @@ public class PostgresFullTextQueryService implements SearchQueryService {
 
         // Full-text search
         if (query.keyword() != null && !query.keyword().isBlank()) {
-            sql.append("AND to_tsvector('english', search_text) @@ plainto_tsquery('english', :keyword) ");
+            sql.append("AND search_vector @@ plainto_tsquery('simple', :keyword) ");
         }
 
         // Sorting
         if ("downloads".equals(query.sortBy())) {
             sql.append("ORDER BY (SELECT download_count FROM skill WHERE id = skill_id) DESC ");
+        } else if ("rating".equals(query.sortBy())) {
+            sql.append("ORDER BY (SELECT rating_avg FROM skill WHERE id = skill_id) DESC ");
         } else if ("newest".equals(query.sortBy())) {
-            sql.append("ORDER BY (SELECT created_at FROM skill WHERE id = skill_id) DESC ");
+            sql.append("ORDER BY (SELECT updated_at FROM skill WHERE id = skill_id) DESC ");
         } else if ("relevance".equals(query.sortBy()) && query.keyword() != null && !query.keyword().isBlank()) {
-            sql.append("ORDER BY ts_rank(to_tsvector('english', search_text), plainto_tsquery('english', :keyword)) DESC ");
+            sql.append("ORDER BY ts_rank(search_vector, plainto_tsquery('simple', :keyword)) DESC ");
         } else {
             sql.append("ORDER BY updated_at DESC ");
         }
@@ -61,8 +71,9 @@ public class PostgresFullTextQueryService implements SearchQueryService {
         Query nativeQuery = entityManager.createNativeQuery(sql.toString());
 
         if (query.visibilityScope().userId() != null) {
-            nativeQuery.setParameter("memberNamespaceIds", query.visibilityScope().memberNamespaceIds());
-            nativeQuery.setParameter("adminNamespaceIds", query.visibilityScope().adminNamespaceIds());
+            nativeQuery.setParameter("memberNamespaceIds", memberNamespaceIds);
+            nativeQuery.setParameter("adminNamespaceIds", adminNamespaceIds);
+            nativeQuery.setParameter("userId", query.visibilityScope().userId());
         }
 
         if (query.namespaceId() != null) {
@@ -83,14 +94,21 @@ public class PostgresFullTextQueryService implements SearchQueryService {
 
         // Count total
         String countSql = sql.toString().replaceFirst("SELECT skill_id", "SELECT COUNT(*)");
-        countSql = countSql.substring(0, countSql.indexOf("ORDER BY"));
-        countSql = countSql.substring(0, countSql.indexOf("LIMIT"));
+        int orderByIndex = countSql.indexOf("ORDER BY");
+        if (orderByIndex >= 0) {
+            countSql = countSql.substring(0, orderByIndex);
+        }
+        int limitIndex = countSql.indexOf("LIMIT");
+        if (limitIndex >= 0) {
+            countSql = countSql.substring(0, limitIndex);
+        }
 
         Query countQuery = entityManager.createNativeQuery(countSql);
 
         if (query.visibilityScope().userId() != null) {
-            countQuery.setParameter("memberNamespaceIds", query.visibilityScope().memberNamespaceIds());
-            countQuery.setParameter("adminNamespaceIds", query.visibilityScope().adminNamespaceIds());
+            countQuery.setParameter("memberNamespaceIds", memberNamespaceIds);
+            countQuery.setParameter("adminNamespaceIds", adminNamespaceIds);
+            countQuery.setParameter("userId", query.visibilityScope().userId());
         }
 
         if (query.namespaceId() != null) {
