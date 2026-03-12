@@ -33,7 +33,7 @@ public interface PromotionRequestJpaRepository extends JpaRepository<PromotionRe
     """)
     int updateStatusWithVersion(@Param("id") Long id,
                                @Param("status") ReviewTaskStatus status,
-                               @Param("reviewedBy") Long reviewedBy,
+                               @Param("reviewedBy") String reviewedBy,
                                @Param("reviewComment") String reviewComment,
                                @Param("targetSkillId") Long targetSkillId,
                                @Param("expectedVersion") Integer expectedVersion);

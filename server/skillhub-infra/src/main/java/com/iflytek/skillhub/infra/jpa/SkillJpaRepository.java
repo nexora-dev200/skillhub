@@ -16,6 +16,7 @@ import java.util.Optional;
 
 @Repository
 public interface SkillJpaRepository extends JpaRepository<Skill, Long>, SkillRepository {
+    List<Skill> findByIdIn(List<Long> ids);
     Optional<Skill> findByNamespaceIdAndSlug(Long namespaceId, String slug);
 
     @Override
@@ -25,7 +26,7 @@ public interface SkillJpaRepository extends JpaRepository<Skill, Long>, SkillRep
 
     List<Skill> findByNamespaceIdAndStatusOrderByCreatedAtDesc(Long namespaceId, SkillStatus status);
     Page<Skill> findByNamespaceIdAndStatus(Long namespaceId, SkillStatus status, Pageable pageable);
-    List<Skill> findByOwnerId(Long ownerId);
+    List<Skill> findByOwnerId(String ownerId);
 
     @Modifying
     @Query("UPDATE Skill s SET s.downloadCount = s.downloadCount + 1 WHERE s.id = :skillId")

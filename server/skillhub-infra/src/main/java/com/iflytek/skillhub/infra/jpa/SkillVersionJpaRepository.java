@@ -13,6 +13,7 @@ import java.util.Optional;
 
 @Repository
 public interface SkillVersionJpaRepository extends JpaRepository<SkillVersion, Long>, SkillVersionRepository {
+    List<SkillVersion> findByIdIn(List<Long> ids);
     Optional<SkillVersion> findBySkillIdAndVersion(Long skillId, String version);
 
     @Override

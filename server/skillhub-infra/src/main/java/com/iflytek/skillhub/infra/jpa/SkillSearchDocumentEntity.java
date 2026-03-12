@@ -21,9 +21,9 @@ public class SkillSearchDocumentEntity {
     private String namespaceSlug;
 
     @Column(name = "owner_id", nullable = false)
-    private Long ownerId;
+    private String ownerId;
 
-    @Column(nullable = false, length = 200)
+    @Column(length = 256)
     private String title;
 
     @Column(columnDefinition = "TEXT")
@@ -51,7 +51,7 @@ public class SkillSearchDocumentEntity {
             Long skillId,
             Long namespaceId,
             String namespaceSlug,
-            Long ownerId,
+            String ownerId,
             String title,
             String summary,
             String keywords,
@@ -93,7 +93,7 @@ public class SkillSearchDocumentEntity {
         return namespaceSlug;
     }
 
-    public Long getOwnerId() {
+    public String getOwnerId() {
         return ownerId;
     }
 
@@ -134,7 +134,7 @@ public class SkillSearchDocumentEntity {
         this.namespaceSlug = namespaceSlug;
     }
 
-    public void setOwnerId(Long ownerId) {
+    public void setOwnerId(String ownerId) {
         this.ownerId = ownerId;
     }
 

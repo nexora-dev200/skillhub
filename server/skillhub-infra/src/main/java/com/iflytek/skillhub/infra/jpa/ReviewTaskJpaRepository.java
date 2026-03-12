@@ -19,7 +19,7 @@ public interface ReviewTaskJpaRepository extends JpaRepository<ReviewTask, Long>
 
     Page<ReviewTask> findByNamespaceIdAndStatus(Long namespaceId, ReviewTaskStatus status, Pageable pageable);
 
-    Page<ReviewTask> findBySubmittedByAndStatus(Long submittedBy, ReviewTaskStatus status, Pageable pageable);
+    Page<ReviewTask> findBySubmittedByAndStatus(String submittedBy, ReviewTaskStatus status, Pageable pageable);
 
     @Modifying
     @Query("""
@@ -33,7 +33,7 @@ public interface ReviewTaskJpaRepository extends JpaRepository<ReviewTask, Long>
     """)
     int updateStatusWithVersion(@Param("id") Long id,
                                @Param("status") ReviewTaskStatus status,
-                               @Param("reviewedBy") Long reviewedBy,
+                               @Param("reviewedBy") String reviewedBy,
                                @Param("reviewComment") String reviewComment,
                                @Param("expectedVersion") Integer expectedVersion);
 }
