@@ -3,6 +3,8 @@ server:
   shutdown: graceful
 
 spring:
+  messages:
+    basename: messages
   application:
     name: skillhub
   lifecycle:

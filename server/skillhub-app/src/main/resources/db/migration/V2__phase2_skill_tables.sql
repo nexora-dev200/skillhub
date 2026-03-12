@@ -8,7 +8,7 @@ CREATE TABLE skill (
     slug VARCHAR(128) NOT NULL,
     display_name VARCHAR(256),
     summary VARCHAR(512),
-    owner_id BIGINT NOT NULL REFERENCES user_account(id),
+    owner_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     source_skill_id BIGINT,
     visibility VARCHAR(32) NOT NULL DEFAULT 'PUBLIC',
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
@@ -17,9 +17,9 @@ CREATE TABLE skill (
     star_count INT NOT NULL DEFAULT 0,
     rating_avg DECIMAL(3,2) NOT NULL DEFAULT 0.00,
     rating_count INT NOT NULL DEFAULT 0,
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by BIGINT REFERENCES user_account(id),
+    updated_by VARCHAR(128) REFERENCES user_account(id),
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(namespace_id, slug)
 );
@@ -38,7 +38,7 @@ CREATE TABLE skill_version (
     file_count INT NOT NULL DEFAULT 0,
     total_size BIGINT NOT NULL DEFAULT 0,
     published_at TIMESTAMP,
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, version)
 );
@@ -67,7 +67,7 @@ CREATE TABLE skill_tag (
     skill_id BIGINT NOT NULL REFERENCES skill(id),
     tag_name VARCHAR(64) NOT NULL,
     version_id BIGINT NOT NULL REFERENCES skill_version(id),
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, tag_name)
@@ -79,7 +79,7 @@ CREATE TABLE skill_search_document (
     skill_id BIGINT NOT NULL UNIQUE REFERENCES skill(id),
     namespace_id BIGINT NOT NULL,
     namespace_slug VARCHAR(64) NOT NULL,
-    owner_id BIGINT NOT NULL,
+    owner_id VARCHAR(128) NOT NULL,
     title VARCHAR(256),
     summary VARCHAR(512),
     keywords VARCHAR(512),

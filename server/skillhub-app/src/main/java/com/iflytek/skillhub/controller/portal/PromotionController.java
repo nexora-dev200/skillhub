@@ -54,7 +54,7 @@ public class PromotionController extends BaseApiController {
     @PostMapping
     public ApiResponse<PromotionResponseDto> submitPromotion(
             @RequestBody PromotionRequestDto request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         PromotionRequest promotion = promotionService.submitPromotion(
                 request.sourceSkillId(), request.sourceVersionId(),
                 request.targetNamespaceId(), userId);
@@ -65,7 +65,7 @@ public class PromotionController extends BaseApiController {
     public ApiResponse<PromotionResponseDto> approvePromotion(
             @PathVariable Long id,
             @RequestBody(required = false) PromotionActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         String comment = request != null ? request.comment() : null;
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
         PromotionRequest promotion = promotionService.approvePromotion(id, userId, comment, platformRoles);
@@ -76,7 +76,7 @@ public class PromotionController extends BaseApiController {
     public ApiResponse<PromotionResponseDto> rejectPromotion(
             @PathVariable Long id,
             @RequestBody(required = false) PromotionActionRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         String comment = request != null ? request.comment() : null;
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
         PromotionRequest promotion = promotionService.rejectPromotion(id, userId, comment, platformRoles);
@@ -87,7 +87,7 @@ public class PromotionController extends BaseApiController {
     public ApiResponse<PageResponse<PromotionResponseDto>> listPendingPromotions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
         boolean hasAdminRole = platformRoles.contains("SKILL_ADMIN") || platformRoles.contains("SUPER_ADMIN");
         if (!hasAdminRole) {

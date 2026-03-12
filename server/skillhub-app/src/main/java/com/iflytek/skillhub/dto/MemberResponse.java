@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 public record MemberResponse(
         Long id,
         Long namespaceId,
-        Long userId,
+        String userId,
         NamespaceRole role,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

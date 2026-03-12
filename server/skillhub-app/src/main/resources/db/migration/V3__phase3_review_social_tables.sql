@@ -8,8 +8,8 @@ CREATE TABLE review_task (
     namespace_id BIGINT NOT NULL REFERENCES namespace(id),
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     version INT NOT NULL DEFAULT 1,
-    submitted_by BIGINT NOT NULL REFERENCES user_account(id),
-    reviewed_by BIGINT REFERENCES user_account(id),
+    submitted_by VARCHAR(128) NOT NULL REFERENCES user_account(id),
+    reviewed_by VARCHAR(128) REFERENCES user_account(id),
     review_comment TEXT,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP
@@ -28,8 +28,8 @@ CREATE TABLE promotion_request (
     target_skill_id BIGINT REFERENCES skill(id),
     status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
     version INT NOT NULL DEFAULT 1,
-    submitted_by BIGINT NOT NULL REFERENCES user_account(id),
-    reviewed_by BIGINT REFERENCES user_account(id),
+    submitted_by VARCHAR(128) NOT NULL REFERENCES user_account(id),
+    reviewed_by VARCHAR(128) REFERENCES user_account(id),
     review_comment TEXT,
     submitted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reviewed_at TIMESTAMP
@@ -43,7 +43,7 @@ CREATE UNIQUE INDEX idx_promotion_request_version_pending ON promotion_request(s
 CREATE TABLE skill_star (
     id BIGSERIAL PRIMARY KEY,
     skill_id BIGINT NOT NULL REFERENCES skill(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(skill_id, user_id)
 );
@@ -55,7 +55,7 @@ CREATE INDEX idx_skill_star_skill_id ON skill_star(skill_id);
 CREATE TABLE skill_rating (
     id BIGSERIAL PRIMARY KEY,
     skill_id BIGINT NOT NULL REFERENCES skill(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     score SMALLINT NOT NULL CHECK (score >= 1 AND score <= 5),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

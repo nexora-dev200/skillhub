@@ -1,16 +1,16 @@
 package com.iflytek.skillhub.controller.cli;
 
-import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.controller.BaseApiController;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.domain.skill.service.SkillPublishService;
 import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
 import com.iflytek.skillhub.dto.PublishResponse;
 import com.iflytek.skillhub.ratelimit.RateLimit;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,27 +19,29 @@ import java.util.zip.ZipInputStream;
 
 @RestController
 @RequestMapping("/api/v1/cli")
-public class CliPublishController {
+public class CliPublishController extends BaseApiController {
 
     private final SkillPublishService skillPublishService;
 
-    public CliPublishController(SkillPublishService skillPublishService) {
+    public CliPublishController(SkillPublishService skillPublishService,
+                                ApiResponseFactory responseFactory) {
+        super(responseFactory);
         this.skillPublishService = skillPublishService;
     }
 
     @PostMapping("/publish")
     @RateLimit(category = "publish", authenticated = 10, anonymous = 0)
-    public ResponseEntity<PublishResponse> publish(
+    public ApiResponse<PublishResponse> publish(
             @RequestParam("file") MultipartFile file,
             @RequestParam("namespace") String namespace,
             @RequestParam("visibility") String visibility,
-            @RequestAttribute("userId") Long userId) throws IOException {
+            @RequestAttribute("userId") String userId) throws IOException {
 
         SkillVisibility skillVisibility = SkillVisibility.valueOf(visibility.toUpperCase());
 
         List<PackageEntry> entries = extractZipEntries(file);
 
-        SkillVersion version = skillPublishService.publishFromEntries(
+        SkillPublishService.PublishResult publishResult = skillPublishService.publishFromEntries(
                 namespace,
                 entries,
                 userId,
@@ -47,16 +49,16 @@ public class CliPublishController {
         );
 
         PublishResponse response = new PublishResponse(
-                version.getSkillId(),
+                publishResult.skillId(),
                 namespace,
-                null, // slug will be extracted from metadata
-                version.getVersion(),
-                version.getStatus().name(),
-                version.getFileCount(),
-                version.getTotalSize()
+                publishResult.slug(),
+                publishResult.version().getVersion(),
+                publishResult.version().getStatus().name(),
+                publishResult.version().getFileCount(),
+                publishResult.version().getTotalSize()
         );
 
-        return ResponseEntity.ok(response);
+        return ok("response.success.published", response);
     }
 
     private List<PackageEntry> extractZipEntries(MultipartFile file) throws IOException {

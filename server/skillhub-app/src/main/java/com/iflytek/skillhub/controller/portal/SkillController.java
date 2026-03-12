@@ -1,13 +1,18 @@
 package com.iflytek.skillhub.controller.portal;
 
+import com.iflytek.skillhub.controller.BaseApiController;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.skill.SkillFile;
-import com.iflytek.skillhub.domain.skill.SkillFileRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.service.SkillDownloadService;
 import com.iflytek.skillhub.domain.skill.service.SkillQueryService;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
+import com.iflytek.skillhub.dto.PageResponse;
+import com.iflytek.skillhub.dto.ResolveVersionResponse;
 import com.iflytek.skillhub.dto.SkillDetailResponse;
 import com.iflytek.skillhub.dto.SkillFileResponse;
+import com.iflytek.skillhub.dto.SkillVersionDetailResponse;
 import com.iflytek.skillhub.dto.SkillVersionResponse;
 import com.iflytek.skillhub.ratelimit.RateLimit;
 import org.springframework.core.io.InputStreamResource;
@@ -25,26 +30,25 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/skills")
-public class SkillController {
+public class SkillController extends BaseApiController {
 
     private final SkillQueryService skillQueryService;
     private final SkillDownloadService skillDownloadService;
-    private final SkillFileRepository skillFileRepository;
 
     public SkillController(
             SkillQueryService skillQueryService,
             SkillDownloadService skillDownloadService,
-            SkillFileRepository skillFileRepository) {
+            ApiResponseFactory responseFactory) {
+        super(responseFactory);
         this.skillQueryService = skillQueryService;
         this.skillDownloadService = skillDownloadService;
-        this.skillFileRepository = skillFileRepository;
     }
 
     @GetMapping("/{namespace}/{slug}")
-    public ResponseEntity<SkillDetailResponse> getSkillDetail(
+    public ApiResponse<SkillDetailResponse> getSkillDetail(
             @PathVariable String namespace,
             @PathVariable String slug,
-            @RequestAttribute(value = "userId", required = false) Long userId,
+            @RequestAttribute(value = "userId", required = false) String userId,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
 
         SkillQueryService.SkillDetailDTO detail = skillQueryService.getSkillDetail(
@@ -63,11 +67,11 @@ public class SkillController {
                 namespace
         );
 
-        return ResponseEntity.ok(response);
+        return ok("response.success.read", response);
     }
 
     @GetMapping("/{namespace}/{slug}/versions")
-    public ResponseEntity<Page<SkillVersionResponse>> listVersions(
+    public ApiResponse<PageResponse<SkillVersionResponse>> listVersions(
             @PathVariable String namespace,
             @PathVariable String slug,
             @RequestParam(defaultValue = "0") int page,
@@ -76,7 +80,7 @@ public class SkillController {
         Page<SkillVersion> versions = skillQueryService.listVersions(
                 namespace, slug, PageRequest.of(page, size));
 
-        Page<SkillVersionResponse> response = versions.map(v -> new SkillVersionResponse(
+        PageResponse<SkillVersionResponse> response = PageResponse.from(versions.map(v -> new SkillVersionResponse(
                 v.getId(),
                 v.getVersion(),
                 v.getStatus().name(),
@@ -84,18 +88,56 @@ public class SkillController {
                 v.getFileCount(),
                 v.getTotalSize(),
                 v.getPublishedAt()
-        ));
+        )));
 
-        return ResponseEntity.ok(response);
+        return ok("response.success.read", response);
+    }
+
+    @GetMapping("/{namespace}/{slug}/versions/{version}")
+    public ApiResponse<SkillVersionDetailResponse> getVersionDetail(
+            @PathVariable String namespace,
+            @PathVariable String slug,
+            @PathVariable String version,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+
+        SkillQueryService.SkillVersionDetailDTO detail = skillQueryService.getVersionDetail(
+                namespace,
+                slug,
+                version,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
+
+        SkillVersionDetailResponse response = new SkillVersionDetailResponse(
+                detail.id(),
+                detail.version(),
+                detail.status(),
+                detail.changelog(),
+                detail.fileCount(),
+                detail.totalSize(),
+                detail.publishedAt(),
+                detail.parsedMetadataJson(),
+                detail.manifestJson()
+        );
+        return ok("response.success.read", response);
     }
 
     @GetMapping("/{namespace}/{slug}/versions/{version}/files")
-    public ResponseEntity<List<SkillFileResponse>> listFiles(
+    public ApiResponse<List<SkillFileResponse>> listFiles(
             @PathVariable String namespace,
             @PathVariable String slug,
-            @PathVariable String version) {
+            @PathVariable String version,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
 
-        List<SkillFile> files = skillQueryService.listFiles(namespace, slug, version);
+        List<SkillFile> files = skillQueryService.listFiles(
+                namespace,
+                slug,
+                version,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
 
         List<SkillFileResponse> response = files.stream()
                 .map(f -> new SkillFileResponse(
@@ -107,7 +149,36 @@ public class SkillController {
                 ))
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(response);
+        return ok("response.success.read", response);
+    }
+
+    @GetMapping("/{namespace}/{slug}/tags/{tagName}/files")
+    public ApiResponse<List<SkillFileResponse>> listFilesByTag(
+            @PathVariable String namespace,
+            @PathVariable String slug,
+            @PathVariable String tagName,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+
+        List<SkillFile> files = skillQueryService.listFilesByTag(
+                namespace,
+                slug,
+                tagName,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
+
+        List<SkillFileResponse> response = files.stream()
+                .map(f -> new SkillFileResponse(
+                        f.getId(),
+                        f.getFilePath(),
+                        f.getFileSize(),
+                        f.getContentType(),
+                        f.getSha256()
+                ))
+                .collect(Collectors.toList());
+
+        return ok("response.success.read", response);
     }
 
     @GetMapping("/{namespace}/{slug}/versions/{version}/file")
@@ -115,13 +186,79 @@ public class SkillController {
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String version,
-            @RequestParam("path") String path) {
+            @RequestParam("path") String path,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
 
-        InputStream content = skillQueryService.getFileContent(namespace, slug, version, path);
+        InputStream content = skillQueryService.getFileContent(
+                namespace,
+                slug,
+                version,
+                path,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(new InputStreamResource(content));
+    }
+
+    @GetMapping("/{namespace}/{slug}/tags/{tagName}/file")
+    public ResponseEntity<InputStreamResource> getFileContentByTag(
+            @PathVariable String namespace,
+            @PathVariable String slug,
+            @PathVariable String tagName,
+            @RequestParam("path") String path,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+
+        InputStream content = skillQueryService.getFileContentByTag(
+                namespace,
+                slug,
+                tagName,
+                path,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(new InputStreamResource(content));
+    }
+
+    @GetMapping("/{namespace}/{slug}/resolve")
+    public ApiResponse<ResolveVersionResponse> resolveVersion(
+            @PathVariable String namespace,
+            @PathVariable String slug,
+            @RequestParam(required = false) String version,
+            @RequestParam(required = false) String tag,
+            @RequestParam(required = false) String hash,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+
+        SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersion(
+                namespace,
+                slug,
+                version,
+                tag,
+                hash,
+                userId,
+                userNsRoles != null ? userNsRoles : Map.of()
+        );
+
+        ResolveVersionResponse response = new ResolveVersionResponse(
+                resolved.skillId(),
+                resolved.namespace(),
+                resolved.slug(),
+                resolved.version(),
+                resolved.versionId(),
+                resolved.fingerprint(),
+                resolved.matched(),
+                resolved.downloadUrl()
+        );
+
+        return ok("response.success.read", response);
     }
 
     @GetMapping("/{namespace}/{slug}/download")
@@ -129,7 +266,7 @@ public class SkillController {
     public ResponseEntity<InputStreamResource> downloadLatest(
             @PathVariable String namespace,
             @PathVariable String slug,
-            @RequestAttribute(value = "userId", required = false) Long userId,
+            @RequestAttribute(value = "userId", required = false) String userId,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
 
         SkillDownloadService.DownloadResult result = skillDownloadService.downloadLatest(
@@ -148,11 +285,30 @@ public class SkillController {
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String version,
-            @RequestAttribute(value = "userId", required = false) Long userId,
+            @RequestAttribute(value = "userId", required = false) String userId,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
 
         SkillDownloadService.DownloadResult result = skillDownloadService.downloadVersion(
                 namespace, slug, version, userId, userNsRoles != null ? userNsRoles : Map.of());
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.filename() + "\"")
+                .contentType(MediaType.parseMediaType(result.contentType()))
+                .contentLength(result.contentLength())
+                .body(new InputStreamResource(result.content()));
+    }
+
+    @GetMapping("/{namespace}/{slug}/tags/{tagName}/download")
+    @RateLimit(category = "download", authenticated = 120, anonymous = 30)
+    public ResponseEntity<InputStreamResource> downloadByTag(
+            @PathVariable String namespace,
+            @PathVariable String slug,
+            @PathVariable String tagName,
+            @RequestAttribute(value = "userId", required = false) String userId,
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+
+        SkillDownloadService.DownloadResult result = skillDownloadService.downloadByTag(
+                namespace, slug, tagName, userId, userNsRoles != null ? userNsRoles : Map.of());
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.filename() + "\"")

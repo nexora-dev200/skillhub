@@ -1,8 +1,12 @@
 package com.iflytek.skillhub.service;
 
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.dto.SkillSummaryResponse;
 import com.iflytek.skillhub.search.SearchQuery;
 import com.iflytek.skillhub.search.SearchQueryService;
@@ -10,26 +14,33 @@ import com.iflytek.skillhub.search.SearchResult;
 import com.iflytek.skillhub.search.SearchVisibilityScope;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class SkillSearchAppService {
 
     private final SearchQueryService searchQueryService;
     private final SkillRepository skillRepository;
+    private final NamespaceRepository namespaceRepository;
+    private final SkillVersionRepository skillVersionRepository;
 
     public SkillSearchAppService(
             SearchQueryService searchQueryService,
-            SkillRepository skillRepository) {
+            SkillRepository skillRepository,
+            NamespaceRepository namespaceRepository,
+            SkillVersionRepository skillVersionRepository) {
         this.searchQueryService = searchQueryService;
         this.skillRepository = skillRepository;
+        this.namespaceRepository = namespaceRepository;
+        this.skillVersionRepository = skillVersionRepository;
     }
 
     public record SearchResponse(
-            List<SkillSummaryResponse> skills,
+            List<SkillSummaryResponse> items,
             long total,
             int page,
             int size
@@ -37,12 +48,14 @@ public class SkillSearchAppService {
 
     public SearchResponse search(
             String keyword,
-            Long namespaceId,
+            String namespaceSlug,
             String sortBy,
             int page,
             int size,
-            Long userId,
+            String userId,
             Map<Long, NamespaceRole> userNsRoles) {
+
+        Long namespaceId = resolveNamespaceId(namespaceSlug);
 
         SearchVisibilityScope scope = buildVisibilityScope(userId, userNsRoles);
 
@@ -56,18 +69,51 @@ public class SkillSearchAppService {
         );
 
         SearchResult result = searchQueryService.search(query);
+        List<Skill> matchedSkills = result.skillIds().isEmpty()
+                ? List.of()
+                : skillRepository.findByIdIn(result.skillIds());
+        Map<Long, Skill> skillsById = matchedSkills.stream()
+                .collect(Collectors.toMap(Skill::getId, Function.identity()));
 
-        List<SkillSummaryResponse> skills = new ArrayList<>();
-        for (Long skillId : result.skillIds()) {
-            skillRepository.findById(skillId).ifPresent(skill -> {
-                skills.add(toSummaryResponse(skill));
-            });
-        }
+        List<Long> latestVersionIds = matchedSkills.stream()
+                .map(Skill::getLatestVersionId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, SkillVersion> versionsById = latestVersionIds.isEmpty()
+                ? Map.of()
+                : skillVersionRepository.findByIdIn(latestVersionIds).stream()
+                        .collect(Collectors.toMap(SkillVersion::getId, Function.identity()));
+
+        List<Long> namespaceIds = matchedSkills.stream()
+                .map(Skill::getNamespaceId)
+                .distinct()
+                .toList();
+        Map<Long, String> namespaceSlugsById = namespaceIds.isEmpty()
+                ? Map.of()
+                : namespaceRepository.findByIdIn(namespaceIds).stream()
+                        .collect(Collectors.toMap(com.iflytek.skillhub.domain.namespace.Namespace::getId,
+                                com.iflytek.skillhub.domain.namespace.Namespace::getSlug));
+
+        List<SkillSummaryResponse> skills = result.skillIds().stream()
+                .map(skillsById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(skill -> toSummaryResponse(skill, versionsById, namespaceSlugsById))
+                .toList();
 
         return new SearchResponse(skills, result.total(), result.page(), result.size());
     }
 
-    private SearchVisibilityScope buildVisibilityScope(Long userId, Map<Long, NamespaceRole> userNsRoles) {
+    private Long resolveNamespaceId(String namespaceSlug) {
+        if (namespaceSlug == null || namespaceSlug.isBlank()) {
+            return null;
+        }
+        return namespaceRepository.findBySlug(namespaceSlug)
+                .map(com.iflytek.skillhub.domain.namespace.Namespace::getId)
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
+    }
+
+    private SearchVisibilityScope buildVisibilityScope(String userId, Map<Long, NamespaceRole> userNsRoles) {
         if (userId == null || userNsRoles == null) {
             return SearchVisibilityScope.anonymous();
         }
@@ -77,21 +123,37 @@ public class SkillSearchAppService {
                 .filter(e -> e.getValue() == NamespaceRole.ADMIN)
                 .map(Map.Entry::getKey)
                 .collect(java.util.stream.Collectors.toSet());
+        adminNamespaceIds.addAll(userNsRoles.entrySet().stream()
+                .filter(e -> e.getValue() == NamespaceRole.OWNER)
+                .map(Map.Entry::getKey)
+                .toList());
 
         return new SearchVisibilityScope(userId, memberNamespaceIds, adminNamespaceIds);
     }
 
-    private SkillSummaryResponse toSummaryResponse(Skill skill) {
-        // We need to get namespace slug and latest version
-        // For now, we'll use placeholders
+    private SkillSummaryResponse toSummaryResponse(
+            Skill skill,
+            Map<Long, SkillVersion> versionsById,
+            Map<Long, String> namespaceSlugsById) {
+        String latestVersion = skill.getLatestVersionId() == null
+                ? null
+                : java.util.Optional.ofNullable(versionsById.get(skill.getLatestVersionId()))
+                        .map(SkillVersion::getVersion)
+                        .orElse(null);
+        String namespaceSlug = namespaceSlugsById.get(skill.getNamespaceId());
+
         return new SkillSummaryResponse(
                 skill.getId(),
                 skill.getSlug(),
                 skill.getDisplayName(),
                 skill.getSummary(),
                 skill.getDownloadCount(),
-                null, // latestVersion - would need to query SkillVersion
-                null  // namespace - would need to query Namespace
+                skill.getStarCount(),
+                skill.getRatingAvg(),
+                skill.getRatingCount(),
+                latestVersion,
+                namespaceSlug,
+                skill.getUpdatedAt()
         );
     }
 }

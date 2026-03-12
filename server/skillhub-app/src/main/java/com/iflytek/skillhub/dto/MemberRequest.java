@@ -4,9 +4,9 @@ import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import jakarta.validation.constraints.NotNull;
 
 public record MemberRequest(
-        @NotNull(message = "User ID cannot be null")
-        Long userId,
+        @NotNull(message = "{validation.member.userId.notNull}")
+        String userId,
 
-        @NotNull(message = "Role cannot be null")
+        @NotNull(message = "{validation.member.role.notNull}")
         NamespaceRole role
 ) {}

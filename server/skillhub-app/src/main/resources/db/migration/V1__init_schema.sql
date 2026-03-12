@@ -2,12 +2,12 @@
 
 -- 用户账号表
 CREATE TABLE user_account (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(128) PRIMARY KEY,
     display_name VARCHAR(128) NOT NULL,
     email VARCHAR(256),
     avatar_url VARCHAR(512),
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    merged_to_user_id BIGINT,
+    merged_to_user_id VARCHAR(128),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -18,7 +18,7 @@ CREATE INDEX idx_user_account_status ON user_account(status);
 -- OAuth 身份绑定表
 CREATE TABLE identity_binding (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     provider_code VARCHAR(64) NOT NULL,
     subject VARCHAR(256) NOT NULL,
     login_name VARCHAR(128),
@@ -34,8 +34,8 @@ CREATE INDEX idx_identity_binding_user_id ON identity_binding(user_id);
 CREATE TABLE api_token (
     id BIGSERIAL PRIMARY KEY,
     subject_type VARCHAR(32) NOT NULL DEFAULT 'USER',
-    subject_id BIGINT NOT NULL,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    subject_id VARCHAR(128) NOT NULL,
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     name VARCHAR(128) NOT NULL,
     token_prefix VARCHAR(16) NOT NULL,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
@@ -77,7 +77,7 @@ CREATE TABLE role_permission (
 -- 用户角色绑定表
 CREATE TABLE user_role_binding (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     role_id BIGINT NOT NULL REFERENCES role(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, role_id)
@@ -94,7 +94,7 @@ CREATE TABLE namespace (
     description TEXT,
     avatar_url VARCHAR(512),
     status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
-    created_by BIGINT REFERENCES user_account(id),
+    created_by VARCHAR(128) REFERENCES user_account(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -103,7 +103,7 @@ CREATE TABLE namespace (
 CREATE TABLE namespace_member (
     id BIGSERIAL PRIMARY KEY,
     namespace_id BIGINT NOT NULL REFERENCES namespace(id),
-    user_id BIGINT NOT NULL REFERENCES user_account(id),
+    user_id VARCHAR(128) NOT NULL REFERENCES user_account(id),
     role VARCHAR(32) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -116,7 +116,7 @@ CREATE INDEX idx_namespace_member_namespace_id ON namespace_member(namespace_id)
 -- 审计日志表
 CREATE TABLE audit_log (
     id BIGSERIAL PRIMARY KEY,
-    actor_user_id BIGINT REFERENCES user_account(id),
+    actor_user_id VARCHAR(128) REFERENCES user_account(id),
     action VARCHAR(64) NOT NULL,
     target_type VARCHAR(64),
     target_id BIGINT,

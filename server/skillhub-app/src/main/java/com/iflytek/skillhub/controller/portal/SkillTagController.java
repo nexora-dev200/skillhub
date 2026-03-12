@@ -1,11 +1,14 @@
 package com.iflytek.skillhub.controller.portal;
 
+import com.iflytek.skillhub.controller.BaseApiController;
 import com.iflytek.skillhub.domain.skill.SkillTag;
 import com.iflytek.skillhub.domain.skill.service.SkillTagService;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
+import com.iflytek.skillhub.dto.MessageResponse;
 import com.iflytek.skillhub.dto.TagRequest;
 import com.iflytek.skillhub.dto.TagResponse;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,16 +16,18 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/skills/{namespace}/{slug}/tags")
-public class SkillTagController {
+public class SkillTagController extends BaseApiController {
 
     private final SkillTagService skillTagService;
 
-    public SkillTagController(SkillTagService skillTagService) {
+    public SkillTagController(SkillTagService skillTagService,
+                              ApiResponseFactory responseFactory) {
+        super(responseFactory);
         this.skillTagService = skillTagService;
     }
 
     @GetMapping
-    public ResponseEntity<List<TagResponse>> listTags(
+    public ApiResponse<List<TagResponse>> listTags(
             @PathVariable String namespace,
             @PathVariable String slug) {
 
@@ -32,16 +37,16 @@ public class SkillTagController {
                 .map(TagResponse::from)
                 .collect(Collectors.toList());
 
-        return ResponseEntity.ok(response);
+        return ok("response.success.read", response);
     }
 
     @PutMapping("/{tagName}")
-    public ResponseEntity<TagResponse> createOrMoveTag(
+    public ApiResponse<TagResponse> createOrMoveTag(
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String tagName,
             @Valid @RequestBody TagRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         SkillTag tag = skillTagService.createOrMoveTag(
                 namespace,
@@ -51,18 +56,18 @@ public class SkillTagController {
                 userId
         );
 
-        return ResponseEntity.ok(TagResponse.from(tag));
+        return ok("response.success.updated", TagResponse.from(tag));
     }
 
     @DeleteMapping("/{tagName}")
-    public ResponseEntity<Void> deleteTag(
+    public ApiResponse<MessageResponse> deleteTag(
             @PathVariable String namespace,
             @PathVariable String slug,
             @PathVariable String tagName,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
 
         skillTagService.deleteTag(namespace, slug, tagName, userId);
 
-        return ResponseEntity.noContent().build();
+        return ok("response.success.deleted", new MessageResponse("Tag deleted"));
     }
 }

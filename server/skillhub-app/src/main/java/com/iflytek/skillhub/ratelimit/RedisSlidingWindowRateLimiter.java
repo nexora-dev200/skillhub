@@ -1,21 +1,23 @@
 package com.iflytek.skillhub.ratelimit;
 
+import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
 import java.util.Collections;
 
 @Component
-public class SlidingWindowRateLimiter {
+@Profile("!test")
+public class RedisSlidingWindowRateLimiter implements RateLimiter {
 
     private final StringRedisTemplate redisTemplate;
     private DefaultRedisScript<Long> rateLimitScript;
 
-    public SlidingWindowRateLimiter(StringRedisTemplate redisTemplate) {
+    public RedisSlidingWindowRateLimiter(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
@@ -26,6 +28,7 @@ public class SlidingWindowRateLimiter {
         rateLimitScript.setResultType(Long.class);
     }
 
+    @Override
     public boolean tryAcquire(String key, int limit, int windowSeconds) {
         long now = System.currentTimeMillis();
         long windowMillis = windowSeconds * 1000L;

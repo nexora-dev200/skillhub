@@ -14,7 +14,7 @@ public record NamespaceResponse(
         String description,
         NamespaceType type,
         String avatarUrl,
-        Long createdBy,
+        String createdBy,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {

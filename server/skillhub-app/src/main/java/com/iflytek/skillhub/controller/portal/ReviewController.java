@@ -56,7 +56,7 @@ public class ReviewController extends BaseApiController {
     @PostMapping
     public ApiResponse<ReviewTaskResponse> submitReview(
             @RequestBody ReviewTaskRequest request,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         SkillVersion sv = skillVersionRepository.findById(request.skillVersionId())
                 .orElseThrow();
         Skill skill = skillRepository.findById(sv.getSkillId()).orElseThrow();
@@ -68,7 +68,7 @@ public class ReviewController extends BaseApiController {
     public ApiResponse<ReviewTaskResponse> approveReview(
             @PathVariable Long id,
             @RequestBody(required = false) ReviewActionRequest request,
-            @RequestAttribute("userId") Long userId,
+            @RequestAttribute("userId") String userId,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
         String comment = request != null ? request.comment() : null;
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
@@ -81,7 +81,7 @@ public class ReviewController extends BaseApiController {
     public ApiResponse<ReviewTaskResponse> rejectReview(
             @PathVariable Long id,
             @RequestBody(required = false) ReviewActionRequest request,
-            @RequestAttribute("userId") Long userId,
+            @RequestAttribute("userId") String userId,
             @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
         String comment = request != null ? request.comment() : null;
         Set<String> platformRoles = rbacService.getUserRoleCodes(userId);
@@ -93,7 +93,7 @@ public class ReviewController extends BaseApiController {
     @PostMapping("/{id}/withdraw")
     public ApiResponse<Void> withdrawReview(
             @PathVariable Long id,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         ReviewTask task = reviewTaskRepository.findById(id).orElseThrow();
         reviewService.withdrawReview(task.getSkillVersionId(), userId);
         return ok("response.success.update", null);
@@ -104,7 +104,7 @@ public class ReviewController extends BaseApiController {
             @RequestParam Long namespaceId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         Page<ReviewTask> tasks = reviewTaskRepository.findByNamespaceIdAndStatus(
                 namespaceId, ReviewTaskStatus.PENDING, PageRequest.of(page, size));
         return ok("response.success.read", PageResponse.from(tasks.map(this::toResponse)));
@@ -114,7 +114,7 @@ public class ReviewController extends BaseApiController {
     public ApiResponse<PageResponse<ReviewTaskResponse>> listMySubmissions(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestAttribute("userId") Long userId) {
+            @RequestAttribute("userId") String userId) {
         Page<ReviewTask> tasks = reviewTaskRepository.findBySubmittedByAndStatus(
                 userId, ReviewTaskStatus.PENDING, PageRequest.of(page, size));
         return ok("response.success.read", PageResponse.from(tasks.map(this::toResponse)));

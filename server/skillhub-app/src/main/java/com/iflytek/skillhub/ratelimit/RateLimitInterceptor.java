@@ -1,8 +1,12 @@
 package com.iflytek.skillhub.ratelimit;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.skillhub.dto.ApiResponse;
+import com.iflytek.skillhub.dto.ApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -10,10 +14,16 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
-    private final SlidingWindowRateLimiter rateLimiter;
+    private final RateLimiter rateLimiter;
+    private final ApiResponseFactory apiResponseFactory;
+    private final ObjectMapper objectMapper;
 
-    public RateLimitInterceptor(SlidingWindowRateLimiter rateLimiter) {
+    public RateLimitInterceptor(RateLimiter rateLimiter,
+                                ApiResponseFactory apiResponseFactory,
+                                ObjectMapper objectMapper) {
         this.rateLimiter = rateLimiter;
+        this.apiResponseFactory = apiResponseFactory;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -30,7 +40,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         // Determine if user is authenticated
-        Long userId = (Long) request.getAttribute("userId");
+        String userId = (String) request.getAttribute("userId");
         boolean isAuthenticated = userId != null;
 
         // Get limit based on authentication status
@@ -45,8 +55,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
         if (!allowed) {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Rate limit exceeded\"}");
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            ApiResponse<Void> body = apiResponseFactory.error(429, "error.rateLimit.exceeded");
+            objectMapper.writeValue(response.getOutputStream(), body);
             return false;
         }
 
