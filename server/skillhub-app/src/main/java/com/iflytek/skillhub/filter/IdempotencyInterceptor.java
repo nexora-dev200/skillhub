@@ -48,14 +48,17 @@ public class IdempotencyInterceptor implements HandlerInterceptor {
 
         // Check Redis first
         String redisKey = REDIS_KEY_PREFIX + requestId;
+        boolean isDuplicate = false;
         try {
             String cached = redisTemplate.opsForValue().get(redisKey);
-            if ("COMPLETED".equals(cached)) {
-                writeDuplicateResponse(response);
-                return false;
-            }
+            isDuplicate = "COMPLETED".equals(cached);
         } catch (Exception ignored) {
             // Redis unavailable, fall through to PostgreSQL
+        }
+
+        if (isDuplicate) {
+            writeDuplicateResponse(response);
+            return false;
         }
 
         // Check PostgreSQL fallback

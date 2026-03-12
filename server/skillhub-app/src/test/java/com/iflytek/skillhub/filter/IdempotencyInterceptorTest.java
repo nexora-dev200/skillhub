@@ -1,5 +1,7 @@
 package com.iflytek.skillhub.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyRecord;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyRecordRepository;
 import com.iflytek.skillhub.domain.idempotency.IdempotencyStatus;
@@ -45,7 +47,9 @@ class IdempotencyInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new IdempotencyInterceptor(idempotencyRecordRepository, redisTemplate);
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new JavaTimeModule());
+        interceptor = new IdempotencyInterceptor(redisTemplate, idempotencyRecordRepository, objectMapper);
     }
 
     @Test
@@ -53,7 +57,7 @@ class IdempotencyInterceptorTest {
         when(request.getMethod()).thenReturn("POST");
         when(request.getHeader("X-Request-Id")).thenReturn("req-123");
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any(TimeUnit.class))).thenReturn(true);
+        when(valueOperations.get("idempotency:req-123")).thenReturn(null);
         when(idempotencyRecordRepository.findByRequestId("req-123")).thenReturn(Optional.empty());
 
         boolean result = interceptor.preHandle(request, response, new Object());
@@ -67,7 +71,6 @@ class IdempotencyInterceptorTest {
         when(request.getMethod()).thenReturn("POST");
         when(request.getHeader("X-Request-Id")).thenReturn("req-456");
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(valueOperations.setIfAbsent(anyString(), anyString(), anyLong(), any(TimeUnit.class))).thenReturn(false);
         when(valueOperations.get("idempotency:req-456")).thenReturn("COMPLETED");
 
         StringWriter stringWriter = new StringWriter();
@@ -77,7 +80,9 @@ class IdempotencyInterceptorTest {
         boolean result = interceptor.preHandle(request, response, new Object());
 
         assertFalse(result);
-        verify(response).setStatus(HttpServletResponse.SC_CONFLICT);
+        writer.flush();
+        String output = stringWriter.toString();
+        assertTrue(output.contains("error.request.duplicate"));
     }
 
     @Test
@@ -109,7 +114,7 @@ class IdempotencyInterceptorTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
         IdempotencyRecord record = new IdempotencyRecord(
-            "req-789", null, null, IdempotencyStatus.PROCESSING, null,
+            "req-789", (String) null, (Long) null, IdempotencyStatus.PROCESSING, (Integer) null,
             Instant.now(), Instant.now().plusSeconds(86400)
         );
         when(idempotencyRecordRepository.findByRequestId("req-789")).thenReturn(Optional.of(record));
