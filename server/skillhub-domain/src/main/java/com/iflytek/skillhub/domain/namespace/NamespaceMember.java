@@ -15,7 +15,7 @@ public class NamespaceMember {
     private Long namespaceId;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
@@ -29,7 +29,7 @@ public class NamespaceMember {
 
     protected NamespaceMember() {}
 
-    public NamespaceMember(Long namespaceId, Long userId, NamespaceRole role) {
+    public NamespaceMember(Long namespaceId, String userId, NamespaceRole role) {
         this.namespaceId = namespaceId;
         this.userId = userId;
         this.role = role;
@@ -49,8 +49,8 @@ public class NamespaceMember {
     public Long getId() { return id; }
     public Long getNamespaceId() { return namespaceId; }
     public void setNamespaceId(Long namespaceId) { this.namespaceId = namespaceId; }
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
     public NamespaceRole getRole() { return role; }
     public void setRole(NamespaceRole role) { this.role = role; }
     public LocalDateTime getCreatedAt() { return createdAt; }

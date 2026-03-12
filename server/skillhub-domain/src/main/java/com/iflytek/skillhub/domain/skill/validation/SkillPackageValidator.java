@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.skill.validation;
 
+import com.iflytek.skillhub.domain.shared.exception.LocalizedDomainException;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
 
 import java.util.ArrayList;
@@ -42,8 +43,11 @@ public class SkillPackageValidator {
         try {
             String content = new String(skillMd.content());
             metadataParser.parse(content);
-        } catch (IllegalArgumentException e) {
-            errors.add("Invalid SKILL.md frontmatter: " + e.getMessage());
+        } catch (LocalizedDomainException e) {
+            String detail = e.messageArgs().length == 0
+                    ? e.messageCode()
+                    : e.messageCode() + " " + java.util.Arrays.toString(e.messageArgs());
+            errors.add("Invalid SKILL.md frontmatter: " + detail);
         }
 
         // 3. Check file count

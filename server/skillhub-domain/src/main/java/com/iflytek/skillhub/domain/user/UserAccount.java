@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
 @Table(name = "user_account")
 public class UserAccount {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = 128)
+    private String id;
 
     @Column(name = "display_name", nullable = false, length = 128)
     private String displayName;
@@ -24,7 +24,7 @@ public class UserAccount {
     private UserStatus status = UserStatus.ACTIVE;
 
     @Column(name = "merged_to_user_id")
-    private Long mergedToUserId;
+    private String mergedToUserId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -34,7 +34,8 @@ public class UserAccount {
 
     protected UserAccount() {}
 
-    public UserAccount(String displayName, String email, String avatarUrl) {
+    public UserAccount(String id, String displayName, String email, String avatarUrl) {
+        this.id = id;
         this.displayName = displayName;
         this.email = email;
         this.avatarUrl = avatarUrl;
@@ -52,7 +53,7 @@ public class UserAccount {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Long getId() { return id; }
+    public String getId() { return id; }
     public String getDisplayName() { return displayName; }
     public void setDisplayName(String displayName) { this.displayName = displayName; }
     public String getEmail() { return email; }
@@ -61,8 +62,8 @@ public class UserAccount {
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public UserStatus getStatus() { return status; }
     public void setStatus(UserStatus status) { this.status = status; }
-    public Long getMergedToUserId() { return mergedToUserId; }
-    public void setMergedToUserId(Long mergedToUserId) { this.mergedToUserId = mergedToUserId; }
+    public String getMergedToUserId() { return mergedToUserId; }
+    public void setMergedToUserId(String mergedToUserId) { this.mergedToUserId = mergedToUserId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public boolean isActive() { return this.status == UserStatus.ACTIVE; }

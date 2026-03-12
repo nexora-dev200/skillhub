@@ -16,10 +16,10 @@ class VisibilityCheckerTest {
     private Skill privateSkill;
 
     private static final Long NAMESPACE_ID = 1L;
-    private static final Long OWNER_ID = 100L;
-    private static final Long OTHER_USER_ID = 200L;
-    private static final Long ADMIN_USER_ID = 300L;
-    private static final Long NAMESPACE_OWNER_ID = 400L;
+    private static final String OWNER_ID = "user-100";
+    private static final String OTHER_USER_ID = "user-200";
+    private static final String ADMIN_USER_ID = "user-300";
+    private static final String NAMESPACE_OWNER_ID = "user-400";
 
     @BeforeEach
     void setUp() {

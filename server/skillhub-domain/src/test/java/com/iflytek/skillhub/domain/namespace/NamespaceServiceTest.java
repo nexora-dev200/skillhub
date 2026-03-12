@@ -1,6 +1,7 @@
 package com.iflytek.skillhub.domain.namespace;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,7 +31,7 @@ class NamespaceServiceTest {
         String slug = "test-namespace";
         String displayName = "Test Namespace";
         String description = "Test description";
-        Long creatorUserId = 1L;
+        String creatorUserId = "user-1";
 
         Namespace savedNamespace = new Namespace(slug, displayName, creatorUserId);
         when(namespaceRepository.findBySlug(slug)).thenReturn(Optional.empty());
@@ -51,24 +52,33 @@ class NamespaceServiceTest {
         String slug = "existing-slug";
         when(namespaceRepository.findBySlug(slug)).thenReturn(Optional.of(new Namespace()));
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceService.createNamespace(slug, "Name", "Desc", 1L));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceService.createNamespace(slug, "Name", "Desc", "user-1"));
     }
 
     @Test
     void createNamespace_shouldThrowExceptionForInvalidSlug() {
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceService.createNamespace("INVALID", "Name", "Desc", 1L));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceService.createNamespace("INVALID", "Name", "Desc", "user-1"));
     }
 
     @Test
     void updateNamespace_shouldUpdateFields() {
         Long namespaceId = 1L;
-        Namespace namespace = new Namespace("slug", "Old Name", 1L);
+        String operatorUserId = "user-1";
+        Namespace namespace = new Namespace("slug", "Old Name", "user-1");
         when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, operatorUserId))
+                .thenReturn(Optional.of(new NamespaceMember(namespaceId, operatorUserId, NamespaceRole.OWNER)));
         when(namespaceRepository.save(any(Namespace.class))).thenReturn(namespace);
 
-        Namespace result = namespaceService.updateNamespace(namespaceId, "New Name", "New Desc", "http://avatar.url");
+        Namespace result = namespaceService.updateNamespace(
+                namespaceId,
+                "New Name",
+                "New Desc",
+                "http://avatar.url",
+                operatorUserId
+        );
 
         assertNotNull(result);
         verify(namespaceRepository).save(namespace);
@@ -78,14 +88,27 @@ class NamespaceServiceTest {
     void updateNamespace_shouldThrowExceptionWhenNotFound() {
         when(namespaceRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceService.updateNamespace(1L, "Name", "Desc", null));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceService.updateNamespace(1L, "Name", "Desc", null, "user-1"));
+    }
+
+    @Test
+    void updateNamespace_shouldThrowExceptionWhenOperatorLacksPrivilege() {
+        Long namespaceId = 1L;
+        String operatorUserId = "user-2";
+        Namespace namespace = new Namespace("slug", "Old Name", "user-1");
+        when(namespaceRepository.findById(namespaceId)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, operatorUserId))
+                .thenReturn(Optional.of(new NamespaceMember(namespaceId, operatorUserId, NamespaceRole.MEMBER)));
+
+        assertThrows(DomainForbiddenException.class, () ->
+                namespaceService.updateNamespace(namespaceId, "Name", "Desc", null, operatorUserId));
     }
 
     @Test
     void getNamespaceBySlug_shouldReturnNamespace() {
         String slug = "test-slug";
-        Namespace namespace = new Namespace(slug, "Name", 1L);
+        Namespace namespace = new Namespace(slug, "Name", "user-1");
         when(namespaceRepository.findBySlug(slug)).thenReturn(Optional.of(namespace));
 
         Namespace result = namespaceService.getNamespaceBySlug(slug);
@@ -98,7 +121,7 @@ class NamespaceServiceTest {
     void getNamespaceBySlug_shouldThrowExceptionWhenNotFound() {
         when(namespaceRepository.findBySlug("nonexistent")).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(DomainBadRequestException.class, () ->
                 namespaceService.getNamespaceBySlug("nonexistent"));
     }
 }

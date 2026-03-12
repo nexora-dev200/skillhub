@@ -1,16 +1,12 @@
 package com.iflytek.skillhub.domain.namespace;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -22,6 +18,8 @@ class NamespaceMemberServiceTest {
 
     @Mock
     private NamespaceMemberRepository namespaceMemberRepository;
+    @Mock
+    private NamespaceService namespaceService;
 
     @InjectMocks
     private NamespaceMemberService namespaceMemberService;
@@ -29,7 +27,7 @@ class NamespaceMemberServiceTest {
     @Test
     void addMember_shouldAddMemberSuccessfully() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
         NamespaceRole role = NamespaceRole.MEMBER;
 
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId))
@@ -37,7 +35,7 @@ class NamespaceMemberServiceTest {
         when(namespaceMemberRepository.save(any(NamespaceMember.class)))
                 .thenReturn(new NamespaceMember(namespaceId, userId, role));
 
-        NamespaceMember result = namespaceMemberService.addMember(namespaceId, userId, role);
+        NamespaceMember result = namespaceMemberService.addMember(namespaceId, userId, role, "user-99");
 
         assertNotNull(result);
         verify(namespaceMemberRepository).save(any(NamespaceMember.class));
@@ -45,52 +43,60 @@ class NamespaceMemberServiceTest {
 
     @Test
     void addMember_shouldThrowExceptionForOwnerRole() {
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.addMember(1L, 2L, NamespaceRole.OWNER));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.addMember(1L, "user-2", NamespaceRole.OWNER, "user-99"));
+    }
+
+    @Test
+    void addMember_shouldRequireAdminOrOwner() {
+        doThrow(new DomainForbiddenException("error.namespace.admin.required")).when(namespaceService).assertAdminOrOwner(1L, "user-99");
+
+        assertThrows(DomainForbiddenException.class, () ->
+                namespaceMemberService.addMember(1L, "user-2", NamespaceRole.MEMBER, "user-99"));
     }
 
     @Test
     void addMember_shouldThrowExceptionWhenMemberExists() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId))
                 .thenReturn(Optional.of(new NamespaceMember()));
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.addMember(namespaceId, userId, NamespaceRole.MEMBER));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.addMember(namespaceId, userId, NamespaceRole.MEMBER, "user-99"));
     }
 
     @Test
     void removeMember_shouldThrowExceptionForOwner() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
         NamespaceMember ownerMember = new NamespaceMember(namespaceId, userId, NamespaceRole.OWNER);
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId))
                 .thenReturn(Optional.of(ownerMember));
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.removeMember(namespaceId, userId));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.removeMember(namespaceId, userId, "user-99"));
     }
 
     @Test
     void removeMember_shouldThrowExceptionWhenMemberNotFound() {
-        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, 2L))
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, "user-2"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.removeMember(1L, 2L));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.removeMember(1L, "user-2", "user-99"));
     }
 
     @Test
     void updateMemberRole_shouldUpdateRoleSuccessfully() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
         NamespaceMember member = new NamespaceMember(namespaceId, userId, NamespaceRole.MEMBER);
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId))
                 .thenReturn(Optional.of(member));
         when(namespaceMemberRepository.save(any(NamespaceMember.class))).thenReturn(member);
 
-        NamespaceMember result = namespaceMemberService.updateMemberRole(namespaceId, userId, NamespaceRole.ADMIN);
+        NamespaceMember result = namespaceMemberService.updateMemberRole(namespaceId, userId, NamespaceRole.ADMIN, "user-99");
 
         assertNotNull(result);
         verify(namespaceMemberRepository).save(member);
@@ -99,26 +105,26 @@ class NamespaceMemberServiceTest {
     @Test
     void updateMemberRole_shouldThrowExceptionForOwnerRole() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.updateMemberRole(namespaceId, userId, NamespaceRole.OWNER));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.updateMemberRole(namespaceId, userId, NamespaceRole.OWNER, "user-99"));
     }
 
     @Test
     void updateMemberRole_shouldThrowExceptionWhenMemberNotFound() {
-        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, 2L))
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, "user-2"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.updateMemberRole(1L, 2L, NamespaceRole.ADMIN));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.updateMemberRole(1L, "user-2", NamespaceRole.ADMIN, "user-99"));
     }
 
     @Test
     void transferOwnership_shouldTransferOwnershipSuccessfully() {
         Long namespaceId = 1L;
-        Long currentOwnerId = 2L;
-        Long newOwnerId = 3L;
+        String currentOwnerId = "user-2";
+        String newOwnerId = "user-3";
 
         NamespaceMember currentOwner = new NamespaceMember(namespaceId, currentOwnerId, NamespaceRole.OWNER);
         NamespaceMember newOwner = new NamespaceMember(namespaceId, newOwnerId, NamespaceRole.ADMIN);
@@ -137,30 +143,30 @@ class NamespaceMemberServiceTest {
 
     @Test
     void transferOwnership_shouldThrowExceptionWhenCurrentOwnerNotFound() {
-        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, 2L))
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, "user-2"))
                 .thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.transferOwnership(1L, 2L, 3L));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.transferOwnership(1L, "user-2", "user-3"));
     }
 
     @Test
     void transferOwnership_shouldThrowExceptionWhenCurrentUserIsNotOwner() {
         Long namespaceId = 1L;
-        Long currentOwnerId = 2L;
+        String currentOwnerId = "user-2";
         NamespaceMember notOwner = new NamespaceMember(namespaceId, currentOwnerId, NamespaceRole.ADMIN);
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, currentOwnerId))
                 .thenReturn(Optional.of(notOwner));
 
-        assertThrows(IllegalArgumentException.class, () ->
-                namespaceMemberService.transferOwnership(namespaceId, currentOwnerId, 3L));
+        assertThrows(DomainBadRequestException.class, () ->
+                namespaceMemberService.transferOwnership(namespaceId, currentOwnerId, "user-3"));
     }
 
     @Test
     void transferOwnership_shouldThrowExceptionWhenNewOwnerNotFound() {
         Long namespaceId = 1L;
-        Long currentOwnerId = 2L;
-        Long newOwnerId = 3L;
+        String currentOwnerId = "user-2";
+        String newOwnerId = "user-3";
         NamespaceMember currentOwner = new NamespaceMember(namespaceId, currentOwnerId, NamespaceRole.OWNER);
 
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, currentOwnerId))
@@ -168,14 +174,14 @@ class NamespaceMemberServiceTest {
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, newOwnerId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(DomainBadRequestException.class, () ->
                 namespaceMemberService.transferOwnership(namespaceId, currentOwnerId, newOwnerId));
     }
 
     @Test
     void getMemberRole_shouldReturnRole() {
         Long namespaceId = 1L;
-        Long userId = 2L;
+        String userId = "user-2";
         NamespaceMember member = new NamespaceMember(namespaceId, userId, NamespaceRole.ADMIN);
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId))
                 .thenReturn(Optional.of(member));
@@ -188,10 +194,10 @@ class NamespaceMemberServiceTest {
 
     @Test
     void getMemberRole_shouldReturnEmptyWhenMemberNotFound() {
-        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, 2L))
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, "user-2"))
                 .thenReturn(Optional.empty());
 
-        Optional<NamespaceRole> result = namespaceMemberService.getMemberRole(1L, 2L);
+        Optional<NamespaceRole> result = namespaceMemberService.getMemberRole(1L, "user-2");
 
         assertFalse(result.isPresent());
     }

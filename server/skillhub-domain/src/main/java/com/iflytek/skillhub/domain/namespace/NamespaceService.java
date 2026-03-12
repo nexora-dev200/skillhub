@@ -1,5 +1,7 @@
 package com.iflytek.skillhub.domain.namespace;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,11 +18,11 @@ public class NamespaceService {
     }
 
     @Transactional
-    public Namespace createNamespace(String slug, String displayName, String description, Long creatorUserId) {
+    public Namespace createNamespace(String slug, String displayName, String description, String creatorUserId) {
         SlugValidator.validate(slug);
 
         if (namespaceRepository.findBySlug(slug).isPresent()) {
-            throw new IllegalArgumentException("Namespace with slug '" + slug + "' already exists");
+            throw new DomainBadRequestException("error.namespace.slug.exists", slug);
         }
 
         Namespace namespace = new Namespace(slug, displayName, creatorUserId);
@@ -35,9 +37,11 @@ public class NamespaceService {
     }
 
     @Transactional
-    public Namespace updateNamespace(Long namespaceId, String displayName, String description, String avatarUrl) {
+    public Namespace updateNamespace(Long namespaceId, String displayName, String description, String avatarUrl,
+                                     String operatorUserId) {
         Namespace namespace = namespaceRepository.findById(namespaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Namespace not found with id: " + namespaceId));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.id.notFound", namespaceId));
+        assertAdminOrOwner(namespaceId, operatorUserId);
 
         if (displayName != null) {
             namespace.setDisplayName(displayName);
@@ -54,6 +58,15 @@ public class NamespaceService {
 
     public Namespace getNamespaceBySlug(String slug) {
         return namespaceRepository.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Namespace not found with slug: " + slug));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", slug));
+    }
+
+    void assertAdminOrOwner(Long namespaceId, String userId) {
+        NamespaceRole role = namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
+                .map(NamespaceMember::getRole)
+                .orElseThrow(() -> new DomainForbiddenException("error.namespace.membership.required"));
+        if (role != NamespaceRole.OWNER && role != NamespaceRole.ADMIN) {
+            throw new DomainForbiddenException("error.namespace.admin.required");
+        }
     }
 }

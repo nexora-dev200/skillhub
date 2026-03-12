@@ -21,7 +21,7 @@ public class SkillTag {
     private Long versionId;
 
     @Column(name = "created_by", nullable = false)
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -32,7 +32,7 @@ public class SkillTag {
     protected SkillTag() {
     }
 
-    public SkillTag(Long skillId, String tagName, Long versionId, Long createdBy) {
+    public SkillTag(Long skillId, String tagName, Long versionId, String createdBy) {
         this.skillId = skillId;
         this.tagName = tagName;
         this.versionId = versionId;
@@ -67,7 +67,7 @@ public class SkillTag {
         return versionId;
     }
 
-    public Long getCreatedBy() {
+    public String getCreatedBy() {
         return createdBy;
     }
 

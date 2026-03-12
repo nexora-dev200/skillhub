@@ -7,9 +7,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface NamespaceMemberRepository {
-    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, Long userId);
-    List<NamespaceMember> findByUserId(Long userId);
+    Optional<NamespaceMember> findByNamespaceIdAndUserId(Long namespaceId, String userId);
+    List<NamespaceMember> findByUserId(String userId);
     Page<NamespaceMember> findByNamespaceId(Long namespaceId, Pageable pageable);
     NamespaceMember save(NamespaceMember member);
-    void deleteByNamespaceIdAndUserId(Long namespaceId, Long userId);
+    void deleteByNamespaceIdAndUserId(Long namespaceId, String userId);
 }

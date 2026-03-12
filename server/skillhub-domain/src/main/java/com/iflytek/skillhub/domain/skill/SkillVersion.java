@@ -2,6 +2,8 @@ package com.iflytek.skillhub.domain.skill;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "skill_version")
@@ -14,7 +16,7 @@ public class SkillVersion {
     @Column(name = "skill_id", nullable = false)
     private Long skillId;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 64)
     private String version;
 
     @Enumerated(EnumType.STRING)
@@ -24,10 +26,12 @@ public class SkillVersion {
     @Column(columnDefinition = "TEXT")
     private String changelog;
 
-    @Column(name = "parsed_metadata_json", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "parsed_metadata_json", columnDefinition = "jsonb")
     private String parsedMetadataJson;
 
-    @Column(name = "manifest_json", columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "manifest_json", columnDefinition = "jsonb")
     private String manifestJson;
 
     @Column(name = "file_count", nullable = false)
@@ -40,7 +44,7 @@ public class SkillVersion {
     private LocalDateTime publishedAt;
 
     @Column(name = "created_by", nullable = false)
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -48,7 +52,7 @@ public class SkillVersion {
     protected SkillVersion() {
     }
 
-    public SkillVersion(Long skillId, String version, Long createdBy) {
+    public SkillVersion(Long skillId, String version, String createdBy) {
         this.skillId = skillId;
         this.version = version;
         this.createdBy = createdBy;
@@ -101,7 +105,7 @@ public class SkillVersion {
         return publishedAt;
     }
 
-    public Long getCreatedBy() {
+    public String getCreatedBy() {
         return createdBy;
     }
 

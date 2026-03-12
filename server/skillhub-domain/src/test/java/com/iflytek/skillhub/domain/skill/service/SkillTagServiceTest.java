@@ -1,7 +1,12 @@
 package com.iflytek.skillhub.domain.skill.service;
 
 import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceMember;
+import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +28,8 @@ class SkillTagServiceTest {
     @Mock
     private NamespaceRepository namespaceRepository;
     @Mock
+    private NamespaceMemberRepository namespaceMemberRepository;
+    @Mock
     private SkillRepository skillRepository;
     @Mock
     private SkillVersionRepository skillVersionRepository;
@@ -35,6 +42,7 @@ class SkillTagServiceTest {
     void setUp() {
         service = new SkillTagService(
                 namespaceRepository,
+                namespaceMemberRepository,
                 skillRepository,
                 skillVersionRepository,
                 skillTagRepository
@@ -48,9 +56,9 @@ class SkillTagServiceTest {
         String skillSlug = "test-skill";
         String tagName = "stable";
         String targetVersion = "1.0.0";
-        Long operatorId = 100L;
+        String operatorId = "user-100";
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
         Skill skill = new Skill(1L, skillSlug, operatorId, SkillVisibility.PUBLIC);
         setId(skill, 1L);
@@ -60,6 +68,8 @@ class SkillTagServiceTest {
         SkillTag tag = new SkillTag(1L, tagName, 1L, operatorId);
 
         when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, operatorId))
+                .thenReturn(Optional.of(new NamespaceMember(1L, operatorId, NamespaceRole.OWNER)));
         when(skillRepository.findByNamespaceIdAndSlug(1L, skillSlug)).thenReturn(Optional.of(skill));
         when(skillVersionRepository.findBySkillIdAndVersion(1L, targetVersion)).thenReturn(Optional.of(version));
         when(skillTagRepository.findBySkillIdAndTagName(1L, tagName)).thenReturn(Optional.empty());
@@ -80,10 +90,10 @@ class SkillTagServiceTest {
         String skillSlug = "test-skill";
         String tagName = "latest";
         String targetVersion = "1.0.0";
-        Long operatorId = 100L;
+        String operatorId = "user-100";
 
         // Act & Assert
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(DomainBadRequestException.class, () ->
                 service.createOrMoveTag(namespaceSlug, skillSlug, tagName, targetVersion, operatorId)
         );
     }
@@ -94,15 +104,17 @@ class SkillTagServiceTest {
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
         String tagName = "stable";
-        Long operatorId = 100L;
+        String operatorId = "user-100";
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
         Skill skill = new Skill(1L, skillSlug, operatorId, SkillVisibility.PUBLIC);
         setId(skill, 1L);
         SkillTag tag = new SkillTag(1L, tagName, 1L, operatorId);
 
         when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, operatorId))
+                .thenReturn(Optional.of(new NamespaceMember(1L, operatorId, NamespaceRole.ADMIN)));
         when(skillRepository.findByNamespaceIdAndSlug(1L, skillSlug)).thenReturn(Optional.of(skill));
         when(skillTagRepository.findBySkillIdAndTagName(1L, tagName)).thenReturn(Optional.of(tag));
 
@@ -119,12 +131,31 @@ class SkillTagServiceTest {
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
         String tagName = "latest";
-        Long operatorId = 100L;
+        String operatorId = "user-100";
 
         // Act & Assert
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(DomainBadRequestException.class, () ->
                 service.deleteTag(namespaceSlug, skillSlug, tagName, operatorId)
         );
+    }
+
+    @Test
+    void testCreateTag_RequiresAdminOrOwner() throws Exception {
+        String namespaceSlug = "test-ns";
+        String skillSlug = "test-skill";
+        String tagName = "stable";
+        String targetVersion = "1.0.0";
+        String operatorId = "user-100";
+
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
+        setId(namespace, 1L);
+
+        when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, operatorId))
+                .thenReturn(Optional.of(new NamespaceMember(1L, operatorId, NamespaceRole.MEMBER)));
+
+        assertThrows(DomainForbiddenException.class, () ->
+                service.createOrMoveTag(namespaceSlug, skillSlug, tagName, targetVersion, operatorId));
     }
 
     @Test
@@ -133,12 +164,12 @@ class SkillTagServiceTest {
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
-        Skill skill = new Skill(1L, skillSlug, 100L, SkillVisibility.PUBLIC);
+        Skill skill = new Skill(1L, skillSlug, "user-100", SkillVisibility.PUBLIC);
         setId(skill, 1L);
-        SkillTag tag1 = new SkillTag(1L, "stable", 1L, 100L);
-        SkillTag tag2 = new SkillTag(1L, "beta", 2L, 100L);
+        SkillTag tag1 = new SkillTag(1L, "stable", 1L, "user-100");
+        SkillTag tag2 = new SkillTag(1L, "beta", 2L, "user-100");
 
         when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
         when(skillRepository.findByNamespaceIdAndSlug(1L, skillSlug)).thenReturn(Optional.of(skill));

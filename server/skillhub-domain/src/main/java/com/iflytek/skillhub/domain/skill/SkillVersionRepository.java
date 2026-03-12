@@ -5,6 +5,7 @@ import java.util.Optional;
 
 public interface SkillVersionRepository {
     Optional<SkillVersion> findById(Long id);
+    List<SkillVersion> findByIdIn(List<Long> ids);
     Optional<SkillVersion> findBySkillIdAndVersion(Long skillId, String version);
     List<SkillVersion> findBySkillIdAndStatus(Long skillId, SkillVersionStatus status);
     SkillVersion save(SkillVersion version);

@@ -3,6 +3,8 @@ package com.iflytek.skillhub.domain.skill.service;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.*;
 import com.iflytek.skillhub.storage.ObjectStorageService;
 import org.springframework.data.domain.Page;
@@ -11,8 +13,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,6 +31,7 @@ public class SkillQueryService {
     private final SkillRepository skillRepository;
     private final SkillVersionRepository skillVersionRepository;
     private final SkillFileRepository skillFileRepository;
+    private final SkillTagRepository skillTagRepository;
     private final ObjectStorageService objectStorageService;
     private final VisibilityChecker visibilityChecker;
 
@@ -30,12 +40,14 @@ public class SkillQueryService {
             SkillRepository skillRepository,
             SkillVersionRepository skillVersionRepository,
             SkillFileRepository skillFileRepository,
+            SkillTagRepository skillTagRepository,
             ObjectStorageService objectStorageService,
             VisibilityChecker visibilityChecker) {
         this.namespaceRepository = namespaceRepository;
         this.skillRepository = skillRepository;
         this.skillVersionRepository = skillVersionRepository;
         this.skillFileRepository = skillFileRepository;
+        this.skillTagRepository = skillTagRepository;
         this.objectStorageService = objectStorageService;
         this.visibilityChecker = visibilityChecker;
     }
@@ -53,19 +65,42 @@ public class SkillQueryService {
             Long namespaceId
     ) {}
 
+    public record SkillVersionDetailDTO(
+            Long id,
+            String version,
+            String status,
+            String changelog,
+            Integer fileCount,
+            Long totalSize,
+            java.time.LocalDateTime publishedAt,
+            String parsedMetadataJson,
+            String manifestJson
+    ) {}
+
+    public record ResolvedVersionDTO(
+            Long skillId,
+            String namespace,
+            String slug,
+            String version,
+            Long versionId,
+            String fingerprint,
+            Boolean matched,
+            String downloadUrl
+    ) {}
+
     public SkillDetailDTO getSkillDetail(
             String namespaceSlug,
             String skillSlug,
-            Long currentUserId,
+            String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
 
         Namespace namespace = findNamespace(namespaceSlug);
         Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", skillSlug));
 
         // Visibility check
         if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
-            throw new SecurityException("Access denied to skill: " + skillSlug);
+            throw new DomainForbiddenException("error.skill.access.denied", skillSlug);
         }
 
         String latestVersion = null;
@@ -92,7 +127,7 @@ public class SkillQueryService {
 
     public Page<Skill> listSkillsByNamespace(
             String namespaceSlug,
-            Long currentUserId,
+            String currentUserId,
             Map<Long, NamespaceRole> userNsRoles,
             Pageable pageable) {
 
@@ -112,38 +147,91 @@ public class SkillQueryService {
         return new PageImpl<>(pageContent, pageable, accessibleSkills.size());
     }
 
-    public List<SkillFile> listFiles(String namespaceSlug, String skillSlug, String version) {
-        Namespace namespace = findNamespace(namespaceSlug);
-        Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+    public SkillVersionDetailDTO getVersionDetail(
+            String namespaceSlug,
+            String skillSlug,
+            String version,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
+        SkillVersion skillVersion = findVersion(skill, version);
+        assertPublishedVersion(skillVersion, version);
 
-        SkillVersion skillVersion = skillVersionRepository.findBySkillIdAndVersion(skill.getId(), version)
-                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + version));
+        return new SkillVersionDetailDTO(
+                skillVersion.getId(),
+                skillVersion.getVersion(),
+                skillVersion.getStatus().name(),
+                skillVersion.getChangelog(),
+                skillVersion.getFileCount(),
+                skillVersion.getTotalSize(),
+                skillVersion.getPublishedAt(),
+                skillVersion.getParsedMetadataJson(),
+                skillVersion.getManifestJson()
+        );
+    }
+
+    public List<SkillFile> listFiles(
+            String namespaceSlug,
+            String skillSlug,
+            String version,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
+
+        SkillVersion skillVersion = findVersion(skill, version);
+        assertPublishedVersion(skillVersion, version);
 
         return skillFileRepository.findByVersionId(skillVersion.getId());
     }
 
-    public InputStream getFileContent(String namespaceSlug, String skillSlug, String version, String filePath) {
-        Namespace namespace = findNamespace(namespaceSlug);
-        Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+    public List<SkillFile> listFilesByTag(
+            String namespaceSlug,
+            String skillSlug,
+            String tagName,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
+        SkillVersion skillVersion = resolveVersionEntity(skill, null, tagName, null);
+        return skillFileRepository.findByVersionId(skillVersion.getId());
+    }
 
-        SkillVersion skillVersion = skillVersionRepository.findBySkillIdAndVersion(skill.getId(), version)
-                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + version));
+    public InputStream getFileContent(
+            String namespaceSlug,
+            String skillSlug,
+            String version,
+            String filePath,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
 
-        List<SkillFile> files = skillFileRepository.findByVersionId(skillVersion.getId());
-        SkillFile file = files.stream()
-                .filter(f -> f.getFilePath().equals(filePath))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("File not found: " + filePath));
+        SkillVersion skillVersion = findVersion(skill, version);
+        assertPublishedVersion(skillVersion, version);
+
+        SkillFile file = findFile(skillVersion, filePath);
 
         return objectStorageService.getObject(file.getStorageKey());
     }
 
+    public InputStream getFileContentByTag(
+            String namespaceSlug,
+            String skillSlug,
+            String tagName,
+            String filePath,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
+        SkillVersion skillVersion = resolveVersionEntity(skill, null, tagName, null);
+        SkillFile file = findFile(skillVersion, filePath);
+        return objectStorageService.getObject(file.getStorageKey());
+    }
+
     public Page<SkillVersion> listVersions(String namespaceSlug, String skillSlug, Pageable pageable) {
-        Namespace namespace = findNamespace(namespaceSlug);
-        Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+        Skill skill = findSkill(namespaceSlug, skillSlug);
 
         List<SkillVersion> publishedVersions = skillVersionRepository.findBySkillIdAndStatus(
                 skill.getId(), SkillVersionStatus.PUBLISHED);
@@ -156,8 +244,145 @@ public class SkillQueryService {
         return new PageImpl<>(pageContent, pageable, publishedVersions.size());
     }
 
+    public ResolvedVersionDTO resolveVersion(
+            String namespaceSlug,
+            String skillSlug,
+            String version,
+            String tag,
+            String hash,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        if (version != null && !version.isBlank() && tag != null && !tag.isBlank()) {
+            throw new DomainBadRequestException("error.skill.resolve.versionTag.conflict");
+        }
+
+        Skill skill = findSkill(namespaceSlug, skillSlug);
+        assertPublishedAccessible(skill, currentUserId, userNsRoles);
+        SkillVersion resolved = resolveVersionEntity(skill, version, tag, hash);
+        String fingerprint = computeFingerprint(resolved);
+        Boolean matched = hash == null || hash.isBlank() ? null : Objects.equals(hash, fingerprint);
+
+        return new ResolvedVersionDTO(
+                skill.getId(),
+                namespaceSlug,
+                skill.getSlug(),
+                resolved.getVersion(),
+                resolved.getId(),
+                fingerprint,
+                matched,
+                String.format(
+                        "/api/v1/skills/%s/%s/versions/%s/download",
+                        encodePathSegment(namespaceSlug),
+                        encodePathSegment(skill.getSlug()),
+                        encodePathSegment(resolved.getVersion()))
+        );
+    }
+
     private Namespace findNamespace(String slug) {
         return namespaceRepository.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Namespace not found: " + slug));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", slug));
+    }
+
+    private Skill findSkill(String namespaceSlug, String skillSlug) {
+        Namespace namespace = findNamespace(namespaceSlug);
+        return skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", skillSlug));
+    }
+
+    private SkillVersion findVersion(Skill skill, String version) {
+        return skillVersionRepository.findBySkillIdAndVersion(skill.getId(), version)
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.version.notFound", version));
+    }
+
+    private SkillFile findFile(SkillVersion skillVersion, String filePath) {
+        return skillFileRepository.findByVersionId(skillVersion.getId()).stream()
+                .filter(f -> f.getFilePath().equals(filePath))
+                .findFirst()
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.file.notFound", filePath));
+    }
+
+    private SkillVersion resolveVersionEntity(Skill skill, String version, String tag, String hash) {
+        if (version != null && !version.isBlank()) {
+            SkillVersion exactVersion = findVersion(skill, version);
+            assertPublishedVersion(exactVersion, version);
+            return exactVersion;
+        }
+
+        if (tag != null && !tag.isBlank()) {
+            if ("latest".equalsIgnoreCase(tag)) {
+                return resolveLatestVersion(skill);
+            }
+            SkillTag skillTag = skillTagRepository.findBySkillIdAndTagName(skill.getId(), tag)
+                    .orElseThrow(() -> new DomainBadRequestException("error.skill.tag.notFound", tag));
+            if (skillTag.getVersionId() == null) {
+                throw new DomainBadRequestException("error.skill.tag.version.missing", tag);
+            }
+            SkillVersion taggedVersion = skillVersionRepository.findById(skillTag.getVersionId())
+                    .orElseThrow(() -> new DomainBadRequestException("error.skill.tag.version.notFound", tag));
+            assertPublishedVersion(taggedVersion, taggedVersion.getVersion());
+            return taggedVersion;
+        }
+
+        List<SkillVersion> publishedVersions = skillVersionRepository.findBySkillIdAndStatus(
+                skill.getId(), SkillVersionStatus.PUBLISHED);
+        if (publishedVersions.isEmpty()) {
+            throw new DomainBadRequestException("error.skill.version.latest.unavailable", skill.getSlug());
+        }
+
+        if (hash != null && !hash.isBlank()) {
+            Optional<SkillVersion> matchedVersion = publishedVersions.stream()
+                    .filter(candidate -> Objects.equals(hash, computeFingerprint(candidate)))
+                    .findFirst();
+            if (matchedVersion.isPresent()) {
+                return matchedVersion.get();
+            }
+        }
+
+        return resolveLatestVersion(skill);
+    }
+
+    private SkillVersion resolveLatestVersion(Skill skill) {
+        if (skill.getLatestVersionId() == null) {
+            throw new DomainBadRequestException("error.skill.version.latest.unavailable", skill.getSlug());
+        }
+        SkillVersion latestVersion = skillVersionRepository.findById(skill.getLatestVersionId())
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.version.latest.notFound"));
+        assertPublishedVersion(latestVersion, latestVersion.getVersion());
+        return latestVersion;
+    }
+
+    private String computeFingerprint(SkillVersion version) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            List<SkillFile> files = skillFileRepository.findByVersionId(version.getId()).stream()
+                    .sorted(Comparator.comparing(SkillFile::getFilePath))
+                    .toList();
+            for (SkillFile file : files) {
+                String line = file.getFilePath() + ":" + file.getSha256() + "\n";
+                digest.update(line.getBytes(StandardCharsets.UTF_8));
+            }
+            return "sha256:" + HexFormat.of().formatHex(digest.digest());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to compute version fingerprint", e);
+        }
+    }
+
+    private String encodePathSegment(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
+    }
+
+    private void assertPublishedAccessible(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
+        if (skill.getStatus() != SkillStatus.ACTIVE) {
+            throw new DomainBadRequestException("error.skill.status.notActive");
+        }
+        if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
+            throw new DomainForbiddenException("error.skill.access.denied", skill.getSlug());
+        }
+    }
+
+    private void assertPublishedVersion(SkillVersion version, String versionStr) {
+        if (version.getStatus() != SkillVersionStatus.PUBLISHED) {
+            throw new DomainBadRequestException("error.skill.version.notPublished", versionStr);
+        }
     }
 }

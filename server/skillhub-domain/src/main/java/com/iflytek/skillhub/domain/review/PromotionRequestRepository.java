@@ -9,6 +9,6 @@ public interface PromotionRequestRepository {
     Optional<PromotionRequest> findById(Long id);
     Optional<PromotionRequest> findBySourceVersionIdAndStatus(Long sourceVersionId, ReviewTaskStatus status);
     Page<PromotionRequest> findByStatus(ReviewTaskStatus status, Pageable pageable);
-    int updateStatusWithVersion(Long id, ReviewTaskStatus status, Long reviewedBy,
+    int updateStatusWithVersion(Long id, ReviewTaskStatus status, String reviewedBy,
                                String reviewComment, Long targetSkillId, Integer expectedVersion);
 }

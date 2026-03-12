@@ -48,7 +48,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewTask submitReview(Long skillVersionId, Long namespaceId, Long userId) {
+    public ReviewTask submitReview(Long skillVersionId, Long namespaceId, String userId) {
         SkillVersion skillVersion = skillVersionRepository.findById(skillVersionId)
                 .orElseThrow(() -> new DomainNotFoundException("skill_version.not_found", skillVersionId));
 
@@ -68,7 +68,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewTask approveReview(Long reviewTaskId, Long reviewerId, String comment,
+    public ReviewTask approveReview(Long reviewTaskId, String reviewerId, String comment,
                                     Map<Long, NamespaceRole> userNamespaceRoles,
                                     Set<String> platformRoles) {
         ReviewTask task = reviewTaskRepository.findById(reviewTaskId)
@@ -111,7 +111,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public ReviewTask rejectReview(Long reviewTaskId, Long reviewerId, String comment,
+    public ReviewTask rejectReview(Long reviewTaskId, String reviewerId, String comment,
                                    Map<Long, NamespaceRole> userNamespaceRoles,
                                    Set<String> platformRoles) {
         ReviewTask task = reviewTaskRepository.findById(reviewTaskId)
@@ -144,7 +144,7 @@ public class ReviewService {
     }
 
     @Transactional
-    public void withdrawReview(Long skillVersionId, Long userId) {
+    public void withdrawReview(Long skillVersionId, String userId) {
         ReviewTask task = reviewTaskRepository.findBySkillVersionIdAndStatus(
                         skillVersionId, ReviewTaskStatus.PENDING)
                 .orElseThrow(() -> new DomainNotFoundException("review_task.not_found_for_version", skillVersionId));

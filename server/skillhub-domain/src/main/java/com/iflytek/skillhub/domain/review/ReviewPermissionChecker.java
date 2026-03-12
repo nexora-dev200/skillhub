@@ -21,7 +21,7 @@ public class ReviewPermissionChecker {
      * @return true if the user is allowed to review
      */
     public boolean canReview(ReviewTask task,
-                             Long userId,
+                             String userId,
                              NamespaceType namespaceType,
                              Map<Long, NamespaceRole> userNamespaceRoles,
                              Set<String> platformRoles) {
@@ -49,7 +49,7 @@ public class ReviewPermissionChecker {
      */
     public boolean canReviewPromotion(
             PromotionRequest request,
-            Long userId,
+            String userId,
             Set<String> platformRoles) {
         if (request.getSubmittedBy().equals(userId)) {
             return false;

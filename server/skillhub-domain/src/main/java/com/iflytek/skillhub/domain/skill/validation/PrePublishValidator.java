@@ -10,7 +10,7 @@ public interface PrePublishValidator {
     record SkillPackageContext(
         List<PackageEntry> entries,
         SkillMetadata metadata,
-        Long publisherId,
+        String publisherId,
         Long namespaceId
     ) {}
 }

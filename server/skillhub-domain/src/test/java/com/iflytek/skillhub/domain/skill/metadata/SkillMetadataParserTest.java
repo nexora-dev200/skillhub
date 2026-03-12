@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.skill.metadata;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -62,11 +63,11 @@ class SkillMetadataParserTest {
     void testThrowsWhenNoFrontmatter() {
         String content = "# Just a markdown file without frontmatter";
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
+        DomainBadRequestException exception = assertThrows(
+            DomainBadRequestException.class,
             () -> parser.parse(content)
         );
-        assertTrue(exception.getMessage().contains("Missing frontmatter"));
+        assertEquals("error.skill.metadata.frontmatter.missingStart", exception.messageCode());
     }
 
     @Test
@@ -79,11 +80,12 @@ class SkillMetadataParserTest {
             Body
             """;
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
+        DomainBadRequestException exception = assertThrows(
+            DomainBadRequestException.class,
             () -> parser.parse(content)
         );
-        assertTrue(exception.getMessage().contains("name"));
+        assertEquals("error.skill.metadata.requiredField.missing", exception.messageCode());
+        assertEquals("name", exception.messageArgs()[0]);
     }
 
     @Test
@@ -96,15 +98,16 @@ class SkillMetadataParserTest {
             Body
             """;
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
+        DomainBadRequestException exception = assertThrows(
+            DomainBadRequestException.class,
             () -> parser.parse(content)
         );
-        assertTrue(exception.getMessage().contains("description"));
+        assertEquals("error.skill.metadata.requiredField.missing", exception.messageCode());
+        assertEquals("description", exception.messageArgs()[0]);
     }
 
     @Test
-    void testThrowsWhenMissingVersion() {
+    void testAllowsMissingVersion() {
         String content = """
             ---
             name: test-skill
@@ -113,11 +116,11 @@ class SkillMetadataParserTest {
             Body
             """;
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
-            () -> parser.parse(content)
-        );
-        assertTrue(exception.getMessage().contains("version"));
+        SkillMetadata metadata = parser.parse(content);
+
+        assertEquals("test-skill", metadata.name());
+        assertEquals("Test description", metadata.description());
+        assertNull(metadata.version());
     }
 
     @Test
@@ -131,11 +134,11 @@ class SkillMetadataParserTest {
             Body
             """;
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
+        DomainBadRequestException exception = assertThrows(
+            DomainBadRequestException.class,
             () -> parser.parse(content)
         );
-        assertTrue(exception.getMessage().contains("Invalid YAML"));
+        assertEquals("error.skill.metadata.yaml.invalid", exception.messageCode());
     }
 
     @Test
@@ -147,10 +150,10 @@ class SkillMetadataParserTest {
             version: 1.0.0
             """;
 
-        IllegalArgumentException exception = assertThrows(
-            IllegalArgumentException.class,
+        DomainBadRequestException exception = assertThrows(
+            DomainBadRequestException.class,
             () -> parser.parse(content)
         );
-        assertTrue(exception.getMessage().contains("Missing frontmatter"));
+        assertEquals("error.skill.metadata.frontmatter.missingEnd", exception.messageCode());
     }
 }

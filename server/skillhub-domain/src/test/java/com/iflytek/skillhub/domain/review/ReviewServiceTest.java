@@ -46,8 +46,8 @@ class ReviewServiceTest {
 
     private static final Long SKILL_VERSION_ID = 10L;
     private static final Long NAMESPACE_ID = 20L;
-    private static final Long USER_ID = 100L;
-    private static final Long REVIEWER_ID = 200L;
+    private static final String USER_ID = "user-100";
+    private static final String REVIEWER_ID = "user-200";
     private static final Long REVIEW_TASK_ID = 1L;
     private static final Long SKILL_ID = 30L;
 
@@ -77,7 +77,7 @@ class ReviewServiceTest {
     }
 
     private Namespace createTeamNamespace() {
-        Namespace ns = new Namespace("team-a", "Team A", 1L);
+        Namespace ns = new Namespace("team-a", "Team A", "user-1");
         setField(ns, "id", NAMESPACE_ID);
         return ns;
     }
@@ -347,7 +347,7 @@ class ReviewServiceTest {
             when(reviewTaskRepository.findBySkillVersionIdAndStatus(SKILL_VERSION_ID, ReviewTaskStatus.PENDING))
                     .thenReturn(Optional.of(task));
 
-            Long otherUserId = 999L;
+            String otherUserId = "user-999";
             assertThrows(DomainForbiddenException.class,
                     () -> reviewService.withdrawReview(SKILL_VERSION_ID, otherUserId));
         }

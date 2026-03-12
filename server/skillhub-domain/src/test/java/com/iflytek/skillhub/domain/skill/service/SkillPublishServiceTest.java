@@ -6,6 +6,8 @@ import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceMember;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.skill.*;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
@@ -54,6 +56,8 @@ class SkillPublishServiceTest {
     private PrePublishValidator prePublishValidator;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private ReviewTaskRepository reviewTaskRepository;
 
     private SkillPublishService service;
     private ObjectMapper objectMapper;
@@ -72,7 +76,8 @@ class SkillPublishServiceTest {
                 skillMetadataParser,
                 prePublishValidator,
                 eventPublisher,
-                objectMapper
+                objectMapper,
+                reviewTaskRepository
         );
     }
 
@@ -80,14 +85,14 @@ class SkillPublishServiceTest {
     void testPublishFromEntries_Success() throws Exception {
         // Arrange
         String namespaceSlug = "test-ns";
-        Long publisherId = 100L;
+        String publisherId = "user-100";
         String skillMdContent = "---\nname: test-skill\ndescription: Test\nversion: 1.0.0\n---\nBody";
 
         PackageEntry skillMd = new PackageEntry("SKILL.md", skillMdContent.getBytes(), skillMdContent.length(), "text/markdown");
         PackageEntry file1 = new PackageEntry("file1.txt", "content".getBytes(), 7, "text/plain");
         List<PackageEntry> entries = List.of(skillMd, file1);
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
         NamespaceMember member = mock(NamespaceMember.class);
         SkillMetadata metadata = new SkillMetadata("test-skill", "Test", "1.0.0", "Body", Map.of());
@@ -108,10 +113,18 @@ class SkillPublishServiceTest {
         when(skillRepository.save(any())).thenReturn(skill);
 
         // Act
-        SkillVersion result = service.publishFromEntries(namespaceSlug, entries, publisherId, SkillVisibility.PUBLIC);
+        SkillPublishService.PublishResult result = service.publishFromEntries(
+                namespaceSlug,
+                entries,
+                publisherId,
+                SkillVisibility.PUBLIC
+        );
 
         // Assert
         assertNotNull(result);
+        assertEquals(1L, result.skillId());
+        assertEquals("test-skill", result.slug());
+        assertEquals("1.0.0", result.version().getVersion());
         verify(eventPublisher).publishEvent(any(SkillPublishedEvent.class));
         verify(skillFileRepository).saveAll(anyList());
         verify(objectStorageService, atLeastOnce()).putObject(anyString(), any(), anyLong(), anyString());
@@ -124,8 +137,8 @@ class SkillPublishServiceTest {
         when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(IllegalArgumentException.class, () ->
-                service.publishFromEntries(namespaceSlug, List.of(), 100L, SkillVisibility.PUBLIC)
+        assertThrows(DomainBadRequestException.class, () ->
+                service.publishFromEntries(namespaceSlug, List.of(), "user-100", SkillVisibility.PUBLIC)
         );
     }
 
@@ -133,15 +146,15 @@ class SkillPublishServiceTest {
     void testPublishFromEntries_NotAMember() throws Exception {
         // Arrange
         String namespaceSlug = "test-ns";
-        Long publisherId = 100L;
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        String publisherId = "user-100";
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
 
         when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(any(), eq(publisherId))).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(DomainBadRequestException.class, () ->
                 service.publishFromEntries(namespaceSlug, List.of(), publisherId, SkillVisibility.PUBLIC)
         );
     }

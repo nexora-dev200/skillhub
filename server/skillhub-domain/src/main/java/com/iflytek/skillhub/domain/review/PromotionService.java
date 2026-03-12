@@ -46,7 +46,7 @@ public class PromotionService {
 
     @Transactional
     public PromotionRequest submitPromotion(Long sourceSkillId, Long sourceVersionId,
-                                            Long targetNamespaceId, Long userId) {
+                                            Long targetNamespaceId, String userId) {
         Skill sourceSkill = skillRepository.findById(sourceSkillId)
                 .orElseThrow(() -> new DomainNotFoundException("skill.not_found", sourceSkillId));
 
@@ -78,7 +78,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest approvePromotion(Long promotionId, Long reviewerId,
+    public PromotionRequest approvePromotion(Long promotionId, String reviewerId,
                                              String comment, Set<String> platformRoles) {
         PromotionRequest request = promotionRequestRepository.findById(promotionId)
                 .orElseThrow(() -> new DomainNotFoundException("promotion.not_found", promotionId));
@@ -149,7 +149,7 @@ public class PromotionService {
     }
 
     @Transactional
-    public PromotionRequest rejectPromotion(Long promotionId, Long reviewerId,
+    public PromotionRequest rejectPromotion(Long promotionId, String reviewerId,
                                             String comment, Set<String> platformRoles) {
         PromotionRequest request = promotionRequestRepository.findById(promotionId)
                 .orElseThrow(() -> new DomainNotFoundException("promotion.not_found", promotionId));

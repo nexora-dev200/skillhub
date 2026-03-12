@@ -5,6 +5,10 @@ import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.namespace.SlugValidator;
+import com.iflytek.skillhub.domain.review.ReviewTask;
+import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.skill.*;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
@@ -18,14 +22,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Service
 public class SkillPublishService {
+
+    public record PublishResult(
+            Long skillId,
+            String slug,
+            SkillVersion version
+    ) {}
 
     private final NamespaceRepository namespaceRepository;
     private final NamespaceMemberRepository namespaceMemberRepository;
@@ -38,6 +52,7 @@ public class SkillPublishService {
     private final PrePublishValidator prePublishValidator;
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
+    private final ReviewTaskRepository reviewTaskRepository;
 
     public SkillPublishService(
             NamespaceRepository namespaceRepository,
@@ -50,7 +65,8 @@ public class SkillPublishService {
             SkillMetadataParser skillMetadataParser,
             PrePublishValidator prePublishValidator,
             ApplicationEventPublisher eventPublisher,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ReviewTaskRepository reviewTaskRepository) {
         this.namespaceRepository = namespaceRepository;
         this.namespaceMemberRepository = namespaceMemberRepository;
         this.skillRepository = skillRepository;
@@ -62,70 +78,79 @@ public class SkillPublishService {
         this.prePublishValidator = prePublishValidator;
         this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
+        this.reviewTaskRepository = reviewTaskRepository;
     }
 
     @Transactional
-    public SkillVersion publishFromEntries(
+    public PublishResult publishFromEntries(
             String namespaceSlug,
             List<PackageEntry> entries,
-            Long publisherId,
+            String publisherId,
             SkillVisibility visibility) {
 
         // 1. Find namespace by slug
         Namespace namespace = namespaceRepository.findBySlug(namespaceSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Namespace not found: " + namespaceSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", namespaceSlug));
 
         // 2. Check publisher is member
         namespaceMemberRepository.findByNamespaceIdAndUserId(namespace.getId(), publisherId)
-                .orElseThrow(() -> new IllegalArgumentException("Publisher is not a member of namespace: " + namespaceSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.publish.publisher.notMember", namespaceSlug));
 
         // 3. Validate package
         ValidationResult packageValidation = skillPackageValidator.validate(entries);
         if (!packageValidation.passed()) {
-            throw new IllegalArgumentException("Package validation failed: " + String.join(", ", packageValidation.errors()));
+            throw new DomainBadRequestException(
+                    "error.skill.publish.package.invalid",
+                    String.join(", ", packageValidation.errors()));
         }
 
         // 4. Parse SKILL.md
         PackageEntry skillMd = entries.stream()
                 .filter(e -> e.path().equals("SKILL.md"))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("SKILL.md not found"));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.publish.skillMd.notFound"));
 
         String skillMdContent = new String(skillMd.content());
         SkillMetadata metadata = skillMetadataParser.parse(skillMdContent);
+        if (metadata.version() == null || metadata.version().isBlank()) {
+            throw new DomainBadRequestException("error.skill.metadata.requiredField.missing", "version");
+        }
+        String skillSlug = SlugValidator.slugify(metadata.name());
 
         // 5. Run PrePublishValidator
         PrePublishValidator.SkillPackageContext context = new PrePublishValidator.SkillPackageContext(
                 entries, metadata, publisherId, namespace.getId());
         ValidationResult prePublishValidation = prePublishValidator.validate(context);
         if (!prePublishValidation.passed()) {
-            throw new IllegalArgumentException("Pre-publish validation failed: " + String.join(", ", prePublishValidation.errors()));
+            throw new DomainBadRequestException(
+                    "error.skill.publish.precheck.failed",
+                    String.join(", ", prePublishValidation.errors()));
         }
 
         // 6. Find or create Skill record
-        Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), metadata.name())
+        Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
                 .orElseGet(() -> {
-                    Skill newSkill = new Skill(namespace.getId(), metadata.name(), publisherId, visibility);
+                    Skill newSkill = new Skill(namespace.getId(), skillSlug, publisherId, visibility);
                     newSkill.setCreatedBy(publisherId);
                     return skillRepository.save(newSkill);
                 });
 
         // 7. Check version doesn't already exist
         if (skillVersionRepository.findBySkillIdAndVersion(skill.getId(), metadata.version()).isPresent()) {
-            throw new IllegalArgumentException("Version already exists: " + metadata.version());
+            throw new DomainBadRequestException("error.skill.version.exists", metadata.version());
         }
 
         // 8. Create SkillVersion
         SkillVersion version = new SkillVersion(skill.getId(), metadata.version(), publisherId);
-        version.setStatus(SkillVersionStatus.PUBLISHED);
-        version.setPublishedAt(LocalDateTime.now());
+        version.setStatus(SkillVersionStatus.PENDING_REVIEW);
 
         // Store metadata as JSON
         try {
             String metadataJson = objectMapper.writeValueAsString(metadata);
             version.setParsedMetadataJson(metadataJson);
+            version.setManifestJson(objectMapper.writeValueAsString(buildManifest(entries)));
         } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize metadata", e);
+            throw new IllegalStateException("Failed to serialize metadata", e);
         }
 
         version = skillVersionRepository.save(version);
@@ -168,11 +193,21 @@ public class SkillPublishService {
                 digest.reset();
             }
         } catch (Exception e) {
-            throw new RuntimeException("Failed to process files", e);
+            throw new IllegalStateException("Failed to process files", e);
         }
 
         // 10. Save SkillFile records
         skillFileRepository.saveAll(skillFiles);
+
+        // 10.5 Build and upload bundle zip for download endpoints
+        byte[] bundleZip = buildBundle(entries);
+        String bundleKey = String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
+        objectStorageService.putObject(
+                bundleKey,
+                new ByteArrayInputStream(bundleZip),
+                bundleZip.length,
+                "application/zip"
+        );
 
         // 11. Update version stats
         version.setFileCount(skillFiles.size());
@@ -189,7 +224,32 @@ public class SkillPublishService {
         // 13. Publish SkillPublishedEvent
         eventPublisher.publishEvent(new SkillPublishedEvent(skill.getId(), version.getId(), publisherId));
 
-        // 14. Return version
-        return version;
+        // 14. Return published identifiers
+        return new PublishResult(skill.getId(), skill.getSlug(), version);
+    }
+
+    private List<Map<String, Object>> buildManifest(List<PackageEntry> entries) {
+        return entries.stream()
+                .map(entry -> Map.<String, Object>of(
+                        "path", entry.path(),
+                        "size", entry.size(),
+                        "contentType", entry.contentType()))
+                .toList();
+    }
+
+    private byte[] buildBundle(List<PackageEntry> entries) {
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream)) {
+            for (PackageEntry entry : entries) {
+                ZipEntry zipEntry = new ZipEntry(entry.path());
+                zipOutputStream.putNextEntry(zipEntry);
+                zipOutputStream.write(entry.content());
+                zipOutputStream.closeEntry();
+            }
+            zipOutputStream.finish();
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to build bundle zip", e);
+        }
     }
 }

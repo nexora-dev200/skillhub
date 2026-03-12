@@ -31,7 +31,7 @@ public class Namespace {
     private String avatarUrl;
 
     @Column(name = "created_by")
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -41,7 +41,7 @@ public class Namespace {
 
     protected Namespace() {}
 
-    public Namespace(String slug, String displayName, Long createdBy) {
+    public Namespace(String slug, String displayName, String createdBy) {
         this.slug = slug;
         this.displayName = displayName;
         this.createdBy = createdBy;
@@ -69,7 +69,7 @@ public class Namespace {
     public void setType(NamespaceType type) { this.type = type; }
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
-    public Long getCreatedBy() { return createdBy; }
+    public String getCreatedBy() { return createdBy; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

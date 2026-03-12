@@ -6,7 +6,7 @@ import java.util.Map;
 
 public class VisibilityChecker {
 
-    public boolean canAccess(Skill skill, Long currentUserId, Map<Long, NamespaceRole> userNamespaceRoles) {
+    public boolean canAccess(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNamespaceRoles) {
         return switch (skill.getVisibility()) {
             case PUBLIC -> true;
             case NAMESPACE_ONLY -> userNamespaceRoles.containsKey(skill.getNamespaceId());
@@ -14,7 +14,7 @@ public class VisibilityChecker {
         };
     }
 
-    private boolean isOwner(Skill skill, Long currentUserId) {
+    private boolean isOwner(Skill skill, String currentUserId) {
         return currentUserId != null && skill.getOwnerId().equals(currentUserId);
     }
 

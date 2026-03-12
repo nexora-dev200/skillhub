@@ -40,8 +40,8 @@ class PromotionServiceTest {
     private static final Long SOURCE_SKILL_ID = 10L;
     private static final Long SOURCE_VERSION_ID = 20L;
     private static final Long TARGET_NAMESPACE_ID = 30L;
-    private static final Long USER_ID = 100L;
-    private static final Long REVIEWER_ID = 200L;
+    private static final String USER_ID = "user-100";
+    private static final String REVIEWER_ID = "user-200";
     private static final Long PROMOTION_ID = 1L;
     private static final Long NEW_SKILL_ID = 50L;
     private static final Long NEW_VERSION_ID = 60L;
@@ -84,14 +84,14 @@ class PromotionServiceTest {
     }
 
     private Namespace createGlobalNamespace() {
-        Namespace ns = new Namespace("global", "Global", 1L);
+        Namespace ns = new Namespace("global", "Global", "user-1");
         setField(ns, "id", TARGET_NAMESPACE_ID);
         ns.setType(NamespaceType.GLOBAL);
         return ns;
     }
 
     private Namespace createTeamNamespace() {
-        Namespace ns = new Namespace("team-a", "Team A", 1L);
+        Namespace ns = new Namespace("team-a", "Team A", "user-1");
         setField(ns, "id", TARGET_NAMESPACE_ID);
         // default type is TEAM
         return ns;

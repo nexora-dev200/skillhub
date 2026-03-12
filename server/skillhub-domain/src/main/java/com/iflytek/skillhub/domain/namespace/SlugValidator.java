@@ -1,5 +1,7 @@
 package com.iflytek.skillhub.domain.namespace;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -15,22 +17,32 @@ public class SlugValidator {
 
     public static void validate(String slug) {
         if (slug == null || slug.isBlank()) {
-            throw new IllegalArgumentException("Slug cannot be null or blank");
+            throw new DomainBadRequestException("error.slug.blank");
         }
         if (slug.length() < MIN_LENGTH || slug.length() > MAX_LENGTH) {
-            throw new IllegalArgumentException(
-                    String.format("Slug length must be between %d and %d characters", MIN_LENGTH, MAX_LENGTH));
+            throw new DomainBadRequestException("error.slug.length", MIN_LENGTH, MAX_LENGTH);
         }
         if (!SLUG_PATTERN.matcher(slug).matches()) {
-            throw new IllegalArgumentException(
-                    "Slug must contain only lowercase alphanumeric characters and hyphens, " +
-                    "and must start and end with an alphanumeric character");
+            throw new DomainBadRequestException("error.slug.pattern");
         }
         if (slug.contains("--")) {
-            throw new IllegalArgumentException("Slug cannot contain consecutive hyphens");
+            throw new DomainBadRequestException("error.slug.doubleHyphen");
         }
         if (RESERVED_SLUGS.contains(slug)) {
-            throw new IllegalArgumentException("Slug '" + slug + "' is reserved and cannot be used");
+            throw new DomainBadRequestException("error.slug.reserved", slug);
         }
+    }
+
+    public static String slugify(String raw) {
+        if (raw == null) {
+            throw new DomainBadRequestException("error.slug.blank");
+        }
+        String slug = raw.trim().toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("^-+", "")
+                .replaceAll("-+$", "")
+                .replaceAll("-{2,}", "-");
+        validate(slug);
+        return slug;
     }
 }

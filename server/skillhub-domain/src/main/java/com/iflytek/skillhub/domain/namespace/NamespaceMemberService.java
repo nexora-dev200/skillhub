@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.namespace;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -11,19 +12,24 @@ import java.util.Optional;
 public class NamespaceMemberService {
 
     private final NamespaceMemberRepository namespaceMemberRepository;
+    private final NamespaceService namespaceService;
 
-    public NamespaceMemberService(NamespaceMemberRepository namespaceMemberRepository) {
+    public NamespaceMemberService(NamespaceMemberRepository namespaceMemberRepository,
+                                  NamespaceService namespaceService) {
         this.namespaceMemberRepository = namespaceMemberRepository;
+        this.namespaceService = namespaceService;
     }
 
     @Transactional
-    public NamespaceMember addMember(Long namespaceId, Long userId, NamespaceRole role) {
+    public NamespaceMember addMember(Long namespaceId, String userId, NamespaceRole role, String operatorUserId) {
+        namespaceService.assertAdminOrOwner(namespaceId, operatorUserId);
+
         if (role == NamespaceRole.OWNER) {
-            throw new IllegalArgumentException("Cannot directly assign OWNER role");
+            throw new DomainBadRequestException("error.namespace.member.owner.assignDirect");
         }
 
         if (namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId).isPresent()) {
-            throw new IllegalArgumentException("User is already a member of this namespace");
+            throw new DomainBadRequestException("error.namespace.member.alreadyExists");
         }
 
         NamespaceMember member = new NamespaceMember(namespaceId, userId, role);
@@ -31,41 +37,45 @@ public class NamespaceMemberService {
     }
 
     @Transactional
-    public void removeMember(Long namespaceId, Long userId) {
+    public void removeMember(Long namespaceId, String userId, String operatorUserId) {
+        namespaceService.assertAdminOrOwner(namespaceId, operatorUserId);
+
         NamespaceMember member = namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.member.notFound"));
 
         if (member.getRole() == NamespaceRole.OWNER) {
-            throw new IllegalArgumentException("Cannot remove OWNER from namespace");
+            throw new DomainBadRequestException("error.namespace.member.owner.remove");
         }
 
         namespaceMemberRepository.deleteByNamespaceIdAndUserId(namespaceId, userId);
     }
 
     @Transactional
-    public NamespaceMember updateMemberRole(Long namespaceId, Long userId, NamespaceRole newRole) {
+    public NamespaceMember updateMemberRole(Long namespaceId, String userId, NamespaceRole newRole, String operatorUserId) {
+        namespaceService.assertAdminOrOwner(namespaceId, operatorUserId);
+
         if (newRole == NamespaceRole.OWNER) {
-            throw new IllegalArgumentException("Cannot set OWNER role directly. Use transferOwnership instead");
+            throw new DomainBadRequestException("error.namespace.member.owner.setDirect");
         }
 
         NamespaceMember member = namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Member not found"));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.member.notFound"));
 
         member.setRole(newRole);
         return namespaceMemberRepository.save(member);
     }
 
     @Transactional
-    public void transferOwnership(Long namespaceId, Long currentOwnerId, Long newOwnerId) {
+    public void transferOwnership(Long namespaceId, String currentOwnerId, String newOwnerId) {
         NamespaceMember currentOwner = namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, currentOwnerId)
-                .orElseThrow(() -> new IllegalArgumentException("Current owner not found"));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.owner.current.notFound"));
 
         if (currentOwner.getRole() != NamespaceRole.OWNER) {
-            throw new IllegalArgumentException("User is not the current owner");
+            throw new DomainBadRequestException("error.namespace.owner.current.invalid");
         }
 
         NamespaceMember newOwner = namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, newOwnerId)
-                .orElseThrow(() -> new IllegalArgumentException("New owner not found in namespace"));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.owner.new.notFound"));
 
         currentOwner.setRole(NamespaceRole.ADMIN);
         newOwner.setRole(NamespaceRole.OWNER);
@@ -74,7 +84,7 @@ public class NamespaceMemberService {
         namespaceMemberRepository.save(newOwner);
     }
 
-    public Optional<NamespaceRole> getMemberRole(Long namespaceId, Long userId) {
+    public Optional<NamespaceRole> getMemberRole(Long namespaceId, String userId) {
         return namespaceMemberRepository.findByNamespaceIdAndUserId(namespaceId, userId)
                 .map(NamespaceMember::getRole);
     }

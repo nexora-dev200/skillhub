@@ -26,10 +26,10 @@ public class ReviewTask {
     private Integer version = 1;
 
     @Column(name = "submitted_by", nullable = false)
-    private Long submittedBy;
+    private String submittedBy;
 
     @Column(name = "reviewed_by")
-    private Long reviewedBy;
+    private String reviewedBy;
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
@@ -43,7 +43,7 @@ public class ReviewTask {
     protected ReviewTask() {}
 
     public ReviewTask(Long skillVersionId, Long namespaceId,
-                      Long submittedBy) {
+                      String submittedBy) {
         this.skillVersionId = skillVersionId;
         this.namespaceId = namespaceId;
         this.submittedBy = submittedBy;
@@ -61,11 +61,11 @@ public class ReviewTask {
 
     public Integer getVersion() { return version; }
 
-    public Long getSubmittedBy() { return submittedBy; }
+    public String getSubmittedBy() { return submittedBy; }
 
-    public Long getReviewedBy() { return reviewedBy; }
+    public String getReviewedBy() { return reviewedBy; }
 
-    public void setReviewedBy(Long reviewedBy) { this.reviewedBy = reviewedBy; }
+    public void setReviewedBy(String reviewedBy) { this.reviewedBy = reviewedBy; }
 
     public String getReviewComment() { return reviewComment; }
 

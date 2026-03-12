@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.namespace;
 
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -13,45 +14,45 @@ class SlugValidatorTest {
     }
     @Test
     void shouldRejectTooShort() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("a"));
-        assertTrue(ex.getMessage().contains("length"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("a"));
+        assertEquals("error.slug.length", ex.messageCode());
     }
     @Test
     void shouldRejectTooLong() {
         String longSlug = "a".repeat(65);
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate(longSlug));
-        assertTrue(ex.getMessage().contains("length"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate(longSlug));
+        assertEquals("error.slug.length", ex.messageCode());
     }
     @Test
     void shouldRejectUpperCase() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("MyNamespace"));
-        assertTrue(ex.getMessage().contains("lowercase"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("MyNamespace"));
+        assertEquals("error.slug.pattern", ex.messageCode());
     }
     @Test
     void shouldRejectStartingWithHyphen() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("-namespace"));
-        assertTrue(ex.getMessage().contains("alphanumeric"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("-namespace"));
+        assertEquals("error.slug.pattern", ex.messageCode());
     }
     @Test
     void shouldRejectEndingWithHyphen() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("namespace-"));
-        assertTrue(ex.getMessage().contains("alphanumeric"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("namespace-"));
+        assertEquals("error.slug.pattern", ex.messageCode());
     }
     @Test
     void shouldRejectDoubleHyphen() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("my--namespace"));
-        assertTrue(ex.getMessage().contains("consecutive"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("my--namespace"));
+        assertEquals("error.slug.doubleHyphen", ex.messageCode());
     }
     @Test
     void shouldRejectReservedWords() {
-        assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("admin"));
-        assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("api"));
-        assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("global"));
-        assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("system"));
+        assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("admin"));
+        assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("api"));
+        assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("global"));
+        assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("system"));
     }
     @Test
     void shouldRejectSpecialCharacters() {
-        Exception ex = assertThrows(IllegalArgumentException.class, () -> SlugValidator.validate("my_namespace"));
-        assertTrue(ex.getMessage().contains("lowercase") || ex.getMessage().contains("alphanumeric"));
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> SlugValidator.validate("my_namespace"));
+        assertEquals("error.slug.pattern", ex.messageCode());
     }
 }

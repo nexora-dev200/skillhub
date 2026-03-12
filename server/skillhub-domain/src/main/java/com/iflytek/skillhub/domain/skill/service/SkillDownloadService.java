@@ -4,6 +4,8 @@ import com.iflytek.skillhub.domain.event.SkillDownloadedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.*;
 import com.iflytek.skillhub.storage.ObjectStorageService;
 import com.iflytek.skillhub.storage.ObjectMetadata;
@@ -51,24 +53,24 @@ public class SkillDownloadService {
     public DownloadResult downloadLatest(
             String namespaceSlug,
             String skillSlug,
-            Long currentUserId,
+            String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
 
         Namespace namespace = findNamespace(namespaceSlug);
         Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", skillSlug));
 
         // Visibility check
         if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
-            throw new SecurityException("Access denied to skill: " + skillSlug);
+            throw new DomainForbiddenException("error.skill.access.denied", skillSlug);
         }
 
         if (skill.getLatestVersionId() == null) {
-            throw new IllegalArgumentException("No published version available for skill: " + skillSlug);
+            throw new DomainBadRequestException("error.skill.version.latest.unavailable", skillSlug);
         }
 
         SkillVersion version = skillVersionRepository.findById(skill.getLatestVersionId())
-                .orElseThrow(() -> new IllegalArgumentException("Latest version not found"));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.version.latest.notFound"));
 
         return downloadVersion(skill, version);
     }
@@ -77,20 +79,20 @@ public class SkillDownloadService {
             String namespaceSlug,
             String skillSlug,
             String versionStr,
-            Long currentUserId,
+            String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
 
         Namespace namespace = findNamespace(namespaceSlug);
         Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", skillSlug));
 
         // Visibility check
         if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
-            throw new SecurityException("Access denied to skill: " + skillSlug);
+            throw new DomainForbiddenException("error.skill.access.denied", skillSlug);
         }
 
         SkillVersion version = skillVersionRepository.findBySkillIdAndVersion(skill.getId(), versionStr)
-                .orElseThrow(() -> new IllegalArgumentException("Version not found: " + versionStr));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.version.notFound", versionStr));
 
         return downloadVersion(skill, version);
     }
@@ -99,36 +101,39 @@ public class SkillDownloadService {
             String namespaceSlug,
             String skillSlug,
             String tagName,
-            Long currentUserId,
+            String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
 
         Namespace namespace = findNamespace(namespaceSlug);
         Skill skill = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug)
-                .orElseThrow(() -> new IllegalArgumentException("Skill not found: " + skillSlug));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", skillSlug));
 
         // Visibility check
         if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
-            throw new SecurityException("Access denied to skill: " + skillSlug);
+            throw new DomainForbiddenException("error.skill.access.denied", skillSlug);
         }
 
         SkillTag tag = skillTagRepository.findBySkillIdAndTagName(skill.getId(), tagName)
-                .orElseThrow(() -> new IllegalArgumentException("Tag not found: " + tagName));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.tag.notFound", tagName));
 
         if (tag.getVersionId() == null) {
-            throw new IllegalArgumentException("Tag does not point to a version: " + tagName);
+            throw new DomainBadRequestException("error.skill.tag.version.missing", tagName);
         }
 
         SkillVersion version = skillVersionRepository.findById(tag.getVersionId())
-                .orElseThrow(() -> new IllegalArgumentException("Version not found for tag: " + tagName));
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.tag.version.notFound", tagName));
 
         return downloadVersion(skill, version);
     }
 
     private DownloadResult downloadVersion(Skill skill, SkillVersion version) {
+        assertPublishedAccessible(skill);
+        assertPublishedVersion(version);
+
         String storageKey = String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
 
         if (!objectStorageService.exists(storageKey)) {
-            throw new IllegalArgumentException("Bundle not found in storage");
+            throw new DomainBadRequestException("error.skill.bundle.notFound");
         }
 
         ObjectMetadata metadata = objectStorageService.getMetadata(storageKey);
@@ -144,6 +149,18 @@ public class SkillDownloadService {
 
     private Namespace findNamespace(String slug) {
         return namespaceRepository.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Namespace not found: " + slug));
+                .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", slug));
+    }
+
+    private void assertPublishedAccessible(Skill skill) {
+        if (skill.getStatus() != SkillStatus.ACTIVE) {
+            throw new DomainBadRequestException("error.skill.status.notActive");
+        }
+    }
+
+    private void assertPublishedVersion(SkillVersion version) {
+        if (version.getStatus() != SkillVersionStatus.PUBLISHED) {
+            throw new DomainBadRequestException("error.skill.version.notPublished", version.getVersion());
+        }
     }
 }

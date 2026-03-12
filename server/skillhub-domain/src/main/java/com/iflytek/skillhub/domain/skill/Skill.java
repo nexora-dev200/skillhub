@@ -25,7 +25,7 @@ public class Skill {
     private String summary;
 
     @Column(name = "owner_id", nullable = false)
-    private Long ownerId;
+    private String ownerId;
 
     @Column(name = "source_skill_id")
     private Long sourceSkillId;
@@ -54,13 +54,13 @@ public class Skill {
     private Integer ratingCount = 0;
 
     @Column(name = "created_by")
-    private Long createdBy;
+    private String createdBy;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "updated_by")
-    private Long updatedBy;
+    private String updatedBy;
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
@@ -68,7 +68,7 @@ public class Skill {
     protected Skill() {
     }
 
-    public Skill(Long namespaceId, String slug, Long ownerId, SkillVisibility visibility) {
+    public Skill(Long namespaceId, String slug, String ownerId, SkillVisibility visibility) {
         this.namespaceId = namespaceId;
         this.slug = slug;
         this.ownerId = ownerId;
@@ -108,7 +108,7 @@ public class Skill {
         return summary;
     }
 
-    public Long getOwnerId() {
+    public String getOwnerId() {
         return ownerId;
     }
 
@@ -144,7 +144,7 @@ public class Skill {
         return ratingCount;
     }
 
-    public Long getCreatedBy() {
+    public String getCreatedBy() {
         return createdBy;
     }
 
@@ -152,7 +152,7 @@ public class Skill {
         return createdAt;
     }
 
-    public Long getUpdatedBy() {
+    public String getUpdatedBy() {
         return updatedBy;
     }
 
@@ -185,11 +185,11 @@ public class Skill {
         this.latestVersionId = latestVersionId;
     }
 
-    public void setCreatedBy(Long createdBy) {
+    public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
     }
 
-    public void setUpdatedBy(Long updatedBy) {
+    public void setUpdatedBy(String updatedBy) {
         this.updatedBy = updatedBy;
     }
 }

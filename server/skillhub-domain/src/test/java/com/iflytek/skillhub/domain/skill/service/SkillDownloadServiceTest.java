@@ -4,6 +4,7 @@ import com.iflytek.skillhub.domain.event.SkillDownloadedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.skill.*;
 import com.iflytek.skillhub.storage.ObjectMetadata;
 import com.iflytek.skillhub.storage.ObjectStorageService;
@@ -63,17 +64,19 @@ class SkillDownloadServiceTest {
         // Arrange
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
-        Long userId = 100L;
+        String userId = "user-100";
         Map<Long, NamespaceRole> userNsRoles = Map.of(1L, NamespaceRole.MEMBER);
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
         Skill skill = new Skill(1L, skillSlug, userId, SkillVisibility.PUBLIC);
         setId(skill, 1L);
+        skill.setStatus(SkillStatus.ACTIVE);
         skill.setLatestVersionId(10L);
 
         SkillVersion version = new SkillVersion(1L, "1.0.0", userId);
         setId(version, 10L);
+        version.setStatus(SkillVersionStatus.PUBLISHED);
         String storageKey = "packages/1/10/bundle.zip";
         InputStream content = new ByteArrayInputStream("test".getBytes());
         ObjectMetadata metadata = new ObjectMetadata(1000L, "application/zip", Instant.now());
@@ -102,16 +105,18 @@ class SkillDownloadServiceTest {
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
         String tagName = "stable";
-        Long userId = 100L;
+        String userId = "user-100";
         Map<Long, NamespaceRole> userNsRoles = Map.of(1L, NamespaceRole.MEMBER);
 
-        Namespace namespace = new Namespace(namespaceSlug, "Test NS", 1L);
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
         setId(namespace, 1L);
         Skill skill = new Skill(1L, skillSlug, userId, SkillVisibility.PUBLIC);
         setId(skill, 1L);
+        skill.setStatus(SkillStatus.ACTIVE);
         SkillTag tag = new SkillTag(1L, tagName, 10L, userId);
         SkillVersion version = new SkillVersion(1L, "1.0.0", userId);
         setId(version, 10L);
+        version.setStatus(SkillVersionStatus.PUBLISHED);
         String storageKey = "packages/1/10/bundle.zip";
         InputStream content = new ByteArrayInputStream("test".getBytes());
         ObjectMetadata metadata = new ObjectMetadata(1000L, "application/zip", Instant.now());
@@ -132,6 +137,32 @@ class SkillDownloadServiceTest {
         assertNotNull(result);
         assertEquals("test-skill-1.0.0.zip", result.filename());
         verify(eventPublisher).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
+    @Test
+    void testDownloadVersion_ShouldRejectDraftVersion() throws Exception {
+        String namespaceSlug = "test-ns";
+        String skillSlug = "test-skill";
+        String versionStr = "1.0.0";
+        String userId = "user-100";
+        Map<Long, NamespaceRole> userNsRoles = Map.of(1L, NamespaceRole.MEMBER);
+
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
+        setId(namespace, 1L);
+        Skill skill = new Skill(1L, skillSlug, userId, SkillVisibility.PUBLIC);
+        setId(skill, 1L);
+        skill.setStatus(SkillStatus.ACTIVE);
+        SkillVersion version = new SkillVersion(1L, versionStr, userId);
+        setId(version, 10L);
+        version.setStatus(SkillVersionStatus.DRAFT);
+
+        when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, skillSlug)).thenReturn(Optional.of(skill));
+        when(visibilityChecker.canAccess(skill, userId, userNsRoles)).thenReturn(true);
+        when(skillVersionRepository.findBySkillIdAndVersion(1L, versionStr)).thenReturn(Optional.of(version));
+
+        assertThrows(DomainBadRequestException.class, () ->
+                service.downloadVersion(namespaceSlug, skillSlug, versionStr, userId, userNsRoles));
     }
 
     private void setId(Object entity, Long id) throws Exception {
