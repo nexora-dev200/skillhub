@@ -42,27 +42,35 @@ const rootRoute = createRootRoute({
   component: Layout,
 })
 
+async function requireAuth() {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw redirect({ to: '/login' })
+  }
+  return { user }
+}
+
 const skillsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/skills',
+  path: 'skills',
   component: HomePage,
 })
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/login',
+  path: 'login',
   component: LoginPage,
 })
 
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/register',
+  path: 'register',
   component: RegisterPage,
 })
 
 const searchRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/search',
+  path: 'search',
   component: SearchPage,
   validateSearch: (search: Record<string, unknown>) => {
     return {
@@ -75,128 +83,77 @@ const searchRoute = createRoute({
 
 const namespaceRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/@$namespace',
+  path: '@$namespace',
   component: NamespacePage,
 })
 
 const skillDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/@$namespace/$slug',
+  path: '@$namespace/$slug',
   component: SkillDetailPage,
 })
 
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard',
+  beforeLoad: requireAuth,
   component: DashboardPage,
 })
 
 const dashboardSkillsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/skills',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/skills',
+  beforeLoad: requireAuth,
   component: MySkillsPage,
 })
 
 const dashboardPublishRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/publish',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/publish',
+  beforeLoad: requireAuth,
   component: PublishPage,
 })
 
 const dashboardNamespacesRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/namespaces',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/namespaces',
+  beforeLoad: requireAuth,
   component: MyNamespacesPage,
 })
 
 const dashboardNamespaceMembersRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/namespaces/$slug/members',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/namespaces/$slug/members',
+  beforeLoad: requireAuth,
   component: NamespaceMembersPage,
 })
 
 const dashboardNamespaceReviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/namespaces/$slug/reviews',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/namespaces/$slug/reviews',
+  beforeLoad: requireAuth,
   component: NamespaceReviewsPage,
 })
 
 const dashboardReviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/reviews',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/reviews',
+  beforeLoad: requireAuth,
   component: ReviewsPage,
 })
 
 const dashboardReviewDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/reviews/$id',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/reviews/$id',
+  beforeLoad: requireAuth,
   component: ReviewDetailPage,
 })
 
 const dashboardPromotionsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/promotions',
+  path: 'dashboard/promotions',
   beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
+    const { user } = await requireAuth()
     if (!user.platformRoles?.includes('SKILL_ADMIN') && !user.platformRoles?.includes('SUPER_ADMIN')) {
       throw redirect({ to: '/dashboard' })
     }
@@ -207,70 +164,43 @@ const dashboardPromotionsRoute = createRoute({
 
 const dashboardStarsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/stars',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/stars',
+  beforeLoad: requireAuth,
   component: MyStarsPage,
 })
 
 const dashboardTokensRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/dashboard/tokens',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'dashboard/tokens',
+  beforeLoad: requireAuth,
   component: TokensPage,
 })
 
 const deviceRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/device',
+  path: 'device',
   component: DeviceAuthPage,
 })
 
 const settingsSecurityRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/settings/security',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'settings/security',
+  beforeLoad: requireAuth,
   component: SecuritySettingsPage,
 })
 
 const settingsAccountsRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/settings/accounts',
-  beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
-    return { user }
-  },
+  path: 'settings/accounts',
+  beforeLoad: requireAuth,
   component: AccountSettingsPage,
 })
 
 const adminUsersRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/admin/users',
+  path: 'admin/users',
   beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
+    const { user } = await requireAuth()
     if (!user.platformRoles?.includes('USER_ADMIN') && !user.platformRoles?.includes('SUPER_ADMIN')) {
       throw redirect({ to: '/dashboard' })
     }
@@ -281,12 +211,9 @@ const adminUsersRoute = createRoute({
 
 const adminAuditLogRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/admin/audit-log',
+  path: 'admin/audit-log',
   beforeLoad: async () => {
-    const user = await getCurrentUser()
-    if (!user) {
-      throw redirect({ to: '/login' })
-    }
+    const { user } = await requireAuth()
     if (!user.platformRoles?.includes('AUDITOR') && !user.platformRoles?.includes('SUPER_ADMIN')) {
       throw redirect({ to: '/dashboard' })
     }
