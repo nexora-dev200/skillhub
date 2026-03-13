@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.review;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
@@ -13,6 +14,7 @@ import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
+import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -50,12 +52,14 @@ class ReviewServiceTest {
     private static final String REVIEWER_ID = "user-200";
     private static final Long REVIEW_TASK_ID = 1L;
     private static final Long SKILL_ID = 30L;
+    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
+        objectMapper = new ObjectMapper();
         reviewService = new ReviewService(
                 reviewTaskRepository, skillVersionRepository, skillRepository,
-                namespaceRepository, permissionChecker, eventPublisher);
+                namespaceRepository, permissionChecker, eventPublisher, objectMapper);
     }
 
     private SkillVersion createDraftSkillVersion() {
@@ -186,6 +190,12 @@ class ReviewServiceTest {
             Namespace ns = createTeamNamespace();
             SkillVersion sv = createPendingReviewSkillVersion();
             Skill skill = createSkill();
+            skill.setDisplayName("Published Name");
+            skill.setSummary("Published Summary");
+            skill.setUpdatedBy("previous-reviewer");
+            assertDoesNotThrow(() -> sv.setParsedMetadataJson(objectMapper.writeValueAsString(
+                    new SkillMetadata("Approved Name", "Approved Summary", "1.0.0", "Body", Map.of())
+            )));
 
             when(reviewTaskRepository.findById(REVIEW_TASK_ID)).thenReturn(Optional.of(task));
             when(namespaceRepository.findById(NAMESPACE_ID)).thenReturn(Optional.of(ns));
@@ -206,6 +216,9 @@ class ReviewServiceTest {
             assertEquals(SkillVersionStatus.PUBLISHED, sv.getStatus());
             assertNotNull(sv.getPublishedAt());
             assertEquals(SKILL_VERSION_ID, skill.getLatestVersionId());
+            assertEquals("Approved Name", skill.getDisplayName());
+            assertEquals("Approved Summary", skill.getSummary());
+            assertEquals(REVIEWER_ID, skill.getUpdatedBy());
             verify(eventPublisher).publishEvent(any(SkillPublishedEvent.class));
         }
 

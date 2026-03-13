@@ -1,7 +1,6 @@
 package com.iflytek.skillhub.domain.skill.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.iflytek.skillhub.domain.event.SkillPublishedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
@@ -214,17 +213,8 @@ public class SkillPublishService {
         version.setTotalSize(totalSize);
         skillVersionRepository.save(version);
 
-        // 12. Update skill
-        skill.setLatestVersionId(version.getId());
-        skill.setDisplayName(metadata.name());
-        skill.setSummary(metadata.description());
-        skill.setUpdatedBy(publisherId);
-        skillRepository.save(skill);
-
-        // 13. Publish SkillPublishedEvent
-        eventPublisher.publishEvent(new SkillPublishedEvent(skill.getId(), version.getId(), publisherId));
-
-        // 14. Return published identifiers
+        // 12. Return published identifiers. Published-facing skill metadata is
+        // advanced only when review approval promotes this version to PUBLISHED.
         return new PublishResult(skill.getId(), skill.getSlug(), version);
     }
 

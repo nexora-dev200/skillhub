@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.domain.review;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
@@ -12,6 +13,7 @@ import com.iflytek.skillhub.domain.skill.SkillRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
+import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -31,19 +33,22 @@ public class ReviewService {
     private final NamespaceRepository namespaceRepository;
     private final ReviewPermissionChecker permissionChecker;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectMapper objectMapper;
 
     public ReviewService(ReviewTaskRepository reviewTaskRepository,
                          SkillVersionRepository skillVersionRepository,
                          SkillRepository skillRepository,
                          NamespaceRepository namespaceRepository,
                          ReviewPermissionChecker permissionChecker,
-                         ApplicationEventPublisher eventPublisher) {
+                         ApplicationEventPublisher eventPublisher,
+                         ObjectMapper objectMapper) {
         this.reviewTaskRepository = reviewTaskRepository;
         this.skillVersionRepository = skillVersionRepository;
         this.skillRepository = skillRepository;
         this.namespaceRepository = namespaceRepository;
         this.permissionChecker = permissionChecker;
         this.eventPublisher = eventPublisher;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -109,6 +114,8 @@ public class ReviewService {
         Skill skill = skillRepository.findById(skillVersion.getSkillId())
                 .orElseThrow(() -> new DomainNotFoundException("skill.not_found", skillVersion.getSkillId()));
         skill.setLatestVersionId(skillVersion.getId());
+        applyPublishedMetadata(skill, skillVersion);
+        skill.setUpdatedBy(reviewerId);
         skillRepository.save(skill);
 
         eventPublisher.publishEvent(new SkillPublishedEvent(
@@ -167,5 +174,20 @@ public class ReviewService {
                 .orElseThrow(() -> new DomainNotFoundException("skill_version.not_found", skillVersionId));
         skillVersion.setStatus(SkillVersionStatus.DRAFT);
         skillVersionRepository.save(skillVersion);
+    }
+
+    private void applyPublishedMetadata(Skill skill, SkillVersion skillVersion) {
+        String metadataJson = skillVersion.getParsedMetadataJson();
+        if (metadataJson == null || metadataJson.isBlank()) {
+            return;
+        }
+
+        try {
+            SkillMetadata metadata = objectMapper.readValue(metadataJson, SkillMetadata.class);
+            skill.setDisplayName(metadata.name());
+            skill.setSummary(metadata.description());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to deserialize skill metadata", e);
+        }
     }
 }
