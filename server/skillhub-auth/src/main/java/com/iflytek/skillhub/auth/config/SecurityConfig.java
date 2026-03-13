@@ -5,6 +5,7 @@ import com.iflytek.skillhub.auth.oauth.OAuth2LoginFailureHandler;
 import com.iflytek.skillhub.auth.oauth.OAuth2LoginSuccessHandler;
 import com.iflytek.skillhub.auth.mock.MockAuthFilter;
 import com.iflytek.skillhub.auth.token.ApiTokenAuthenticationFilter;
+import com.iflytek.skillhub.auth.token.ApiTokenScopeFilter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -30,6 +31,7 @@ public class SecurityConfig {
     private final OAuth2LoginSuccessHandler successHandler;
     private final OAuth2LoginFailureHandler failureHandler;
     private final ApiTokenAuthenticationFilter apiTokenAuthenticationFilter;
+    private final ApiTokenScopeFilter apiTokenScopeFilter;
     private final AuthenticationEntryPoint apiAuthenticationEntryPoint;
     private final AccessDeniedHandler apiAccessDeniedHandler;
     private final ObjectProvider<MockAuthFilter> mockAuthFilterProvider;
@@ -38,6 +40,7 @@ public class SecurityConfig {
                           OAuth2LoginSuccessHandler successHandler,
                           OAuth2LoginFailureHandler failureHandler,
                           ApiTokenAuthenticationFilter apiTokenAuthenticationFilter,
+                          ApiTokenScopeFilter apiTokenScopeFilter,
                           AuthenticationEntryPoint apiAuthenticationEntryPoint,
                           AccessDeniedHandler apiAccessDeniedHandler,
                           ObjectProvider<MockAuthFilter> mockAuthFilterProvider) {
@@ -45,6 +48,7 @@ public class SecurityConfig {
         this.successHandler = successHandler;
         this.failureHandler = failureHandler;
         this.apiTokenAuthenticationFilter = apiTokenAuthenticationFilter;
+        this.apiTokenScopeFilter = apiTokenScopeFilter;
         this.apiAuthenticationEntryPoint = apiAuthenticationEntryPoint;
         this.apiAccessDeniedHandler = apiAccessDeniedHandler;
         this.mockAuthFilterProvider = mockAuthFilterProvider;
@@ -101,7 +105,8 @@ public class SecurityConfig {
                 .invalidateHttpSession(true)
                 .deleteCookies("SESSION")
             )
-            .addFilterBefore(apiTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(apiTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(apiTokenScopeFilter, ApiTokenAuthenticationFilter.class);
 
         MockAuthFilter mockAuthFilter = mockAuthFilterProvider.getIfAvailable();
         if (mockAuthFilter != null) {
