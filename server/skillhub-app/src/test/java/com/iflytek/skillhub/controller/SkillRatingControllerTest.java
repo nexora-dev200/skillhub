@@ -107,4 +107,10 @@ class SkillRatingControllerTest {
                         .content("{\"score\": 4}"))
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void get_user_rating_unauthenticated_returns_401() throws Exception {
+        mockMvc.perform(get("/api/v1/skills/10/rating"))
+                .andExpect(status().isUnauthorized());
+    }
 }

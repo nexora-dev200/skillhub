@@ -126,4 +126,10 @@ class SkillStarControllerTest {
                 .andExpect(jsonPath("$.timestamp").isNotEmpty())
                 .andExpect(jsonPath("$.requestId").isNotEmpty());
     }
+
+    @Test
+    void check_starred_unauthenticated_returns_401() throws Exception {
+        mockMvc.perform(get("/api/v1/skills/10/star"))
+                .andExpect(status().isUnauthorized());
+    }
 }
