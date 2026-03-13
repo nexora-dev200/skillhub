@@ -1,5 +1,6 @@
 package com.iflytek.skillhub.auth.identity;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -8,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.iflytek.skillhub.auth.entity.IdentityBinding;
 import com.iflytek.skillhub.auth.oauth.OAuthClaims;
+import com.iflytek.skillhub.auth.oauth.AccountPendingException;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.auth.repository.IdentityBindingRepository;
 import com.iflytek.skillhub.auth.repository.UserRoleBindingRepository;
@@ -83,9 +85,9 @@ class IdentityBindingServiceTest {
         );
         when(bindingRepo.findByProviderCodeAndSubject("github", "gh_1")).thenReturn(Optional.empty());
         when(userRepo.save(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(roleBindingRepo.findByUserId(any())).thenReturn(List.of());
 
-        service.bindOrCreate(claims, UserStatus.PENDING);
+        assertThatThrownBy(() -> service.bindOrCreate(claims, UserStatus.PENDING))
+                .isInstanceOf(AccountPendingException.class);
 
         verify(globalNamespaceMembershipService, never()).ensureMember(any());
     }
