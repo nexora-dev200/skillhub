@@ -60,6 +60,11 @@ def start_process(args: argparse.Namespace) -> int:
             start_new_session=True,
         )
 
+    time.sleep(0.2)
+    if process.poll() is not None:
+        pid_file.unlink(missing_ok=True)
+        return process.returncode or 1
+
     write_pid(pid_file, process.pid)
     print(process.pid)
     return 0
