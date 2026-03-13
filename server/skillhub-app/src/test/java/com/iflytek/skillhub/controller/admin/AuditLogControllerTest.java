@@ -4,6 +4,9 @@ import com.iflytek.skillhub.TestRedisConfig;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.auth.device.DeviceAuthService;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.dto.AuditLogItemResponse;
+import com.iflytek.skillhub.dto.PageResponse;
+import com.iflytek.skillhub.service.AdminAuditLogAppService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -17,7 +20,9 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Set;
+import java.time.Instant;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,6 +43,9 @@ class AuditLogControllerTest {
     @MockBean
     private DeviceAuthService deviceAuthService;
 
+    @MockBean
+    private AdminAuditLogAppService adminAuditLogAppService;
+
     @Test
     void listAuditLogs_unauthenticated_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/admin/audit-logs"))
@@ -53,11 +61,27 @@ class AuditLogControllerTest {
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_AUDITOR"))
         );
 
+        when(adminAuditLogAppService.listAuditLogs(0, 20, null, null))
+                .thenReturn(new PageResponse<>(
+                        List.of(new AuditLogItemResponse(
+                                1L,
+                                "USER_STATUS_CHANGE",
+                                "user-1",
+                                "alice",
+                                "{\"status\":\"DISABLED\"}",
+                                "127.0.0.1",
+                                Instant.parse("2026-03-13T01:00:00Z"))),
+                        1,
+                        0,
+                        20));
+
         mockMvc.perform(get("/api/v1/admin/audit-logs").with(authentication(auth)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.items").isArray())
-            .andExpect(jsonPath("$.data.total").value(2));
+            .andExpect(jsonPath("$.data.total").value(1))
+            .andExpect(jsonPath("$.data.items[0].username").value("alice"))
+            .andExpect(jsonPath("$.data.items[0].details").value("{\"status\":\"DISABLED\"}"));
     }
 
     @Test
@@ -68,6 +92,9 @@ class AuditLogControllerTest {
         var auth = new UsernamePasswordAuthenticationToken(
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))
         );
+
+        when(adminAuditLogAppService.listAuditLogs(0, 20, null, null))
+                .thenReturn(new PageResponse<>(List.of(), 0, 0, 20));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs").with(authentication(auth)))
             .andExpect(status().isOk())
@@ -82,6 +109,9 @@ class AuditLogControllerTest {
         var auth = new UsernamePasswordAuthenticationToken(
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_AUDITOR"))
         );
+
+        when(adminAuditLogAppService.listAuditLogs(0, 20, "user-1", "CREATE_SKILL"))
+                .thenReturn(new PageResponse<>(List.of(), 0, 0, 20));
 
         mockMvc.perform(get("/api/v1/admin/audit-logs")
                 .param("userId", "user-1")

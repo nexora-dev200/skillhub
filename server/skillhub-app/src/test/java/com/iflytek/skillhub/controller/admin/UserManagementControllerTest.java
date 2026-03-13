@@ -4,6 +4,10 @@ import com.iflytek.skillhub.TestRedisConfig;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.auth.device.DeviceAuthService;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.dto.AdminUserMutationResponse;
+import com.iflytek.skillhub.dto.AdminUserSummaryResponse;
+import com.iflytek.skillhub.dto.PageResponse;
+import com.iflytek.skillhub.service.AdminUserAppService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -17,6 +21,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.Set;
+import java.time.LocalDateTime;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -25,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -41,6 +47,9 @@ class UserManagementControllerTest {
     @MockBean
     private DeviceAuthService deviceAuthService;
 
+    @MockBean
+    private AdminUserAppService adminUserAppService;
+
     @Test
     void listUsers_unauthenticated_returns401() throws Exception {
         mockMvc.perform(get("/api/v1/admin/users"))
@@ -56,11 +65,27 @@ class UserManagementControllerTest {
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER_ADMIN"))
         );
 
+        when(adminUserAppService.listUsers(null, null, 0, 20))
+                .thenReturn(new PageResponse<>(
+                        List.of(new AdminUserSummaryResponse(
+                                "user-1",
+                                "alice",
+                                "alice@example.com",
+                                "ACTIVE",
+                                List.of("AUDITOR"),
+                                LocalDateTime.of(2026, 3, 13, 9, 0))),
+                        1,
+                        0,
+                        20));
+
         mockMvc.perform(get("/api/v1/admin/users").with(authentication(auth)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.items").isArray())
-            .andExpect(jsonPath("$.data.total").value(2));
+            .andExpect(jsonPath("$.data.total").value(1))
+            .andExpect(jsonPath("$.data.items[0].id").value("user-1"))
+            .andExpect(jsonPath("$.data.items[0].email").value("alice@example.com"))
+            .andExpect(jsonPath("$.data.items[0].platformRoles[0]").value("AUDITOR"));
     }
 
     @Test
@@ -71,6 +96,9 @@ class UserManagementControllerTest {
         var auth = new UsernamePasswordAuthenticationToken(
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_SUPER_ADMIN"))
         );
+
+        when(adminUserAppService.listUsers(null, null, 0, 20))
+                .thenReturn(new PageResponse<>(List.of(), 0, 0, 20));
 
         mockMvc.perform(get("/api/v1/admin/users").with(authentication(auth)))
             .andExpect(status().isOk())
@@ -88,6 +116,9 @@ class UserManagementControllerTest {
 
         String requestBody = "{\"role\":\"MODERATOR\"}";
 
+        when(adminUserAppService.updateUserRole("user-123", "MODERATOR", Set.of("USER_ADMIN")))
+                .thenReturn(new AdminUserMutationResponse("user-123", "MODERATOR", "ACTIVE"));
+
         mockMvc.perform(put("/api/v1/admin/users/user-123/role")
                 .with(authentication(auth))
                 .with(csrf())
@@ -96,7 +127,8 @@ class UserManagementControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.userId").value("user-123"))
-            .andExpect(jsonPath("$.data.role").value("MODERATOR"));
+            .andExpect(jsonPath("$.data.role").value("MODERATOR"))
+            .andExpect(jsonPath("$.data.status").value("ACTIVE"));
     }
 
     @Test
@@ -108,7 +140,10 @@ class UserManagementControllerTest {
             principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER_ADMIN"))
         );
 
-        String requestBody = "{\"status\":\"BANNED\"}";
+        String requestBody = "{\"status\":\"DISABLED\"}";
+
+        when(adminUserAppService.updateUserStatus("user-123", "DISABLED"))
+                .thenReturn(new AdminUserMutationResponse("user-123", null, "DISABLED"));
 
         mockMvc.perform(put("/api/v1/admin/users/user-123/status")
                 .with(authentication(auth))
@@ -118,6 +153,6 @@ class UserManagementControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.userId").value("user-123"))
-            .andExpect(jsonPath("$.data.status").value("BANNED"));
+            .andExpect(jsonPath("$.data.status").value("DISABLED"));
     }
 }
