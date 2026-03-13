@@ -62,5 +62,40 @@
     "privacy": "隐私政策",
     "terms": "服务条款",
     "copyright": "© 2024 SkillHub. 保留所有权利。"
+  },
+  "publish": {
+    "title": "发布技能",
+    "subtitle": "上传技能包到 SkillHub",
+    "reviewNotice": {
+      "title": "发布审核说明",
+      "description": "技能包提交后需要经过管理员审核才能正式发布。审核通过后，您的技能将对所有用户可见。"
+    },
+    "namespace": "命名空间",
+    "selectNamespace": "选择命名空间",
+    "visibility": "可见性",
+    "visibilityOptions": {
+      "public": "公开",
+      "namespaceOnly": "仅命名空间",
+      "private": "私有"
+    },
+    "file": "技能包文件",
+    "publishing": "发布中...",
+    "confirm": "确认发布",
+    "success": "发布成功",
+    "successDescription": "{{skill}} 已提交审核，等待管理员批准后即可使用",
+    "error": "发布失败",
+    "selectRequired": "请选择命名空间和文件"
+  },
+  "toast": {
+    "success": "成功",
+    "error": "错误",
+    "warning": "警告",
+    "info": "信息"
+  },
+  "dialog": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "delete": "删除",
+    "close": "关闭"
   }
 }

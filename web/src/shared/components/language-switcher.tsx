@@ -16,7 +16,9 @@ export function LanguageSwitcher() {
     { code: 'en', name: 'English' },
   ]
 
-  const currentLanguage = languages.find((lang) => lang.code === i18n.language) || languages[0]
+  // 获取当前语言的主要代码（去掉地区代码）
+  const currentLangCode = i18n.language?.split('-')[0] || 'zh'
+  const currentLanguage = languages.find((lang) => lang.code === currentLangCode) || languages[0]
 
   const changeLanguage = (langCode: string) => {
     i18n.changeLanguage(langCode)
@@ -35,7 +37,7 @@ export function LanguageSwitcher() {
           <DropdownMenuItem
             key={lang.code}
             onClick={() => changeLanguage(lang.code)}
-            className={i18n.language === lang.code ? 'bg-accent' : ''}
+            className={currentLangCode === lang.code ? 'bg-accent' : ''}
           >
             {lang.name}
           </DropdownMenuItem>
