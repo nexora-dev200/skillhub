@@ -7,6 +7,7 @@ import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
 import com.iflytek.skillhub.dto.ApiResponse;
 import com.iflytek.skillhub.dto.ApiResponseFactory;
 import com.iflytek.skillhub.dto.PublishResponse;
+import com.iflytek.skillhub.metrics.SkillHubMetrics;
 import com.iflytek.skillhub.ratelimit.RateLimit;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,11 +23,14 @@ import java.util.zip.ZipInputStream;
 public class CliPublishController extends BaseApiController {
 
     private final SkillPublishService skillPublishService;
+    private final SkillHubMetrics skillHubMetrics;
 
     public CliPublishController(SkillPublishService skillPublishService,
-                                ApiResponseFactory responseFactory) {
+                                ApiResponseFactory responseFactory,
+                                SkillHubMetrics skillHubMetrics) {
         super(responseFactory);
         this.skillPublishService = skillPublishService;
+        this.skillHubMetrics = skillHubMetrics;
     }
 
     @PostMapping("/publish")
@@ -57,6 +61,7 @@ public class CliPublishController extends BaseApiController {
                 publishResult.version().getFileCount(),
                 publishResult.version().getTotalSize()
         );
+        skillHubMetrics.incrementSkillPublish(namespace, publishResult.version().getStatus().name());
 
         return ok("response.success.published", response);
     }

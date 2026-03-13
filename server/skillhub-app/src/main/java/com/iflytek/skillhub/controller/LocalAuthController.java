@@ -9,6 +9,7 @@ import com.iflytek.skillhub.dto.ChangePasswordRequest;
 import com.iflytek.skillhub.dto.LocalLoginRequest;
 import com.iflytek.skillhub.dto.LocalRegisterRequest;
 import com.iflytek.skillhub.exception.UnauthorizedException;
+import com.iflytek.skillhub.metrics.SkillHubMetrics;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -28,17 +29,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocalAuthController extends BaseApiController {
 
     private final LocalAuthService localAuthService;
+    private final SkillHubMetrics skillHubMetrics;
 
     public LocalAuthController(ApiResponseFactory responseFactory,
-                               LocalAuthService localAuthService) {
+                               LocalAuthService localAuthService,
+                               SkillHubMetrics skillHubMetrics) {
         super(responseFactory);
         this.localAuthService = localAuthService;
+        this.skillHubMetrics = skillHubMetrics;
     }
 
     @PostMapping("/register")
     public ApiResponse<AuthMeResponse> register(@Valid @RequestBody LocalRegisterRequest request,
                                                 HttpServletRequest httpRequest) {
         PlatformPrincipal principal = localAuthService.register(request.username(), request.password(), request.email());
+        skillHubMetrics.incrementUserRegister();
         establishSession(principal, httpRequest);
         return ok("response.success.created", AuthMeResponse.from(principal));
     }
@@ -46,7 +51,14 @@ public class LocalAuthController extends BaseApiController {
     @PostMapping("/login")
     public ApiResponse<AuthMeResponse> login(@Valid @RequestBody LocalLoginRequest request,
                                              HttpServletRequest httpRequest) {
-        PlatformPrincipal principal = localAuthService.login(request.username(), request.password());
+        PlatformPrincipal principal;
+        try {
+            principal = localAuthService.login(request.username(), request.password());
+        } catch (RuntimeException ex) {
+            skillHubMetrics.recordLocalLogin(false);
+            throw ex;
+        }
+        skillHubMetrics.recordLocalLogin(true);
         establishSession(principal, httpRequest);
         return ok("response.success.read", AuthMeResponse.from(principal));
     }

@@ -1,11 +1,15 @@
 import createClient from 'openapi-fetch'
 import type { paths } from './generated/schema'
 import type {
+  ChangePasswordRequest,
   ApiToken,
   CreateTokenRequest,
   CreateTokenResponse,
   LocalLoginRequest,
   LocalRegisterRequest,
+  MergeInitiateRequest,
+  MergeInitiateResponse,
+  MergeVerifyRequest,
   OAuthProvider,
   User,
 } from './types'
@@ -145,6 +149,16 @@ export const authApi = {
     })
   },
 
+  async changePassword(request: ChangePasswordRequest): Promise<void> {
+    await fetchJson<void>('/api/v1/auth/local/change-password', {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
+  },
+
   async logout(): Promise<void> {
     const { response, error } = await client.POST('/api/v1/auth/logout', {
       headers: withCsrf(),
@@ -152,6 +166,28 @@ export const authApi = {
     if (error || (response.status !== 200 && response.status !== 204)) {
       throw new Error(`HTTP ${response.status}`)
     }
+  },
+}
+
+export const accountApi = {
+  async initiateMerge(request: MergeInitiateRequest): Promise<MergeInitiateResponse> {
+    return fetchJson<MergeInitiateResponse>('/api/v1/account/merge/initiate', {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
+  },
+
+  async verifyMerge(request: MergeVerifyRequest): Promise<void> {
+    await fetchJson<void>('/api/v1/account/merge/verify', {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(request),
+    })
   },
 }
 

@@ -1,15 +1,19 @@
 package com.iflytek.skillhub.controller;
 
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.iflytek.skillhub.auth.exception.AuthFlowException;
 import com.iflytek.skillhub.auth.local.LocalAuthService;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.metrics.SkillHubMetrics;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -18,6 +22,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,6 +41,9 @@ class LocalAuthControllerTest {
 
     @MockBean
     private NamespaceMemberRepository namespaceMemberRepository;
+
+    @MockBean
+    private SkillHubMetrics skillHubMetrics;
 
     @Test
     void login_returnsCurrentUserEnvelope() throws Exception {
@@ -59,6 +67,8 @@ class LocalAuthControllerTest {
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.userId").value("usr_1"))
             .andExpect(jsonPath("$.data.oauthProvider").value("local"));
+        verify(skillHubMetrics).recordLocalLogin(true);
+        verify(skillHubMetrics, never()).recordLocalLogin(false);
     }
 
     @Test
@@ -82,6 +92,23 @@ class LocalAuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.displayName").value("bob"));
+        verify(skillHubMetrics).incrementUserRegister();
+    }
+
+    @Test
+    void login_failure_recordsFailureMetric() throws Exception {
+        given(localAuthService.login("alice", "wrong"))
+            .willThrow(new AuthFlowException(HttpStatus.UNAUTHORIZED, "error.auth.local.invalidCredentials"));
+
+        mockMvc.perform(post("/api/v1/auth/local/login")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"username":"alice","password":"wrong"}
+                    """))
+            .andExpect(status().isUnauthorized());
+        verify(skillHubMetrics).recordLocalLogin(false);
+        verify(skillHubMetrics, never()).recordLocalLogin(true);
     }
 
     @Test
