@@ -7,17 +7,13 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ content, className }: MarkdownRendererProps) {
+  const containerClassName = [className, 'prose prose-sm max-w-none dark:prose-invert']
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div className={className}>
-      <ReactMarkdown
-        rehypePlugins={[rehypeHighlight]}
-        components={{
-          // @ts-ignore - react-markdown types issue
-          div: ({ node, ...props }) => <div className="prose prose-sm dark:prose-invert max-w-none" {...props} />,
-        }}
-      >
-        {content}
-      </ReactMarkdown>
+    <div className={containerClassName}>
+      <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{content}</ReactMarkdown>
     </div>
   )
 }

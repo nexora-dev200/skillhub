@@ -1,21 +1,71 @@
+import { lazy, Suspense, type ComponentType } from 'react'
 import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/react-router'
 import { Layout } from './layout'
-import { HomePage } from '@/pages/home'
-import { LoginPage } from '@/pages/login'
-import { DashboardPage } from '@/pages/dashboard'
-import { SearchPage } from '@/pages/search'
-import { NamespacePage } from '@/pages/namespace'
-import { SkillDetailPage } from '@/pages/skill-detail'
-import { PublishPage } from '@/pages/dashboard/publish'
-import { MySkillsPage } from '@/pages/dashboard/my-skills'
-import { MyNamespacesPage } from '@/pages/dashboard/my-namespaces'
-import { NamespaceMembersPage } from '@/pages/dashboard/namespace-members'
-import { ReviewsPage } from '@/pages/dashboard/reviews'
-import { ReviewDetailPage } from '@/pages/dashboard/review-detail'
-import { DeviceAuthPage } from '@/pages/device'
-import { AdminUsersPage } from '@/pages/admin/users'
-import { AuditLogPage } from '@/pages/admin/audit-log'
 import { getCurrentUser } from '@/api/client'
+
+function createLazyRouteComponent(load: () => Promise<{ default: ComponentType<any> }>) {
+  const LazyComponent = lazy(load)
+
+  return function LazyRouteComponent(props: Record<string, unknown>) {
+    return (
+      <Suspense
+        fallback={
+          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+            Loading...
+          </div>
+        }
+      >
+        <LazyComponent {...props} />
+      </Suspense>
+    )
+  }
+}
+
+const HomePage = createLazyRouteComponent(() =>
+  import('@/pages/home').then((module) => ({ default: module.HomePage })),
+)
+const LoginPage = createLazyRouteComponent(() =>
+  import('@/pages/login').then((module) => ({ default: module.LoginPage })),
+)
+const DashboardPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard').then((module) => ({ default: module.DashboardPage })),
+)
+const SearchPage = createLazyRouteComponent(() =>
+  import('@/pages/search').then((module) => ({ default: module.SearchPage })),
+)
+const NamespacePage = createLazyRouteComponent(() =>
+  import('@/pages/namespace').then((module) => ({ default: module.NamespacePage })),
+)
+const SkillDetailPage = createLazyRouteComponent(() =>
+  import('@/pages/skill-detail').then((module) => ({ default: module.SkillDetailPage })),
+)
+const PublishPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/publish').then((module) => ({ default: module.PublishPage })),
+)
+const MySkillsPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/my-skills').then((module) => ({ default: module.MySkillsPage })),
+)
+const MyNamespacesPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/my-namespaces').then((module) => ({ default: module.MyNamespacesPage })),
+)
+const NamespaceMembersPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/namespace-members').then((module) => ({ default: module.NamespaceMembersPage })),
+)
+const ReviewsPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/reviews').then((module) => ({ default: module.ReviewsPage })),
+)
+const ReviewDetailPage = createLazyRouteComponent(() =>
+  import('@/pages/dashboard/review-detail').then((module) => ({ default: module.ReviewDetailPage })),
+)
+const DeviceAuthPage = createLazyRouteComponent(() =>
+  import('@/pages/device').then((module) => ({ default: module.DeviceAuthPage })),
+)
+const AdminUsersPage = createLazyRouteComponent(() =>
+  import('@/pages/admin/users').then((module) => ({ default: module.AdminUsersPage })),
+)
+const AuditLogPage = createLazyRouteComponent(() =>
+  import('@/pages/admin/audit-log').then((module) => ({ default: module.AuditLogPage })),
+)
 
 const rootRoute = createRootRoute({
   component: Layout,
