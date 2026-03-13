@@ -21,7 +21,7 @@ check() {
   local url="$2"
   local expected="$3"
   local status
-  status="$(curl -s -o /dev/null -w "%{http_code}" "$url")"
+  status="$(curl --retry 3 --retry-delay 1 --max-time 10 -s -o /dev/null -w "%{http_code}" "$url" || true)"
   if [[ "$status" == "$expected" ]]; then
     echo "PASS: $desc (HTTP $status)"
     PASS=$((PASS + 1))
@@ -43,13 +43,13 @@ check "Auth required" "$BASE_URL/api/v1/auth/me" "401"
 curl -s -c "$COOKIE_JAR" "$BASE_URL/api/v1/auth/me" >/dev/null
 CSRF_TOKEN="$(awk '$6 == "XSRF-TOKEN" { print $7 }' "$COOKIE_JAR" | tail -n 1)"
 
-REGISTER_STATUS="$(curl -s -o /dev/null -w "%{http_code}" \
+REGISTER_STATUS="$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
   -X POST "$BASE_URL/api/v1/auth/local/register" \
   -b "$COOKIE_JAR" \
   -c "$COOKIE_JAR" \
   -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"email\":\"$EMAIL\"}")"
+  -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\",\"email\":\"$EMAIL\"}" || true)"
 if [[ "$REGISTER_STATUS" == "200" ]]; then
   echo "PASS: Register (HTTP $REGISTER_STATUS)"
   PASS=$((PASS + 1))
@@ -58,7 +58,7 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-AUTH_ME_STATUS="$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "$BASE_URL/api/v1/auth/me")"
+AUTH_ME_STATUS="$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "$BASE_URL/api/v1/auth/me" || true)"
 if [[ "$AUTH_ME_STATUS" == "200" ]]; then
   echo "PASS: Auth me with session (HTTP $AUTH_ME_STATUS)"
   PASS=$((PASS + 1))
@@ -67,12 +67,12 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-CHANGE_PASSWORD_STATUS="$(curl -s -o /dev/null -w "%{http_code}" \
+CHANGE_PASSWORD_STATUS="$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
   -X POST "$BASE_URL/api/v1/auth/local/change-password" \
   -b "$COOKIE_JAR" \
   -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"currentPassword\":\"$PASSWORD\",\"newPassword\":\"$NEW_PASSWORD\"}")"
+  -d "{\"currentPassword\":\"$PASSWORD\",\"newPassword\":\"$NEW_PASSWORD\"}" || true)"
 if [[ "$CHANGE_PASSWORD_STATUS" == "200" ]]; then
   echo "PASS: Change password (HTTP $CHANGE_PASSWORD_STATUS)"
   PASS=$((PASS + 1))
@@ -81,11 +81,11 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-LOGOUT_STATUS="$(curl -s -o /dev/null -w "%{http_code}" \
+LOGOUT_STATUS="$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" \
   -X POST "$BASE_URL/api/v1/auth/logout" \
   -b "$COOKIE_JAR" \
   -c "$COOKIE_JAR" \
-  -H "X-XSRF-TOKEN: $CSRF_TOKEN")"
+  -H "X-XSRF-TOKEN: $CSRF_TOKEN" || true)"
 if [[ "$LOGOUT_STATUS" == "302" || "$LOGOUT_STATUS" == "200" || "$LOGOUT_STATUS" == "204" ]]; then
   echo "PASS: Logout (HTTP $LOGOUT_STATUS)"
   PASS=$((PASS + 1))
@@ -94,7 +94,7 @@ else
   FAIL=$((FAIL + 1))
 fi
 
-POST_LOGOUT_STATUS="$(curl -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "$BASE_URL/api/v1/auth/me")"
+POST_LOGOUT_STATUS="$(curl --max-time 10 -s -o /dev/null -w "%{http_code}" -b "$COOKIE_JAR" "$BASE_URL/api/v1/auth/me" || true)"
 if [[ "$POST_LOGOUT_STATUS" == "401" ]]; then
   echo "PASS: Auth me after logout (HTTP $POST_LOGOUT_STATUS)"
   PASS=$((PASS + 1))

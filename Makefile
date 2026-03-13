@@ -26,13 +26,13 @@ dev-all: ## 一键启动本地开发环境（依赖 + 后端 + 前端）
 		echo "Installing frontend dependencies..."; \
 		$(MAKE) web-install; \
 	fi
-	@if [ -f $(DEV_SERVER_PID) ] && kill -0 "$$(cat $(DEV_SERVER_PID))" 2>/dev/null; then \
+	@if $(DEV_PROCESS) status --pid-file $(DEV_SERVER_PID) >/dev/null 2>&1; then \
 		echo "Backend already running with PID $$(cat $(DEV_SERVER_PID))"; \
 	else \
 		echo "Starting backend..."; \
 		$(DEV_PROCESS) start --pid-file $(DEV_SERVER_PID) --log-file $(DEV_SERVER_LOG) --cwd server -- /bin/sh -lc './mvnw -pl skillhub-app -am install -DskipTests >/dev/null && exec ./mvnw -pl skillhub-app spring-boot:run -Dspring-boot.run.profiles=local' >/dev/null; \
 	fi
-	@if [ -f $(DEV_WEB_PID) ] && kill -0 "$$(cat $(DEV_WEB_PID))" 2>/dev/null; then \
+	@if $(DEV_PROCESS) status --pid-file $(DEV_WEB_PID) >/dev/null 2>&1; then \
 		echo "Frontend already running with PID $$(cat $(DEV_WEB_PID))"; \
 	else \
 		echo "Starting frontend..."; \
@@ -40,13 +40,24 @@ dev-all: ## 一键启动本地开发环境（依赖 + 后端 + 前端）
 	fi
 	@echo "Waiting for backend on $(DEV_API_URL) ..."
 	@backend_ready=0; \
-	for i in $$(seq 1 60); do \
-		if curl -sf $(DEV_API_URL)/actuator/health >/dev/null; then \
-			echo "Backend ready."; \
-			backend_ready=1; \
-			break; \
+	for attempt in 1 2; do \
+		for i in $$(seq 1 30); do \
+			if curl -sf $(DEV_API_URL)/actuator/health >/dev/null; then \
+				echo "Backend ready."; \
+				backend_ready=1; \
+				break 2; \
+			fi; \
+			if ! $(DEV_PROCESS) status --pid-file $(DEV_SERVER_PID) >/dev/null 2>&1; then \
+				break; \
+			fi; \
+			sleep 2; \
+		done; \
+		if [ "$$attempt" -lt 2 ]; then \
+			echo "Backend did not become ready on attempt $$attempt. Restarting..."; \
+			$(DEV_PROCESS) stop --pid-file $(DEV_SERVER_PID); \
+			sleep 2; \
+			$(DEV_PROCESS) start --pid-file $(DEV_SERVER_PID) --log-file $(DEV_SERVER_LOG) --cwd server -- /bin/sh -lc './mvnw -pl skillhub-app -am install -DskipTests >/dev/null && exec ./mvnw -pl skillhub-app spring-boot:run -Dspring-boot.run.profiles=local' >/dev/null; \
 		fi; \
-		sleep 2; \
 	done; \
 	if [ "$$backend_ready" -ne 1 ]; then \
 		echo "Backend failed to become ready. Check $(DEV_SERVER_LOG)"; \

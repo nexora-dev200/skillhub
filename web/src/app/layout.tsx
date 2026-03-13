@@ -1,9 +1,16 @@
 import { Suspense } from 'react'
-import { Outlet, Link } from '@tanstack/react-router'
+import { Outlet, Link, useRouterState } from '@tanstack/react-router'
 import { useAuth } from '@/features/auth/use-auth'
+import { LandingPage } from '@/pages/landing'
 
 export function Layout() {
   const { user, isLoading } = useAuth()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isLanding = pathname === '/'
+
+  if (isLanding) {
+    return <LandingPage />
+  }
 
   return (
     <div className="min-h-screen bg-background bg-dots relative">
@@ -64,6 +71,7 @@ export function Layout() {
             ) : (
               <Link
                 to="/login"
+                search={{ returnTo: '' }}
                 className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                 activeProps={{ className: 'text-primary' }}
               >

@@ -23,6 +23,8 @@ import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.domain.user.UserAccountRepository;
+import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,10 +93,29 @@ class AccountMergeServiceTest {
     }
 
     @Test
-    void verifyAndComplete_migratesBindingsRolesTokensAndMemberships() {
+    void verify_marksRequestVerifiedWhenTokenMatches() throws Exception {
         UserAccount primary = new UserAccount("usr_primary", "primary", "primary@example.com", null);
         UserAccount secondary = new UserAccount("usr_secondary", "secondary", "", null);
-        AccountMergeRequest request = new AccountMergeRequest("usr_primary", "usr_secondary", "encoded", java.time.LocalDateTime.now().plusMinutes(10));
+        AccountMergeRequest request = request("usr_primary", "usr_secondary", "encoded");
+
+        given(mergeRequestRepository.findByIdAndPrimaryUserId(7L, "usr_primary")).willReturn(Optional.of(request));
+        given(userAccountRepository.findById("usr_primary")).willReturn(Optional.of(primary));
+        given(userAccountRepository.findById("usr_secondary")).willReturn(Optional.of(secondary));
+        given(passwordEncoder.matches("raw-token", "encoded")).willReturn(true);
+        given(mergeRequestRepository.save(any(AccountMergeRequest.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+        service.verify("usr_primary", 7L, "raw-token");
+
+        assertThat(request.getStatus()).isEqualTo(AccountMergeRequest.STATUS_VERIFIED);
+        verify(mergeRequestRepository).save(request);
+    }
+
+    @Test
+    void confirm_migratesBindingsRolesTokensAndMemberships() throws Exception {
+        UserAccount primary = new UserAccount("usr_primary", "primary", "primary@example.com", null);
+        UserAccount secondary = new UserAccount("usr_secondary", "secondary", "", null);
+        AccountMergeRequest request = request("usr_primary", "usr_secondary", "encoded");
+        request.setStatus(AccountMergeRequest.STATUS_VERIFIED);
         Role role = mock(Role.class);
         given(role.getCode()).willReturn("AUDITOR");
         UserRoleBinding secondaryRole = new UserRoleBinding("usr_secondary", role);
@@ -102,10 +123,10 @@ class AccountMergeServiceTest {
         ApiToken token = new ApiToken("usr_secondary", "cli", "sk_123", "hash", "[]");
         NamespaceMember secondaryMembership = new NamespaceMember(1L, "usr_secondary", NamespaceRole.ADMIN);
 
-        given(mergeRequestRepository.findByIdAndPrimaryUserId(request.getId(), "usr_primary")).willReturn(Optional.of(request));
+        given(mergeRequestRepository.findByIdAndPrimaryUserId(7L, "usr_primary")).willReturn(Optional.of(request));
         given(userAccountRepository.findById("usr_primary")).willReturn(Optional.of(primary));
         given(userAccountRepository.findById("usr_secondary")).willReturn(Optional.of(secondary));
-        given(passwordEncoder.matches("raw-token", "encoded")).willReturn(true);
+        given(mergeRequestRepository.save(any(AccountMergeRequest.class))).willAnswer(invocation -> invocation.getArgument(0));
         given(identityBindingRepository.findByUserId("usr_secondary")).willReturn(List.of(binding));
         given(apiTokenRepository.findByUserId("usr_secondary")).willReturn(List.of(token));
         given(userRoleBindingRepository.findByUserId("usr_primary")).willReturn(List.of());
@@ -115,7 +136,7 @@ class AccountMergeServiceTest {
         given(localCredentialRepository.findByUserId("usr_primary")).willReturn(Optional.empty());
         given(localCredentialRepository.findByUserId("usr_secondary")).willReturn(Optional.empty());
 
-        service.verifyAndComplete("usr_primary", request.getId(), "raw-token");
+        service.confirm("usr_primary", 7L);
 
         assertThat(binding.getUserId()).isEqualTo("usr_primary");
         assertThat(token.getUserId()).isEqualTo("usr_primary");
@@ -123,21 +144,35 @@ class AccountMergeServiceTest {
         assertThat(secondaryMembership.getUserId()).isEqualTo("usr_primary");
         assertThat(secondary.getStatus()).isEqualTo(com.iflytek.skillhub.domain.user.UserStatus.MERGED);
         assertThat(secondary.getMergedToUserId()).isEqualTo("usr_primary");
+        assertThat(request.getStatus()).isEqualTo(AccountMergeRequest.STATUS_COMPLETED);
+        assertThat(request.getVerificationToken()).isNull();
         verify(userRoleBindingRepository).save(any(UserRoleBinding.class));
         verify(userRoleBindingRepository).deleteAll(List.of(secondaryRole));
     }
 
     @Test
-    void verifyAndComplete_rejectsInvalidToken() {
-        UserAccount primary = new UserAccount("usr_primary", "primary", "primary@example.com", null);
-        AccountMergeRequest request = new AccountMergeRequest("usr_primary", "usr_secondary", "encoded", java.time.LocalDateTime.now().plusMinutes(10));
-        given(mergeRequestRepository.findByIdAndPrimaryUserId(request.getId(), "usr_primary")).willReturn(Optional.of(request));
+    void verify_rejectsInvalidToken() throws Exception {
+        AccountMergeRequest request = request("usr_primary", "usr_secondary", "encoded");
+        given(mergeRequestRepository.findByIdAndPrimaryUserId(7L, "usr_primary")).willReturn(Optional.of(request));
         given(passwordEncoder.matches("bad-token", "encoded")).willReturn(false);
 
-        assertThatThrownBy(() -> service.verifyAndComplete("usr_primary", request.getId(), "bad-token"))
+        assertThatThrownBy(() -> service.verify("usr_primary", 7L, "bad-token"))
             .isInstanceOf(AuthFlowException.class)
             .hasMessageContaining("error.auth.merge.invalidToken");
 
         verify(identityBindingRepository, never()).saveAll(any());
+    }
+
+    private AccountMergeRequest request(String primaryUserId, String secondaryUserId, String token) throws Exception {
+        AccountMergeRequest request = new AccountMergeRequest(
+            primaryUserId,
+            secondaryUserId,
+            token,
+            LocalDateTime.now().plusMinutes(10)
+        );
+        Field idField = AccountMergeRequest.class.getDeclaredField("id");
+        idField.setAccessible(true);
+        idField.set(request, 7L);
+        return request;
     }
 }
