@@ -35,6 +35,7 @@ class RedissonScanTaskProducerTest {
                 "task-1",
                 42L,
                 "/tmp/skill",
+                null,
                 "publisher-1",
                 1711260000000L,
                 Map.of("scannerType", "skill-scanner")
