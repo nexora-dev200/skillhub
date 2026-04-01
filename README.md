@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./skillhub-logo.svg" alt="SkillHub Logo" width="120" height="120" />
   <h1>SkillHub</h1>
-  <p>An enterprise-grade, open-source agent skill registry — publish, discover, and manage reusable skill packages across your organization.</p>
+  <p>An enterprise-grade, open-source agent skill registry — publish, discover, and manage reusable skill packages across your organization. </p>
 </div>
 
 <div align="center">
