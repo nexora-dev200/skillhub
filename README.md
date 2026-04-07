@@ -24,6 +24,10 @@
 
 ---
 
+<div align="center">
+  <img src="https://xfyun-doc.xfyun.cn/lc-sp-skillhub-demo-1775551643410.gif" alt="SkillHub Demo" width="800" />
+</div>
+
 SkillHub is a self-hosted platform that gives teams a private,
 governed place to share agent skills. Publish a skill package, push
 it to a namespace, and let others find it through search or
