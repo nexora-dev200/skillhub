@@ -12,6 +12,8 @@ import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.namespace.NamespaceService;
 import com.iflytek.skillhub.domain.namespace.NamespaceStatus;
 import com.iflytek.skillhub.domain.namespace.NamespaceType;
+import com.iflytek.skillhub.domain.user.UserAccount;
+import com.iflytek.skillhub.domain.user.UserAccountRepository;
 import com.iflytek.skillhub.dto.NamespaceCandidateUserResponse;
 import com.iflytek.skillhub.service.NamespaceMemberCandidateService;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -69,12 +72,16 @@ class NamespaceWorkflowContractTest {
     @MockBean
     private DeviceAuthService deviceAuthService;
 
+    @MockBean
+    private UserAccountRepository userAccountRepository;
+
     @Test
     void namespaceWorkflowEndpoints_shareExpectedEnvelopeShapes() throws Exception {
         Namespace namespace = namespace(7L, "team-flow", NamespaceStatus.ACTIVE, NamespaceType.TEAM);
         Namespace frozen = namespace(7L, "team-flow", NamespaceStatus.FROZEN, NamespaceType.TEAM);
         Namespace archived = namespace(7L, "team-flow", NamespaceStatus.ARCHIVED, NamespaceType.TEAM);
         NamespaceMember adminMember = new NamespaceMember(7L, "user-admin", NamespaceRole.ADMIN);
+        UserAccount adminUser = new UserAccount("user-admin", "Admin", "admin@example.com", null);
         setMemberId(adminMember, 11L);
 
         given(namespaceService.createNamespace(eq("team-flow"), eq("Team Flow"), eq("workflow"), eq("owner-1")))
@@ -92,6 +99,8 @@ class NamespaceWorkflowContractTest {
                 .willReturn(new org.springframework.data.domain.PageImpl<>(List.of(adminMember)));
         given(namespaceMemberService.updateMemberRole(7L, "user-admin", NamespaceRole.ADMIN, "owner-1"))
                 .willReturn(adminMember);
+        given(userAccountRepository.findById("user-admin")).willReturn(Optional.of(adminUser));
+        given(userAccountRepository.findByIdIn(List.of("user-admin"))).willReturn(List.of(adminUser));
 
         mockMvc.perform(post("/api/web/namespaces")
                         .with(csrf())
