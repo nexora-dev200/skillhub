@@ -253,13 +253,13 @@ export async function prepareSearchSeed(
 }
 
 export function getSearchCard(page: Page, skillName: string): Locator {
-  return page.locator('.cursor-pointer.group').filter({
+  return getSearchCards(page).filter({
     has: page.getByRole('heading', { name: skillName, exact: true }),
   }).first()
 }
 
 export function getSearchCards(page: Page): Locator {
-  return page.locator('.cursor-pointer.group').filter({
+  return page.getByRole('link').filter({
     has: page.locator('h3'),
   })
 }

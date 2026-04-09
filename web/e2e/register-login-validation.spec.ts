@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { setEnglishLocale } from './helpers/auth-fixtures'
+import { createFreshSession } from './helpers/session'
 
 // TC_UN_* 用户名输入框 / TC_EM_* 邮箱输入框 / TC_PW_* 密码输入框
 // TC_REG_* 注册/登录流程 / TC_UI_* UI/UX
@@ -144,18 +145,15 @@ test.describe('Register Flow (Real API)', () => {
   })
 
   // TC_REG_003 P0 - duplicate username
-  test('TC_REG_003: shows error when registering with existing username', async ({ page }) => {
+  test('TC_REG_003: shows error when registering with existing username', async ({ browser, page }, testInfo) => {
     let username = existingRegisteredUsername
     if (!username) {
-      const suffix = Date.now().toString(36)
-      username = `dupuser_${suffix}`
-
-      await page.goto('/register')
-      await page.getByLabel(/username/i).fill(username)
-      await page.getByLabel(/^password/i).fill('Test123!@')
-      await page.getByRole('button', { name: 'Register' }).click()
-      await expect(page).not.toHaveURL('/register')
+      const seedContext = await browser.newContext()
+      const seedPage = await seedContext.newPage()
+      const seedCredentials = await createFreshSession(seedPage, testInfo)
+      username = seedCredentials.username
       existingRegisteredUsername = username
+      await seedContext.close()
     }
 
     // Now try to register with the same username again
@@ -163,15 +161,18 @@ test.describe('Register Flow (Real API)', () => {
     await setEnglishLocale(page)
     await page.getByLabel(/username/i).fill(username)
     await page.getByLabel(/^password/i).fill('Test123!@')
+    const main = page.getByRole('main')
+    const duplicateUsernameError = main.getByText(DUPLICATE_USERNAME_ERROR).first()
+    const registerRateLimitError = main.getByText(REGISTER_RATE_LIMIT_ERROR).first()
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await page.getByRole('button', { name: 'Register' }).click()
 
-      if (await page.getByText(DUPLICATE_USERNAME_ERROR).isVisible().catch(() => false)) {
+      if (await duplicateUsernameError.isVisible().catch(() => false)) {
         return
       }
 
-      if (attempt < 2 && await page.getByText(REGISTER_RATE_LIMIT_ERROR).isVisible().catch(() => false)) {
+      if (attempt < 2 && await registerRateLimitError.isVisible().catch(() => false)) {
         await page.waitForTimeout(1_500 * (attempt + 1))
         continue
       }
@@ -179,7 +180,7 @@ test.describe('Register Flow (Real API)', () => {
       break
     }
 
-    await expect(page.getByText(DUPLICATE_USERNAME_ERROR)).toBeVisible()
+    await expect(duplicateUsernameError).toBeVisible()
   })
 
   // TC_REG_002 P0 - registration without email
