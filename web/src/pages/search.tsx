@@ -18,6 +18,37 @@ import { APP_SHELL_PAGE_CLASS_NAME } from '@/app/page-shell-style'
 
 const PAGE_SIZE = 12
 
+function blurActiveElement() {
+  if (typeof document === 'undefined' || typeof HTMLElement === 'undefined') {
+    return
+  }
+
+  if (document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+}
+
+function scrollToTopOnPageChange() {
+  if (typeof window === 'undefined') {
+    return () => {}
+  }
+
+  let secondFrame = 0
+  const firstFrame = window.requestAnimationFrame(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+    secondFrame = window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'auto' })
+    })
+  })
+
+  return () => {
+    window.cancelAnimationFrame(firstFrame)
+    if (secondFrame) {
+      window.cancelAnimationFrame(secondFrame)
+    }
+  }
+}
+
 /**
  * Skill discovery page with synchronized URL state.
  *
@@ -68,24 +99,12 @@ export function SearchPage() {
 
   useEffect(() => {
     if (previousPageRef.current !== page) {
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur()
-      }
-
-      let secondFrame = 0
-      const firstFrame = window.requestAnimationFrame(() => {
-        window.scrollTo({ top: 0, behavior: 'auto' })
-        secondFrame = window.requestAnimationFrame(() => {
-          window.scrollTo({ top: 0, behavior: 'auto' })
-        })
-      })
+      blurActiveElement()
+      const cleanupScroll = scrollToTopOnPageChange()
 
       previousPageRef.current = page
       return () => {
-        window.cancelAnimationFrame(firstFrame)
-        if (secondFrame) {
-          window.cancelAnimationFrame(secondFrame)
-        }
+        cleanupScroll()
       }
     }
 
@@ -145,9 +164,7 @@ export function SearchPage() {
   }
 
   const handlePageChange = (newPage: number) => {
-    if (document.activeElement instanceof HTMLElement) {
-      document.activeElement.blur()
-    }
+    blurActiveElement()
     navigate({ to: '/search', search: { q, label: selectedLabel, sort, page: newPage, starredOnly } })
   }
 
