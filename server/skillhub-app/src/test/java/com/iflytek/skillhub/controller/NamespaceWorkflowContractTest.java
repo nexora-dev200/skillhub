@@ -70,10 +70,10 @@ class NamespaceWorkflowContractTest {
     private NamespaceMemberCandidateService namespaceMemberCandidateService;
 
     @MockBean
-    private DeviceAuthService deviceAuthService;
+    private UserAccountRepository userAccountRepository;
 
     @MockBean
-    private UserAccountRepository userAccountRepository;
+    private DeviceAuthService deviceAuthService;
 
     @Test
     void namespaceWorkflowEndpoints_shareExpectedEnvelopeShapes() throws Exception {
