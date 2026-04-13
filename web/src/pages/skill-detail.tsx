@@ -53,6 +53,8 @@ import {
   useRereleaseSkillVersion,
   useUnarchiveSkill,
   useWithdrawSkillReview,
+  useSubmitForReview,
+  useConfirmPublish,
 } from '@/shared/hooks/use-skill-queries'
 import { useSubmitPromotion } from '@/shared/hooks/use-user-queries'
 
@@ -115,6 +117,8 @@ export function SkillDetailPage() {
   const [rereleaseTarget, setRereleaseTarget] = useState<string | null>(null)
   const [targetVersionInput, setTargetVersionInput] = useState('')
   const [diffSourceVersion, setDiffSourceVersion] = useState<string | null>(null)
+  const [confirmPublishTarget, setConfirmPublishTarget] = useState<string | null>(null)
+  const [submitReviewTarget, setSubmitReviewTarget] = useState<string | null>(null)
   const [diffCompareVersion, setDiffCompareVersion] = useState<string | null>(null)
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false)
   const [isOverviewCollapsible, setIsOverviewCollapsible] = useState(false)
@@ -260,6 +264,8 @@ export function SkillDetailPage() {
   const rereleaseVersionMutation = useRereleaseSkillVersion()
   const submitPromotionMutation = useSubmitPromotion()
   const reportMutation = useSubmitSkillReport(namespace, slug)
+  const submitForReviewMutation = useSubmitForReview()
+  const confirmPublishMutation = useConfirmPublish()
 
   const triggerBrowserDownload = (url: string) => {
     const link = document.createElement('a')
@@ -380,6 +386,7 @@ export function SkillDetailPage() {
       DRAFT: t('skillDetail.versionStatusDraft'),
       SCANNING: t('skillDetail.versionStatusScanning'),
       SCAN_FAILED: t('skillDetail.versionStatusScanFailed'),
+      UPLOADED: t('skillDetail.versionStatusUploaded'),
       PENDING_REVIEW: t('skillDetail.versionStatusPendingReview'),
       PUBLISHED: t('skillDetail.versionStatusPublished'),
       REJECTED: t('skillDetail.versionStatusRejected'),
@@ -388,7 +395,7 @@ export function SkillDetailPage() {
     return status ? (map[status] ?? status) : ''
   }
 
-  const canDeleteVersion = (status?: string) => status === 'DRAFT' || status === 'REJECTED' || status === 'SCAN_FAILED'
+  const canDeleteVersion = (status?: string) => status === 'DRAFT' || status === 'REJECTED' || status === 'SCAN_FAILED' || status === 'UPLOADED'
   const isLastVersion = versions?.length === 1
   const canWithdrawVersion = (status?: string) => status === 'PENDING_REVIEW'
   const canRereleaseVersion = (status?: string) => status === 'PUBLISHED'
@@ -525,6 +532,40 @@ export function SkillDetailPage() {
       navigate({ to: '/dashboard/skills' })
     } catch (error) {
       toast.error(t('skillDetail.withdrawReviewErrorTitle'), error instanceof Error ? error.message : '')
+      throw error
+    }
+  }
+
+  const handleConfirmPublish = async () => {
+    if (!confirmPublishTarget) {
+      return
+    }
+    try {
+      await confirmPublishMutation.mutateAsync({ namespace, slug, version: confirmPublishTarget })
+      toast.success(
+        t('skillDetail.confirmPublishSuccessTitle'),
+        t('skillDetail.confirmPublishSuccessDescription', { version: confirmPublishTarget }),
+      )
+      setConfirmPublishTarget(null)
+    } catch (error) {
+      toast.error(t('skillDetail.confirmPublishErrorTitle'), error instanceof Error ? error.message : '')
+      throw error
+    }
+  }
+
+  const handleSubmitForReview = async () => {
+    if (!submitReviewTarget) {
+      return
+    }
+    try {
+      await submitForReviewMutation.mutateAsync({ namespace, slug, version: submitReviewTarget, targetVisibility: 'PUBLIC' })
+      toast.success(
+        t('skillDetail.submitReviewSuccessTitle'),
+        t('skillDetail.submitReviewSuccessDescription', { version: submitReviewTarget }),
+      )
+      setSubmitReviewTarget(null)
+    } catch (error) {
+      toast.error(t('skillDetail.submitReviewErrorTitle'), error instanceof Error ? error.message : '')
       throw error
     }
   }
@@ -882,6 +923,24 @@ export function SkillDetailPage() {
                               onClick={() => setWithdrawVersionTarget(version.version)}
                             >
                               {t('skillDetail.withdrawReview')}
+                            </Button>
+                          )}
+                          {skill.canManageLifecycle && version.status === 'UPLOADED' && skill.visibility === 'PRIVATE' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setConfirmPublishTarget(version.version)}
+                            >
+                              {t('skillDetail.confirmPublish')}
+                            </Button>
+                          )}
+                          {skill.canManageLifecycle && version.status === 'UPLOADED' && skill.visibility === 'PRIVATE' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setSubmitReviewTarget(version.version)}
+                            >
+                              {t('skillDetail.submitReview')}
                             </Button>
                           )}
                         </div>
@@ -1369,6 +1428,32 @@ export function SkillDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmPublishTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConfirmPublishTarget(null)
+          }
+        }}
+        title={t('skillDetail.confirmPublishDialogTitle')}
+        description={confirmPublishTarget ? t('skillDetail.confirmPublishDialogDescription', { version: confirmPublishTarget }) : ''}
+        confirmText={t('skillDetail.confirmPublish')}
+        onConfirm={handleConfirmPublish}
+      />
+
+      <ConfirmDialog
+        open={!!submitReviewTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSubmitReviewTarget(null)
+          }
+        }}
+        title={t('skillDetail.submitReviewDialogTitle')}
+        description={submitReviewTarget ? t('skillDetail.submitReviewDialogDescription', { version: submitReviewTarget }) : ''}
+        confirmText={t('skillDetail.submitReview')}
+        onConfirm={handleSubmitForReview}
+      />
 
       <Dialog
         open={!!diffSourceVersion && !!diffCompareVersion}

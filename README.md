@@ -95,7 +95,7 @@ The `--public-url` parameter sets the public access URL for your SkillHub instan
 **For users in China (Aliyun mirror):**
 
 ```bash
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 If deployment runs into problems, clear the existing runtime home and retry.
@@ -195,7 +195,7 @@ Published images target both `linux/amd64` and `linux/arm64`.
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --public-url https://skillhub.your-company.com
 
 # Aliyun mirror (recommended for users in China)
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 **Deployment parameters:**
@@ -222,6 +222,7 @@ cp .env.release.example .env.release
 
 Recommended image tags:
 
+- `SKILLHUB_VERSION=latest` for the latest stable release (default)
 - `SKILLHUB_VERSION=edge` for the latest `main` build
 - `SKILLHUB_VERSION=vX.Y.Z` for a fixed release
 

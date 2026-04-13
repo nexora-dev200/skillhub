@@ -476,6 +476,36 @@ export const skillLifecycleApi = {
       body: JSON.stringify({ targetVersion }),
     })
   },
+
+  /**
+   * Submit an UPLOADED version for review.
+   * Transitions version status from UPLOADED to PENDING_REVIEW.
+   */
+  async submitForReview(namespace: string, slug: string, version: string, targetVisibility: 'PUBLIC' | 'NAMESPACE_ONLY'): Promise<void> {
+    const cleanNamespace = namespace.startsWith('@') ? namespace.slice(1) : namespace
+    await fetchJson<void>(`${WEB_API_PREFIX}/skills/${cleanNamespace}/${encodeURIComponent(slug)}/submit-review`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify({ version, targetVisibility }),
+    })
+  },
+
+  /**
+   * Confirm publish for a PRIVATE skill version.
+   * Transitions version status from UPLOADED to PUBLISHED without review.
+   */
+  async confirmPublish(namespace: string, slug: string, version: string): Promise<void> {
+    const cleanNamespace = namespace.startsWith('@') ? namespace.slice(1) : namespace
+    await fetchJson<void>(`${WEB_API_PREFIX}/skills/${cleanNamespace}/${encodeURIComponent(slug)}/confirm-publish`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify({ version }),
+    })
+  },
 }
 
 function normalizeNamespaceSlug(namespace: string): string {
