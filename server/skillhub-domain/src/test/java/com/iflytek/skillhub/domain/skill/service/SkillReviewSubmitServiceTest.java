@@ -88,15 +88,42 @@ class SkillReviewSubmitServiceTest {
         }
 
         @Test
-        @DisplayName("should reject when version is not UPLOADED")
-        void shouldRejectWhenNotUploaded() {
+        @DisplayName("should accept DRAFT version (legacy compatibility)")
+        void shouldAcceptDraftForLegacyCompatibility() {
+            // Given
+            Long skillId = 1L;
+            Long versionId = 100L;
+            String userId = "user-1";
+            Long namespaceId = 10L;
+
+            Skill skill = createSkill(skillId, userId, namespaceId, SkillVisibility.PRIVATE);
+            SkillVersion version = createVersion(versionId, skillId, SkillVersionStatus.DRAFT);
+
+            when(skillRepository.findById(skillId)).thenReturn(Optional.of(skill));
+            when(skillVersionRepository.findById(versionId)).thenReturn(Optional.of(version));
+            when(reviewTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Map<Long, NamespaceRole> roles = Map.of();
+
+            // When
+            service.submitForReview(skillId, versionId, SkillVisibility.PUBLIC, userId, roles);
+
+            // Then
+            assertEquals(SkillVersionStatus.PENDING_REVIEW, version.getStatus());
+            assertEquals(SkillVisibility.PUBLIC, version.getRequestedVisibility());
+            verify(reviewTaskRepository).save(any(ReviewTask.class));
+        }
+
+        @Test
+        @DisplayName("should reject when version is neither UPLOADED nor DRAFT")
+        void shouldRejectWhenNotUploadedOrDraft() {
             // Given
             Long skillId = 1L;
             Long versionId = 100L;
             String userId = "user-1";
 
             Skill skill = createSkill(skillId, userId, 10L, SkillVisibility.PRIVATE);
-            SkillVersion version = createVersion(versionId, skillId, SkillVersionStatus.DRAFT);
+            SkillVersion version = createVersion(versionId, skillId, SkillVersionStatus.PUBLISHED);
 
             when(skillRepository.findById(skillId)).thenReturn(Optional.of(skill));
             when(skillVersionRepository.findById(versionId)).thenReturn(Optional.of(version));
@@ -157,6 +184,31 @@ class SkillReviewSubmitServiceTest {
         }
 
         @Test
+        @DisplayName("should transition DRAFT version to PUBLISHED for PRIVATE skill (legacy compatibility)")
+        void shouldTransitionDraftToPublished() {
+            // Given
+            Long skillId = 1L;
+            Long versionId = 100L;
+            String userId = "user-1";
+            Long namespaceId = 10L;
+
+            Skill skill = createSkill(skillId, userId, namespaceId, SkillVisibility.PRIVATE);
+            SkillVersion version = createVersion(versionId, skillId, SkillVersionStatus.DRAFT);
+
+            when(skillRepository.findById(skillId)).thenReturn(Optional.of(skill));
+            when(skillVersionRepository.findById(versionId)).thenReturn(Optional.of(version));
+
+            // When
+            service.confirmPublish(skillId, versionId, userId, Map.of());
+
+            // Then
+            assertEquals(SkillVersionStatus.PUBLISHED, version.getStatus());
+            assertNotNull(version.getPublishedAt());
+            assertEquals(versionId, skill.getLatestVersionId());
+            verify(skillRepository).save(skill);
+        }
+
+        @Test
         @DisplayName("should reject when skill is not PRIVATE")
         void shouldRejectWhenNotPrivate() {
             // Given
@@ -176,8 +228,8 @@ class SkillReviewSubmitServiceTest {
         }
 
         @Test
-        @DisplayName("should reject when version is not UPLOADED")
-        void shouldRejectWhenNotUploaded() {
+        @DisplayName("should reject when version is neither UPLOADED nor DRAFT")
+        void shouldRejectWhenNotUploadedOrDraft() {
             // Given
             Long skillId = 1L;
             Long versionId = 100L;

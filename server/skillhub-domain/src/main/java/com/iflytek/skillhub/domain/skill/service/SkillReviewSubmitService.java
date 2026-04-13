@@ -55,8 +55,10 @@ public class SkillReviewSubmitService {
     }
 
     /**
-     * Submit an UPLOADED version for review.
-     * Transitions version status from UPLOADED to PENDING_REVIEW.
+     * Submit an UPLOADED or DRAFT version for review.
+     * Transitions version status from UPLOADED/DRAFT to PENDING_REVIEW.
+     *
+     * <p>Supports both UPLOADED (new flow) and DRAFT (legacy compatibility) status.
      *
      * @param skillId          the skill ID
      * @param versionId        the version ID
@@ -75,8 +77,9 @@ public class SkillReviewSubmitService {
         // Validate ownership
         assertCanManageLifecycle(skill, actorUserId, userNamespaceRoles);
 
-        // Validate version status
-        if (version.getStatus() != SkillVersionStatus.UPLOADED) {
+        // Validate version status - support both UPLOADED (new) and DRAFT (legacy)
+        if (version.getStatus() != SkillVersionStatus.UPLOADED
+                && version.getStatus() != SkillVersionStatus.DRAFT) {
             throw new DomainBadRequestException("error.skill.version.submit.notUploaded", version.getVersion());
         }
 
@@ -97,7 +100,9 @@ public class SkillReviewSubmitService {
 
     /**
      * Confirm publish for a PRIVATE skill version.
-     * Transitions version status from UPLOADED to PUBLISHED without review.
+     * Transitions version status from UPLOADED/DRAFT to PUBLISHED without review.
+     *
+     * <p>Supports both UPLOADED (new flow) and DRAFT (legacy compatibility) status.
      *
      * @param skillId     the skill ID
      * @param versionId   the version ID
@@ -120,8 +125,9 @@ public class SkillReviewSubmitService {
             throw new DomainBadRequestException("error.skill.confirm.notPrivate");
         }
 
-        // Validate version status
-        if (version.getStatus() != SkillVersionStatus.UPLOADED) {
+        // Validate version status - support both UPLOADED (new) and DRAFT (legacy)
+        if (version.getStatus() != SkillVersionStatus.UPLOADED
+                && version.getStatus() != SkillVersionStatus.DRAFT) {
             throw new DomainBadRequestException("error.skill.version.confirm.notUploaded", version.getVersion());
         }
 
