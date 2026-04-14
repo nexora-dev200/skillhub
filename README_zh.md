@@ -67,7 +67,7 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 **国内用户（阿里云镜像）：**
 
 ```bash
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 如果部署遇到问题，请清除现有的运行时目录并重试。
@@ -177,7 +177,7 @@ skillhub/
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --public-url https://skillhub.your-company.com
 
 # 阿里云镜像（国内推荐）
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 ### 配置参数说明
