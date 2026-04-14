@@ -40,8 +40,8 @@ test.describe('Publish Flow UI (Real API)', () => {
       await expect(confirmButton).toBeEnabled()
       await confirmButton.click()
 
-      await expect(page).toHaveURL(/\/dashboard\/skills$/, { timeout: 90_000 })
-      await expect(page.getByRole('heading', { name: 'My Skills' })).toBeVisible({ timeout: 90_000 })
+      const toastTitle = page.getByText(/Published Successfully|Submitted for Review/)
+      await expect(toastTitle).toBeVisible({ timeout: 90_000 })
     } finally {
       await builder.cleanup()
     }
