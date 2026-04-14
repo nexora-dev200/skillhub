@@ -10,6 +10,11 @@ export interface SeededNamespace {
   id: number
   slug: string
   displayName: string
+  status?: string
+  type?: string
+  currentUserRole?: string
+  canUnfreeze?: boolean
+  canRestore?: boolean
 }
 
 export interface SeededSkill {
@@ -234,6 +239,34 @@ export class E2eTestDataBuilder {
     )
   }
 
+  private isTeamNamespace(namespace: SeededNamespace): boolean {
+    return namespace.type === 'TEAM' || namespace.slug !== 'global'
+  }
+
+  private isActiveNamespace(namespace: SeededNamespace): boolean {
+    return namespace.status === 'ACTIVE'
+  }
+
+  private async activateNamespace(namespace: SeededNamespace): Promise<SeededNamespace | null> {
+    if (!this.isTeamNamespace(namespace)) {
+      return null
+    }
+
+    if (namespace.status === 'FROZEN' && namespace.canUnfreeze) {
+      return parseEnvelope<SeededNamespace>(
+        await this.request.post(`/api/web/namespaces/${encodeURIComponent(namespace.slug)}/unfreeze`),
+      )
+    }
+
+    if (namespace.status === 'ARCHIVED' && namespace.canRestore) {
+      return parseEnvelope<SeededNamespace>(
+        await this.request.post(`/api/web/namespaces/${encodeURIComponent(namespace.slug)}/restore`),
+      )
+    }
+
+    return null
+  }
+
   async ensureWritableNamespace(): Promise<SeededNamespace> {
     if (this.ensuredNamespace) {
       return this.ensuredNamespace
@@ -251,16 +284,38 @@ export class E2eTestDataBuilder {
     }
 
     const namespaces = await this.listMyNamespaces()
-    const writable = namespaces.find((item) => item.slug !== 'global') ?? namespaces[0]
-    if (!writable) {
-      throw new Error('No namespace available for e2e data seeding')
+    const activeTeam = namespaces.find((item) => this.isTeamNamespace(item) && this.isActiveNamespace(item))
+    if (activeTeam) {
+      this.ensuredNamespace = activeTeam
+      return activeTeam
     }
-    this.ensuredNamespace = writable
-    return writable
+
+    const activeFallback = namespaces.find((item) => this.isActiveNamespace(item))
+    if (activeFallback) {
+      this.ensuredNamespace = activeFallback
+      return activeFallback
+    }
+
+    const activatable = namespaces.find((item) =>
+      this.isTeamNamespace(item)
+      && ((item.status === 'FROZEN' && item.canUnfreeze) || (item.status === 'ARCHIVED' && item.canRestore)),
+    )
+    if (activatable) {
+      const activated = await this.activateNamespace(activatable)
+      if (activated) {
+        this.ensuredNamespace = activated
+        return activated
+      }
+    }
+
+    const summary = namespaces
+      .map((item) => `${item.slug}:${item.status ?? 'UNKNOWN'}`)
+      .join(', ')
+    throw new Error(`No active writable namespace available for e2e data seeding [${summary}]`)
   }
 
   async ensureReviewableNamespace(): Promise<SeededNamespace> {
-    if (this.ensuredNamespace && this.ensuredNamespace.slug !== 'global') {
+    if (this.ensuredNamespace && this.isTeamNamespace(this.ensuredNamespace) && this.isActiveNamespace(this.ensuredNamespace)) {
       return this.ensuredNamespace
     }
 
@@ -276,13 +331,28 @@ export class E2eTestDataBuilder {
     }
 
     const namespaces = await this.listMyNamespaces()
-    const reviewableNamespace = namespaces.find((item) => item.slug !== 'global')
-    if (!reviewableNamespace) {
-      throw new Error('No TEAM namespace available for review E2E data seeding')
+    const activeTeam = namespaces.find((item) => this.isTeamNamespace(item) && this.isActiveNamespace(item))
+    if (activeTeam) {
+      this.ensuredNamespace = activeTeam
+      return activeTeam
     }
 
-    this.ensuredNamespace = reviewableNamespace
-    return reviewableNamespace
+    const activatable = namespaces.find((item) =>
+      this.isTeamNamespace(item)
+      && ((item.status === 'FROZEN' && item.canUnfreeze) || (item.status === 'ARCHIVED' && item.canRestore)),
+    )
+    if (activatable) {
+      const activated = await this.activateNamespace(activatable)
+      if (activated) {
+        this.ensuredNamespace = activated
+        return activated
+      }
+    }
+
+    const summary = namespaces
+      .map((item) => `${item.slug}:${item.status ?? 'UNKNOWN'}`)
+      .join(', ')
+    throw new Error(`No TEAM namespace available for review E2E data seeding [${summary}]`)
   }
 
   private async getMySkillInNamespace(namespaceSlug: string): Promise<SeededSkill | null> {

@@ -6,6 +6,7 @@ import { E2eTestDataBuilder } from './helpers/test-data-builder'
 
 interface PublishEnvelope {
   code: number
+  msg?: string
   data: {
     namespace: string
     slug: string
@@ -51,14 +52,14 @@ test.describe('Publish Flow UI (Real API)', () => {
       const publishResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST'
-          && response.url().includes(`/api/web/skills/${encodeURIComponent(namespace.slug)}/publish`)
-          && response.status() === 200,
+          && response.url().includes(`/api/web/skills/${encodeURIComponent(namespace.slug)}/publish`),
         { timeout: 90_000 },
       )
       await confirmButton.click()
       const publishResponse = await publishResponsePromise
       const publishBody = await publishResponse.json() as PublishEnvelope
 
+      expect(publishResponse.status(), `publish failed: ${publishBody.msg ?? 'unknown error'}`).toBe(200)
       expect(publishBody.code).toBe(0)
       expect(publishBody.data.namespace).toBe(namespace.slug)
 
