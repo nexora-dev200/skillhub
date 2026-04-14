@@ -10,7 +10,6 @@ import type { FileTreeNode } from '@/features/skill/file-tree-builder'
 import { InstallCommand } from '@/features/skill/install-command'
 import { ShareButton } from '@/features/skill/share-button'
 import { SkillLabelPanel } from '@/features/skill/skill-label-panel'
-import { VersionStatusBadge, getVersionRowStyle } from '@/features/skill/version-status-badge'
 import {
   getOverviewCollapseMaxHeight,
   OVERVIEW_COLLAPSE_DESKTOP_MAX_HEIGHT,
@@ -385,6 +384,19 @@ export function SkillDetailPage() {
     return status ?? ''
   }
 
+  const resolveVersionStatusLabel = (status?: string) => {
+    const map: Record<string, string> = {
+      DRAFT: t('skillDetail.versionStatusDraft'),
+      SCANNING: t('skillDetail.versionStatusScanning'),
+      SCAN_FAILED: t('skillDetail.versionStatusScanFailed'),
+      UPLOADED: t('skillDetail.versionStatusUploaded'),
+      PENDING_REVIEW: t('skillDetail.versionStatusPendingReview'),
+      PUBLISHED: t('skillDetail.versionStatusPublished'),
+      REJECTED: t('skillDetail.versionStatusRejected'),
+      YANKED: t('skillDetail.versionStatusYanked'),
+    }
+    return status ? (map[status] ?? status) : ''
+  }
 
   const canDeleteVersion = (status?: string) => status === 'DRAFT' || status === 'REJECTED' || status === 'SCAN_FAILED' || status === 'UPLOADED'
   const isLastVersion = versions?.length === 1
@@ -883,19 +895,21 @@ export function SkillDetailPage() {
           </TabsContent>
 
           <TabsContent value="versions" className="mt-6">
+            <Card className="p-6">
               {versions && versions.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-0 divide-y divide-border/40">
                   {versions.map((version) => (
-                    <div key={version.id} className={cn(
-                      'rounded-lg border border-border/60 bg-card p-4',
-                      getVersionRowStyle(version.status),
-                    )}>
+                    <div key={version.id} className="py-5 first:pt-0 last:pb-0">
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <span className="font-semibold font-heading text-foreground flex items-center gap-2 flex-wrap min-w-0">
                           <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-sm font-mono">
                             v{version.version}
                           </span>
-                          <VersionStatusBadge status={version.status} />
+                          {version.status && (
+                            <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-0.5 text-xs text-muted-foreground">
+                              {resolveVersionStatusLabel(version.status)}
+                            </span>
+                          )}
                           {headlineVersion?.version === version.version && (
                             <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs text-primary-foreground">
                               {t(hasPublishedPendingReview && publishedVersion?.version === version.version
@@ -947,6 +961,7 @@ export function SkillDetailPage() {
                           {skill.canManageLifecycle && version.status === 'UPLOADED' && skill.visibility === 'PRIVATE' && (
                             <Button
                               size="sm"
+                              variant="outline"
                               onClick={() => setConfirmPublishTarget(version.version)}
                             >
                               {t('skillDetail.confirmPublish')}
@@ -977,6 +992,7 @@ export function SkillDetailPage() {
               ) : (
                 <Card className="p-8 text-muted-foreground text-center">{t('skillDetail.noVersions')}</Card>
               )}
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
