@@ -138,11 +138,13 @@ public class ClawHubCompatController {
     @PostMapping("/skills")
     public ClawHubPublishResponse publishSkill(@RequestParam("payload") String payloadJson,
                                                @RequestParam("files") MultipartFile[] files,
+                                               @RequestParam(value = "confirmWarnings", defaultValue = "false") boolean confirmWarnings,
                                                @AuthenticationPrincipal PlatformPrincipal principal,
                                                HttpServletRequest request) throws IOException {
         return clawHubCompatAppService.publishSkill(
                 payloadJson,
                 files,
+                confirmWarnings,
                 principal,
                 request.getRemoteAddr(),
                 request.getHeader("User-Agent")
@@ -153,11 +155,13 @@ public class ClawHubCompatController {
     @PostMapping("/publish")
     public ClawHubPublishResponse publish(@RequestParam("file") MultipartFile file,
                                           @RequestParam("namespace") String namespace,
+                                          @RequestParam(value = "confirmWarnings", defaultValue = "false") boolean confirmWarnings,
                                           @AuthenticationPrincipal PlatformPrincipal principal,
                                           HttpServletRequest request) throws IOException {
         return clawHubCompatAppService.publish(
                 file,
                 namespace,
+                confirmWarnings,
                 principal,
                 request.getRemoteAddr(),
                 request.getHeader("User-Agent")

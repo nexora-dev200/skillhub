@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -36,6 +37,8 @@ import org.springframework.web.multipart.MultipartFile;
  */
 @Service
 public class ClawHubCompatAppService {
+
+    private static final String GLOBAL_NAMESPACE = "global";
 
     private final CanonicalSlugMapper mapper;
     private final SkillSearchAppService skillSearchAppService;
@@ -285,17 +288,19 @@ public class ClawHubCompatAppService {
 
     public ClawHubPublishResponse publishSkill(String payloadJson,
                                                MultipartFile[] files,
+                                               boolean confirmWarnings,
                                                PlatformPrincipal principal,
                                                String clientIp,
                                                String userAgent) throws IOException {
         MultipartPackageExtractor.ExtractedPackage extracted = multipartPackageExtractor.extract(files, payloadJson);
-        String namespace = determineNamespace(principal, extracted.payload());
+        String namespace = determineNamespace(extracted.payload());
         SkillPublishService.PublishResult result = skillPublishService.publishFromEntries(
                 namespace,
                 extracted.entries(),
                 principal.userId(),
                 SkillVisibility.PUBLIC,
-                principal.platformRoles()
+                principal.platformRoles(),
+                confirmWarnings
         );
         recordCompatPublishAudit(principal.userId(), result.version().getId(), clientIp, userAgent,
                 "{\"namespace\":\"" + namespace + "\",\"slug\":\"" + extracted.payload().slug() + "\"}");
@@ -304,6 +309,7 @@ public class ClawHubCompatAppService {
 
     public ClawHubPublishResponse publish(MultipartFile file,
                                           String namespace,
+                                          boolean confirmWarnings,
                                           PlatformPrincipal principal,
                                           String clientIp,
                                           String userAgent) throws IOException {
@@ -312,7 +318,8 @@ public class ClawHubCompatAppService {
                 zipPackageExtractor.extract(file),
                 principal.userId(),
                 SkillVisibility.PUBLIC,
-                principal.platformRoles()
+                principal.platformRoles(),
+                confirmWarnings
         );
         recordCompatPublishAudit(principal.userId(), result.version().getId(), clientIp, userAgent,
                 "{\"namespace\":\"" + namespace + "\"}");
@@ -389,8 +396,28 @@ public class ClawHubCompatAppService {
         );
     }
 
-    private String determineNamespace(PlatformPrincipal principal, MultipartPackageExtractor.PublishPayload payload) {
-        return "global";
+    private String determineNamespace(MultipartPackageExtractor.PublishPayload payload) {
+        if (payload == null) {
+            return GLOBAL_NAMESPACE;
+        }
+
+        if (StringUtils.hasText(payload.namespace())) {
+            return normalizeNamespace(payload.namespace());
+        }
+
+        if (StringUtils.hasText(payload.slug()) && payload.slug().contains("--")) {
+            return mapper.fromCanonical(payload.slug()).namespace();
+        }
+
+        return GLOBAL_NAMESPACE;
+    }
+
+    private String normalizeNamespace(String namespace) {
+        String trimmed = namespace.trim();
+        if (trimmed.startsWith("@")) {
+            return trimmed.substring(1);
+        }
+        return trimmed;
     }
 
     private void recordCompatPublishAudit(String userId,
