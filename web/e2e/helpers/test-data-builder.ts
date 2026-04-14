@@ -34,6 +34,13 @@ interface ReviewTaskSummary {
   version: string
 }
 
+interface NamespaceCandidate {
+  userId: string
+  displayName: string
+  email?: string
+  status: string
+}
+
 interface ApiEnvelope<T> {
   code: number
   msg: string
@@ -44,6 +51,8 @@ interface ApiFailure extends Error {
   status?: number
   code?: number
 }
+
+const cleanupTimeoutMs = process.env.CI ? 8_000 : 5_000
 
 export interface SeedSkillOptions {
   name?: string
@@ -63,6 +72,24 @@ function asApiErrorBody(value: unknown): string {
 function uniqueSuffix(testInfo?: TestInfo): string {
   const worker = testInfo?.parallelIndex ?? 0
   return `${worker}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+}
+
+async function runCleanupTaskWithTimeout(task: CleanupTask): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`cleanup task timed out after ${cleanupTimeoutMs}ms`))
+    }, cleanupTimeoutMs)
+
+    void task()
+      .then(() => {
+        clearTimeout(timeout)
+        resolve()
+      })
+      .catch((error) => {
+        clearTimeout(timeout)
+        reject(error)
+      })
+  })
 }
 
 function buildSkillPackageContent(suffix: string, options?: SeedSkillOptions) {
@@ -166,7 +193,7 @@ export class E2eTestDataBuilder {
   async cleanup(): Promise<void> {
     for (let i = this.cleanupTasks.length - 1; i >= 0; i -= 1) {
       try {
-        await this.cleanupTasks[i]()
+        await runCleanupTaskWithTimeout(this.cleanupTasks[i])
       } catch {
         // Best-effort cleanup for E2E environments.
       }
@@ -230,6 +257,32 @@ export class E2eTestDataBuilder {
     }
     this.ensuredNamespace = writable
     return writable
+  }
+
+  async ensureReviewableNamespace(): Promise<SeededNamespace> {
+    if (this.ensuredNamespace && this.ensuredNamespace.slug !== 'global') {
+      return this.ensuredNamespace
+    }
+
+    try {
+      const created = await this.createNamespace('e2e-team')
+      this.ensuredNamespace = created
+      return created
+    } catch (error) {
+      const failure = error as ApiFailure
+      if (failure.status !== 403) {
+        throw error
+      }
+    }
+
+    const namespaces = await this.listMyNamespaces()
+    const reviewableNamespace = namespaces.find((item) => item.slug !== 'global')
+    if (!reviewableNamespace) {
+      throw new Error('No TEAM namespace available for review E2E data seeding')
+    }
+
+    this.ensuredNamespace = reviewableNamespace
+    return reviewableNamespace
   }
 
   private async getMySkillInNamespace(namespaceSlug: string): Promise<SeededSkill | null> {
@@ -350,6 +403,21 @@ export class E2eTestDataBuilder {
     )
   }
 
+  async searchNamespaceMemberCandidates(slug: string, search: string): Promise<NamespaceCandidate[]> {
+    const query = new URLSearchParams({ search })
+    return parseEnvelope<NamespaceCandidate[]>(
+      await this.request.get(`/api/web/namespaces/${encodeURIComponent(slug)}/member-candidates?${query.toString()}`),
+    )
+  }
+
+  async addNamespaceMember(slug: string, userId: string, role: 'MEMBER' | 'ADMIN' | 'OWNER' = 'MEMBER'): Promise<void> {
+    await parseEnvelope<{ userId: string; role: string }>(
+      await this.request.post(`/api/web/namespaces/${encodeURIComponent(slug)}/members`, {
+        data: { userId, role },
+      }),
+    )
+  }
+
   async publishSkill(namespaceSlug: string, options?: SeedSkillOptions): Promise<SeededSkill> {
     const unique = `${this.suffix}_${Math.random().toString(36).slice(2, 6)}`
     const zipBuffer = buildSkillPackageZipBuffer(unique, options)
@@ -384,7 +452,7 @@ export class E2eTestDataBuilder {
   }
 
   async createReviewData(): Promise<SeededReviewData> {
-    const namespace = await this.ensureWritableNamespace()
+    const namespace = await this.ensureReviewableNamespace()
     const skill = await this.publishSkill(namespace.slug)
     return { namespace, skill }
   }

@@ -1,20 +1,18 @@
 import { expect, test } from '@playwright/test'
 import { setEnglishLocale } from './helpers/auth-fixtures'
-import { registerSession } from './helpers/session'
-import { E2eTestDataBuilder } from './helpers/test-data-builder'
+import { createNamespaceReviewData } from './helpers/review-seed'
 
 test.describe('Namespace Review Detail Access (Real API)', () => {
-  test.beforeEach(async ({ page }, testInfo) => {
+  test.describe.configure({ timeout: 120_000 })
+
+  test.beforeEach(async ({ page }) => {
     await setEnglishLocale(page)
-    await registerSession(page, testInfo)
   })
 
-  test('opens namespace review detail from the namespace review list', async ({ page }, testInfo) => {
-    const builder = new E2eTestDataBuilder(page, testInfo)
-    await builder.init()
-
+  test('opens namespace review detail from the namespace review list', async ({ browser, page }, testInfo) => {
+    let seeded: Awaited<ReturnType<typeof createNamespaceReviewData>> | undefined
     try {
-      const seeded = await builder.createReviewData()
+      seeded = await createNamespaceReviewData(browser, page, testInfo)
 
       await page.goto(`/dashboard/namespaces/${seeded.namespace.slug}/reviews`)
 
@@ -27,47 +25,35 @@ test.describe('Namespace Review Detail Access (Real API)', () => {
       await expect(page.getByRole('heading', { name: 'Review Detail' })).toBeVisible()
       await expect(page.getByText(`${seeded.namespace.slug}/${seeded.skill.slug}`).first()).toBeVisible()
     } finally {
-      await builder.cleanup()
+      await seeded?.cleanup()
     }
   })
 
-  test('redirects /dashboard/reviews to a namespace review page for namespace operators', async ({ page }, testInfo) => {
-    const builder = new E2eTestDataBuilder(page, testInfo)
-    await builder.init()
-
+  test('redirects /dashboard/reviews to a namespace review page for namespace operators', async ({ browser, page }, testInfo) => {
+    let seeded: Awaited<ReturnType<typeof createNamespaceReviewData>> | undefined
     try {
-      await builder.createReviewData()
+      seeded = await createNamespaceReviewData(browser, page, testInfo)
 
       await page.goto('/dashboard/reviews')
 
       await expect(page).toHaveURL(/\/dashboard\/namespaces\/.+\/reviews$/)
       await expect(page.getByRole('heading', { name: 'Namespace Reviews' })).toBeVisible()
     } finally {
-      await builder.cleanup()
+      await seeded?.cleanup()
     }
   })
 
-  test('redirects namespace review detail opened through the global detail route', async ({ page }, testInfo) => {
-    const builder = new E2eTestDataBuilder(page, testInfo)
-    await builder.init()
-
+  test('redirects namespace review detail opened through the global detail route', async ({ browser, page }, testInfo) => {
+    let seeded: Awaited<ReturnType<typeof createNamespaceReviewData>> | undefined
     try {
-      const seeded = await builder.createReviewData()
+      seeded = await createNamespaceReviewData(browser, page, testInfo)
 
-      await page.goto(`/dashboard/namespaces/${seeded.namespace.slug}/reviews`)
-      const reviewLink = page.getByRole('link', { name: 'Open review' }).first()
-      const reviewPath = await reviewLink.getAttribute('href')
-      const reviewId = reviewPath?.match(/\/reviews\/(\d+)$/)?.[1]
-      if (!reviewId) {
-        throw new Error(`Failed to resolve review id from href: ${reviewPath}`)
-      }
+      await page.goto(`/dashboard/reviews/${seeded.reviewTaskId}`)
 
-      await page.goto(`/dashboard/reviews/${reviewId}`)
-
-      await expect(page).toHaveURL(new RegExp(`/dashboard/namespaces/${seeded.namespace.slug}/reviews/${reviewId}$`))
+      await expect(page).toHaveURL(new RegExp(`/dashboard/namespaces/${seeded.namespace.slug}/reviews/${seeded.reviewTaskId}$`))
       await expect(page.getByRole('heading', { name: 'Review Detail' })).toBeVisible()
     } finally {
-      await builder.cleanup()
+      await seeded?.cleanup()
     }
   })
 })
