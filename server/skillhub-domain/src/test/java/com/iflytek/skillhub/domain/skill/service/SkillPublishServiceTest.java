@@ -855,7 +855,8 @@ class SkillPublishServiceTest {
                 "1.2.3",
                 "1.2.4",
                 publisherId,
-                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER)
+                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER),
+                false
         );
 
         assertEquals("1.2.4", result.version().getVersion());
@@ -892,7 +893,8 @@ class SkillPublishServiceTest {
                 "1.2.3",
                 "1.2.4",
                 publisherId,
-                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER)
+                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER),
+                false
         ));
     }
 
@@ -953,7 +955,8 @@ class SkillPublishServiceTest {
                 "1.2.3",
                 "1.2.4",
                 publisherId,
-                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER)
+                Map.of(skill.getNamespaceId(), com.iflytek.skillhub.domain.namespace.NamespaceRole.OWNER),
+                false
         );
 
         assertEquals("1.2.4", result.version().getVersion());
@@ -997,6 +1000,39 @@ class SkillPublishServiceTest {
         assertThrows(DomainBadRequestException.class, () -> service.publishFromEntries(
                 namespaceSlug, entries, publisherId, SkillVisibility.PUBLIC, Set.of()
         ));
+    }
+
+    @Test
+    void testPublishFromEntries_ShouldRejectWithPrivateConflictWhenOtherOwnerHasPrivatePublishedSkill() throws Exception {
+        String namespaceSlug = "test-ns";
+        String publisherId = "user-200";
+        String skillMdContent = "---\nname: test-skill\ndescription: Test\nversion: 1.0.0\n---\nBody";
+
+        PackageEntry skillMd = new PackageEntry("SKILL.md", skillMdContent.getBytes(), skillMdContent.length(), "text/markdown");
+        List<PackageEntry> entries = List.of(skillMd);
+
+        Namespace namespace = new Namespace(namespaceSlug, "Test NS", "user-1");
+        setId(namespace, 1L);
+        NamespaceMember member = mock(NamespaceMember.class);
+        SkillMetadata metadata = new SkillMetadata("test-skill", "Test", "1.0.0", "Body", Map.of());
+
+        Skill existingSkill = new Skill(1L, "test-skill", "user-100", SkillVisibility.PRIVATE);
+        setId(existingSkill, 1L);
+        SkillVersion publishedVersion = new SkillVersion(1L, "0.1.0", "user-100");
+        publishedVersion.setStatus(SkillVersionStatus.PUBLISHED);
+
+        when(namespaceRepository.findBySlug(namespaceSlug)).thenReturn(Optional.of(namespace));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(any(), eq(publisherId))).thenReturn(Optional.of(member));
+        when(skillPackageValidator.validate(entries)).thenReturn(ValidationResult.pass());
+        when(skillMetadataParser.parse(skillMdContent)).thenReturn(metadata);
+        when(prePublishValidator.validate(any())).thenReturn(ValidationResult.pass());
+        when(skillRepository.findByNamespaceIdAndSlug(any(), eq("test-skill"))).thenReturn(List.of(existingSkill));
+        when(skillVersionRepository.findBySkillIdAndStatus(1L, SkillVersionStatus.PUBLISHED)).thenReturn(List.of(publishedVersion));
+
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () -> service.publishFromEntries(
+                namespaceSlug, entries, publisherId, SkillVisibility.PRIVATE, Set.of()
+        ));
+        assertEquals("error.skill.publish.nameConflict.private", ex.messageCode());
     }
 
     @Test

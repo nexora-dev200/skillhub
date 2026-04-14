@@ -212,7 +212,8 @@ class SkillLifecycleControllerTest {
                 eq("1.2.3"),
                 eq("1.2.4"),
                 eq("usr_1"),
-                anyMap()))
+                anyMap(),
+                eq(false)))
                 .willReturn(new SkillPublishService.PublishResult(1L, "demo-skill", newVersion));
 
         mockMvc.perform(post("/api/web/skills/global/demo-skill/versions/1.2.3/rerelease")
@@ -279,7 +280,8 @@ class SkillLifecycleControllerTest {
                 eq("1.2.3"),
                 eq("1.2.4"),
                 eq("usr_1"),
-                anyMap()))
+                anyMap(),
+                eq(false)))
                 .willReturn(new SkillPublishService.PublishResult(1L, "demo-skill", newVersion));
 
         mockMvc.perform(post("/api/web/skills/global/demo-skill/versions/1.2.3/rerelease")
@@ -299,7 +301,8 @@ class SkillLifecycleControllerTest {
                 eq("1.2.3"),
                 eq("1.2.4"),
                 eq("usr_1"),
-                anyMap());
+                anyMap(),
+                eq(false));
     }
 
     private Skill skillWithStatus(Skill skill, com.iflytek.skillhub.domain.skill.SkillStatus status) {

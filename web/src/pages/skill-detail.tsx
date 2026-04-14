@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowUpCircle, ChevronDown, ChevronUp, Clock, Folder, RefreshCw, ShieldCheck, Terminal, User } from 'lucide-react'
+import { ArrowLeft, ArrowUpCircle, ChevronDown, ChevronUp, Clock, Folder, Globe, Lock, RefreshCw, ShieldCheck, Terminal, User, Users } from 'lucide-react'
 import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
 import { FileTree } from '@/features/skill/file-tree'
 import { FilePreviewDialog } from '@/features/skill/file-preview-dialog'
@@ -10,12 +10,14 @@ import type { FileTreeNode } from '@/features/skill/file-tree-builder'
 import { InstallCommand } from '@/features/skill/install-command'
 import { ShareButton } from '@/features/skill/share-button'
 import { SkillLabelPanel } from '@/features/skill/skill-label-panel'
+import { VersionStatusBadge, getVersionRowStyle } from '@/features/skill/version-status-badge'
 import {
   getOverviewCollapseMaxHeight,
   OVERVIEW_COLLAPSE_DESKTOP_MAX_HEIGHT,
   shouldCollapseOverview,
 } from '@/features/skill/overview-collapse'
 import { resolveSkillActionErrorTitle } from '@/features/skill/skill-action-error'
+import { isPrecheckConfirmationMessage, extractPrecheckWarnings } from '@/features/publish/publish-error-utils'
 import { clearDeletedSkillQueries, isDeleteSlugConfirmationValid, resolveDeletedSkillReturnTo } from '@/features/skill/skill-delete-flow'
 import { isSkillDetailQueriesEnabled } from './skill-detail-query'
 import { RatingInput } from '@/features/social/rating-input'
@@ -116,6 +118,8 @@ export function SkillDetailPage() {
   const [withdrawVersionTarget, setWithdrawVersionTarget] = useState<string | null>(null)
   const [rereleaseTarget, setRereleaseTarget] = useState<string | null>(null)
   const [targetVersionInput, setTargetVersionInput] = useState('')
+  const [rereleaseWarnings, setRereleaseWarnings] = useState<string[]>([])
+  const [rereleaseWarningDialogOpen, setRereleaseWarningDialogOpen] = useState(false)
   const [diffSourceVersion, setDiffSourceVersion] = useState<string | null>(null)
   const [confirmPublishTarget, setConfirmPublishTarget] = useState<string | null>(null)
   const [submitReviewTarget, setSubmitReviewTarget] = useState<string | null>(null)
@@ -381,19 +385,6 @@ export function SkillDetailPage() {
     return status ?? ''
   }
 
-  const resolveVersionStatusLabel = (status?: string) => {
-    const map: Record<string, string> = {
-      DRAFT: t('skillDetail.versionStatusDraft'),
-      SCANNING: t('skillDetail.versionStatusScanning'),
-      SCAN_FAILED: t('skillDetail.versionStatusScanFailed'),
-      UPLOADED: t('skillDetail.versionStatusUploaded'),
-      PENDING_REVIEW: t('skillDetail.versionStatusPendingReview'),
-      PUBLISHED: t('skillDetail.versionStatusPublished'),
-      REJECTED: t('skillDetail.versionStatusRejected'),
-      YANKED: t('skillDetail.versionStatusYanked'),
-    }
-    return status ? (map[status] ?? status) : ''
-  }
 
   const canDeleteVersion = (status?: string) => status === 'DRAFT' || status === 'REJECTED' || status === 'SCAN_FAILED' || status === 'UPLOADED'
   const isLastVersion = versions?.length === 1
@@ -575,7 +566,7 @@ export function SkillDetailPage() {
     setTargetVersionInput(suggestNextVersion(version))
   }
 
-  const handleRereleaseVersion = async () => {
+  const handleRereleaseVersion = async (confirmWarnings = false) => {
     if (!rereleaseTarget || !targetVersionInput.trim()) {
       return
     }
@@ -585,6 +576,7 @@ export function SkillDetailPage() {
         slug,
         version: rereleaseTarget,
         targetVersion: targetVersionInput.trim(),
+        confirmWarnings,
       })
       toast.success(
         t('skillDetail.rereleaseSuccessTitle'),
@@ -592,7 +584,15 @@ export function SkillDetailPage() {
       )
       setRereleaseTarget(null)
       setTargetVersionInput('')
+      setRereleaseWarnings([])
+      setRereleaseWarningDialogOpen(false)
     } catch (error) {
+      if (error instanceof ApiError && isPrecheckConfirmationMessage(error.serverMessage)) {
+        const warnings = extractPrecheckWarnings(error.serverMessage)
+        setRereleaseWarnings(warnings)
+        setRereleaseWarningDialogOpen(true)
+        return
+      }
       toast.error(t('skillDetail.rereleaseErrorTitle'), error instanceof Error ? error.message : '')
       throw error
     }
@@ -710,8 +710,29 @@ export function SkillDetailPage() {
           <div className="flex items-center gap-3 mb-1">
             <NamespaceBadge type="GLOBAL" name={namespace} />
             {skill.status && (
-              <span className="badge-soft badge-soft-blue">
+              <span className={cn(
+                'badge-soft',
+                skill.status === 'ACTIVE' && 'badge-soft-green',
+                skill.status === 'ARCHIVED' && 'bg-secondary text-muted-foreground',
+                skill.status === 'HIDDEN' && 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+                !['ACTIVE', 'ARCHIVED', 'HIDDEN'].includes(skill.status) && 'badge-soft-blue',
+              )}>
                 {resolveSkillStatusLabel(skill.status)}
+              </span>
+            )}
+            {skill.visibility && (
+              <span className={cn(
+                'badge-soft inline-flex items-center gap-1',
+                skill.visibility === 'PUBLIC' && 'badge-soft-green',
+                skill.visibility === 'PRIVATE' && 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                skill.visibility === 'NAMESPACE_ONLY' && 'badge-soft-blue',
+              )}>
+                {skill.visibility === 'PUBLIC' && <Globe className="h-3 w-3" />}
+                {skill.visibility === 'PRIVATE' && <Lock className="h-3 w-3" />}
+                {skill.visibility === 'NAMESPACE_ONLY' && <Users className="h-3 w-3" />}
+                {skill.visibility === 'PUBLIC' && t('publish.visibilityOptions.public')}
+                {skill.visibility === 'PRIVATE' && t('publish.visibilityOptions.private')}
+                {skill.visibility === 'NAMESPACE_ONLY' && t('publish.visibilityOptions.namespaceOnly')}
               </span>
             )}
             {isReviewFlowPending && (
@@ -862,21 +883,19 @@ export function SkillDetailPage() {
           </TabsContent>
 
           <TabsContent value="versions" className="mt-6">
-            <Card className="p-6">
               {versions && versions.length > 0 ? (
-                <div className="space-y-0 divide-y divide-border/40">
+                <div className="space-y-3">
                   {versions.map((version) => (
-                    <div key={version.id} className="py-5 first:pt-0 last:pb-0">
+                    <div key={version.id} className={cn(
+                      'rounded-lg border border-border/60 bg-card p-4',
+                      getVersionRowStyle(version.status),
+                    )}>
                       <div className="flex items-start justify-between gap-4 mb-2">
                         <span className="font-semibold font-heading text-foreground flex items-center gap-2 flex-wrap min-w-0">
                           <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-sm font-mono">
                             v{version.version}
                           </span>
-                          {version.status && (
-                            <span className="rounded-full border border-border/60 bg-secondary/40 px-2.5 py-0.5 text-xs text-muted-foreground">
-                              {resolveVersionStatusLabel(version.status)}
-                            </span>
-                          )}
+                          <VersionStatusBadge status={version.status} />
                           {headlineVersion?.version === version.version && (
                             <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs text-primary-foreground">
                               {t(hasPublishedPendingReview && publishedVersion?.version === version.version
@@ -928,7 +947,6 @@ export function SkillDetailPage() {
                           {skill.canManageLifecycle && version.status === 'UPLOADED' && skill.visibility === 'PRIVATE' && (
                             <Button
                               size="sm"
-                              variant="outline"
                               onClick={() => setConfirmPublishTarget(version.version)}
                             >
                               {t('skillDetail.confirmPublish')}
@@ -957,9 +975,8 @@ export function SkillDetailPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-muted-foreground text-center py-8">{t('skillDetail.noVersions')}</div>
+                <Card className="p-8 text-muted-foreground text-center">{t('skillDetail.noVersions')}</Card>
               )}
-            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -1396,6 +1413,8 @@ export function SkillDetailPage() {
           if (!open) {
             setRereleaseTarget(null)
             setTargetVersionInput('')
+            setRereleaseWarnings([])
+            setRereleaseWarningDialogOpen(false)
           }
         }}
       >
@@ -1422,12 +1441,33 @@ export function SkillDetailPage() {
             <Button variant="outline" onClick={() => setRereleaseTarget(null)}>
               {t('dialog.cancel')}
             </Button>
-            <Button onClick={handleRereleaseVersion} disabled={rereleaseVersionMutation.isPending || !targetVersionInput.trim()}>
+            <Button onClick={() => handleRereleaseVersion()} disabled={rereleaseVersionMutation.isPending || !targetVersionInput.trim()}>
               {rereleaseVersionMutation.isPending ? t('skillDetail.processing') : t('skillDetail.rereleaseVersion')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={rereleaseWarningDialogOpen}
+        onOpenChange={setRereleaseWarningDialogOpen}
+        title={t('skillDetail.rereleaseWarningTitle')}
+        description={
+          <div className="space-y-2">
+            <p>{t('skillDetail.rereleaseWarningDescription')}</p>
+            <ul className="list-disc space-y-1 pl-5 text-sm">
+              {rereleaseWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        }
+        confirmText={t('skillDetail.rereleaseWarningConfirm')}
+        onConfirm={() => {
+          setRereleaseWarningDialogOpen(false)
+          handleRereleaseVersion(true)
+        }}
+      />
 
       <ConfirmDialog
         open={!!confirmPublishTarget}
