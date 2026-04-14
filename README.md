@@ -95,7 +95,7 @@ The `--public-url` parameter sets the public access URL for your SkillHub instan
 **For users in China (Aliyun mirror):**
 
 ```bash
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 If deployment runs into problems, clear the existing runtime home and retry.
@@ -195,7 +195,7 @@ Published images target both `linux/amd64` and `linux/arm64`.
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --public-url https://skillhub.your-company.com
 
 # Aliyun mirror (recommended for users in China)
-curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up -- --aliyun --public-url https://skillhub.your-company.com --version latest
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
 ```
 
 **Deployment parameters:**
@@ -397,9 +397,15 @@ npx clawhub search email
 npx clawhub install my-skill
 npx clawhub install my-namespace--my-skill
 
-# Publish a skill
-npx clawhub publish ./my-skill
+# Publish to global namespace
+npx clawhub publish ./my-skill --slug my-skill --version 1.0.0
+
+# Publish to a team namespace such as my-space
+npx clawhub publish ./my-skill --slug my-space--my-skill --version 1.0.0
 ```
+
+`my-space--my-skill` is the canonical compat slug. SkillHub parses it as
+namespace `my-space` plus skill slug `my-skill`.
 
 > 💡 **Tip**: The above commands are not only applicable to OpenClaw, but also to other CLI Coding Agents or Agent assistants by specifying the installation directory (`--dir`). For example: `npx clawhub --dir ~/.claude/skills install my-skill`
 
