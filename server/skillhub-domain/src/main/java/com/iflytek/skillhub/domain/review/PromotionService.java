@@ -198,9 +198,8 @@ public class PromotionService {
         if (updated == 0) {
             throw new ConcurrentModificationException("Promotion request was modified concurrently");
         }
-        syncPromotionRequestState(request, ReviewTaskStatus.APPROVED, reviewerId, comment);
-        entityManager.detach(request);
-        PromotionRequest approvedRequest = request;
+        PromotionRequest approvedRequest = promotionRequestRepository.findById(promotionId)
+                .orElseThrow(() -> new DomainNotFoundException("promotion.not_found", promotionId));
 
         Skill sourceSkill = skillRepository.findById(approvedRequest.getSourceSkillId())
                 .orElseThrow(() -> new DomainNotFoundException("skill.not_found", approvedRequest.getSourceSkillId()));
