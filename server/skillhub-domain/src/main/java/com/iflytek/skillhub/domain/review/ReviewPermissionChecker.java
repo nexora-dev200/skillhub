@@ -107,7 +107,7 @@ public class ReviewPermissionChecker {
             String userId,
             Set<String> platformRoles) {
         if (request.getSubmittedBy().equals(userId)) {
-            return false;
+            return platformRoles.contains("SUPER_ADMIN");
         }
         return hasPlatformReviewRole(platformRoles);
     }

@@ -198,4 +198,12 @@ class ReviewPermissionCheckerTest {
         assertFalse(checker.canReviewPromotion(req, userId,
                 Set.of("SKILL_ADMIN")));
     }
+
+    @Test
+    void superAdminCanReviewOwnPromotion() {
+        String userId = "user-2";
+        PromotionRequest req = new PromotionRequest(1L, 1L, 1L, userId);
+        assertTrue(checker.canReviewPromotion(req, userId,
+                Set.of("SUPER_ADMIN")));
+    }
 }
