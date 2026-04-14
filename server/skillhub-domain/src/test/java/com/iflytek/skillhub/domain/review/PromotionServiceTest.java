@@ -19,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -509,6 +510,28 @@ class PromotionServiceTest {
 
             assertThrows(ConcurrentModificationException.class,
                     () -> promotionService.approvePromotion(PROMOTION_ID, REVIEWER_ID, "ok", Set.of("SKILL_ADMIN")));
+        }
+
+        @Test
+        void shouldTranslateDuplicateTargetSkillIntoBadRequest() {
+            PromotionRequest pr = createPendingPromotion();
+            Skill sourceSkill = createSourceSkill();
+            SkillVersion sourceVersion = createPublishedVersion();
+
+            when(promotionRequestRepository.findById(PROMOTION_ID)).thenReturn(Optional.of(pr));
+            when(permissionChecker.canReviewPromotion(pr, REVIEWER_ID, Set.of("SKILL_ADMIN"))).thenReturn(true);
+            when(promotionRequestRepository.updateStatusWithVersion(
+                    PROMOTION_ID, ReviewTaskStatus.APPROVED, REVIEWER_ID, "ok", null, pr.getVersion()))
+                    .thenReturn(1);
+            when(skillRepository.findById(SOURCE_SKILL_ID)).thenReturn(Optional.of(sourceSkill));
+            when(skillVersionRepository.findById(SOURCE_VERSION_ID)).thenReturn(Optional.of(sourceVersion));
+            when(skillRepository.save(any(Skill.class)))
+                    .thenThrow(new DataIntegrityViolationException("duplicate key value violates unique constraint"));
+
+            DomainBadRequestException ex = assertThrows(DomainBadRequestException.class,
+                    () -> promotionService.approvePromotion(PROMOTION_ID, REVIEWER_ID, "ok", Set.of("SKILL_ADMIN")));
+
+            assertEquals("promotion.target_skill_conflict", ex.messageCode());
         }
 
         @Test
