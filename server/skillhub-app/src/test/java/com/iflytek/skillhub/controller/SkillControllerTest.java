@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.any;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -148,7 +149,8 @@ class SkillControllerTest {
                 eq("team"),
                 eq("demo"),
                 eq((String) null),
-                eq(Map.<Long, NamespaceRole>of())))
+                eq(Map.<Long, NamespaceRole>of()),
+                org.mockito.ArgumentMatchers.<java.util.Set<String>>any()))
                 .thenReturn(new SkillQueryService.SkillDetailDTO(
                         1L,
                         "demo",
@@ -195,7 +197,8 @@ class SkillControllerTest {
                 eq("team"),
                 eq("demo"),
                 eq((String) null),
-                eq(Map.<Long, NamespaceRole>of())))
+                eq(Map.<Long, NamespaceRole>of()),
+                org.mockito.ArgumentMatchers.<java.util.Set<String>>any()))
                 .thenThrow(new DomainForbiddenException("error.namespace.archived", "team"));
 
         mockMvc.perform(get("/api/web/skills/team/demo"))

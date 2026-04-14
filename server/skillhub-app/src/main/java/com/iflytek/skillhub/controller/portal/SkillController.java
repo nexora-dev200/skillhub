@@ -70,10 +70,12 @@ public class SkillController extends BaseApiController {
             @PathVariable String namespace,
             @PathVariable String slug,
             @RequestAttribute(value = "userId", required = false) String userId,
-            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles) {
+            @RequestAttribute(value = "userNsRoles", required = false) Map<Long, NamespaceRole> userNsRoles,
+            @RequestAttribute(value = "platformRoles", required = false) java.util.Set<String> platformRoles) {
 
         SkillQueryService.SkillDetailDTO detail = skillQueryService.getSkillDetail(
-                namespace, slug, userId, userNsRoles != null ? userNsRoles : Map.of());
+                namespace, slug, userId, userNsRoles != null ? userNsRoles : Map.of(),
+                platformRoles != null ? platformRoles : java.util.Set.<String>of());
 
         SkillDetailResponse response = new SkillDetailResponse(
                 detail.id(),

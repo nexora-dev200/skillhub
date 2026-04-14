@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -149,12 +150,28 @@ public class SkillQueryService {
             String skillSlug,
             String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
+        return getSkillDetail(namespaceSlug, skillSlug, currentUserId, userNsRoles, Set.of());
+    }
+
+    public SkillDetailDTO getSkillDetail(
+            String namespaceSlug,
+            String skillSlug,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles,
+            Set<String> platformRoles) {
 
         Namespace namespace = findNamespace(namespaceSlug);
         Skill skill = resolveVisibleSkill(namespace.getId(), skillSlug, currentUserId);
 
+        // Archived namespace: only members (or super admins) may view
+        if (namespace.getStatus() == com.iflytek.skillhub.domain.namespace.NamespaceStatus.ARCHIVED
+                && !isNamespaceMember(namespace.getId(), currentUserId, userNsRoles)
+                && !isSuperAdmin(platformRoles)) {
+            throw new DomainForbiddenException("error.namespace.archived", namespaceSlug);
+        }
+
         // Visibility check
-        if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
+        if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles, platformRoles)) {
             throw new DomainForbiddenException("error.skill.access.denied", skillSlug);
         }
 
@@ -186,7 +203,7 @@ public class SkillQueryService {
                 skill.getNamespaceId(),
                 skill.getCreatedAt(),
                 skill.getUpdatedAt(),
-                canManageRestrictedSkill(skill, currentUserId, userNsRoles),
+                canManageRestrictedSkill(skill, currentUserId, userNsRoles, platformRoles),
                 canSubmitPromotion(namespace, skill, publishedVersion, currentUserId, userNsRoles),
                 headlineVersion == null || "PUBLISHED".equals(headlineVersion.status()),
                 currentUserId == null || !Objects.equals(skill.getOwnerId(), currentUserId),
@@ -630,6 +647,13 @@ public class SkillQueryService {
     }
 
     private boolean canManageRestrictedSkill(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
+        return canManageRestrictedSkill(skill, currentUserId, userNsRoles, Set.of());
+    }
+
+    private boolean canManageRestrictedSkill(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNsRoles, Set<String> platformRoles) {
+        if (platformRoles != null && platformRoles.contains("SUPER_ADMIN")) {
+            return true;
+        }
         if (currentUserId == null) {
             return false;
         }
@@ -669,6 +693,10 @@ public class SkillQueryService {
 
     private boolean isNamespaceMember(Long namespaceId, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
         return currentUserId != null && userNsRoles.containsKey(namespaceId);
+    }
+
+    private boolean isSuperAdmin(Set<String> platformRoles) {
+        return platformRoles != null && platformRoles.contains("SUPER_ADMIN");
     }
 
     private String resolveOwnerPreviewReviewComment(SkillLifecycleProjectionService.VersionProjection ownerPreviewVersion) {
