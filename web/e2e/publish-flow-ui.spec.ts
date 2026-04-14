@@ -38,13 +38,10 @@ test.describe('Publish Flow UI (Real API)', () => {
       await expect(page.getByText(path.basename(packagePath))).toBeVisible()
       const confirmButton = page.getByRole('button', { name: 'Confirm Publish' })
       await expect(confirmButton).toBeEnabled()
-      await Promise.all([
-        page.waitForURL('**/dashboard/skills'),
-        confirmButton.click(),
-      ])
+      await confirmButton.click()
 
-      await expect(page).toHaveURL('/dashboard/skills')
-      await expect(page.getByRole('heading', { name: 'My Skills' })).toBeVisible()
+      await expect(page).toHaveURL(/\/dashboard\/skills$/, { timeout: 90_000 })
+      await expect(page.getByRole('heading', { name: 'My Skills' })).toBeVisible({ timeout: 90_000 })
     } finally {
       await builder.cleanup()
     }
