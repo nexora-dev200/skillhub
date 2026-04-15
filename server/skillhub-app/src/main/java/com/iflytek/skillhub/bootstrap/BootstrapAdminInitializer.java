@@ -73,19 +73,23 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
             return;
         }
 
-        // 1. Create admin user account
+        // 1. Create admin user account. When the credential already belongs to the
+        // configured bootstrap user, only backfill role/membership and preserve
+        // any existing profile fields managed elsewhere.
         UserAccount admin = userAccountRepository.findById(bootstrapAdminProperties.getUserId())
-                .orElseGet(() -> userAccountRepository.save(
-                        new UserAccount(
-                                bootstrapAdminProperties.getUserId(),
-                                bootstrapAdminProperties.getDisplayName(),
-                                bootstrapAdminProperties.getEmail(),
-                                null
-                        )
-                ));
-        admin.setDisplayName(bootstrapAdminProperties.getDisplayName());
-        admin.setEmail(bootstrapAdminProperties.getEmail());
-        admin = userAccountRepository.save(admin);
+                .orElse(null);
+        if (admin == null) {
+            admin = userAccountRepository.save(new UserAccount(
+                    bootstrapAdminProperties.getUserId(),
+                    bootstrapAdminProperties.getDisplayName(),
+                    bootstrapAdminProperties.getEmail(),
+                    null
+            ));
+        } else if (existingCredential == null) {
+            admin.setDisplayName(bootstrapAdminProperties.getDisplayName());
+            admin.setEmail(bootstrapAdminProperties.getEmail());
+            admin = userAccountRepository.save(admin);
+        }
 
         // 2. Create local credential (username/password)
         if (existingCredential == null) {
