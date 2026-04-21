@@ -46,8 +46,12 @@ public class S3StorageService implements ObjectStorageService {
                 .connectionAcquisitionTimeout(properties.getConnectionAcquisitionTimeout());
         this.s3Client = buildS3Client(httpClientBuilder);
         this.s3Presigner = buildPresigner();
-        log.info("Initialized S3 storage client for bucket '{}' (bucket verification is deferred until first storage access)",
-                properties.getBucket());
+        if (properties.isAutoCreateBucket()) {
+            log.info("Initialized S3 storage client for bucket '{}' (bucket auto-creation is deferred until first write)",
+                    properties.getBucket());
+        } else {
+            log.info("Initialized S3 storage client for bucket '{}'", properties.getBucket());
+        }
     }
 
     protected S3Client buildS3Client(ApacheHttpClient.Builder httpClientBuilder) {
@@ -92,19 +96,40 @@ public class S3StorageService implements ObjectStorageService {
                 return;
             }
             try {
-                s3Client.headBucket(HeadBucketRequest.builder().bucket(properties.getBucket()).build());
-            } catch (NoSuchBucketException e) {
                 log.info("Bucket '{}' does not exist, creating...", properties.getBucket());
                 s3Client.createBucket(CreateBucketRequest.builder().bucket(properties.getBucket()).build());
+            } catch (BucketAlreadyExistsException | BucketAlreadyOwnedByYouException e) {
+                log.debug("Bucket '{}' was created concurrently, continuing", properties.getBucket());
             }
             bucketPrepared = true;
         }
     }
 
+    private void putObjectInternal(String key, InputStream data, long size, String contentType) {
+        s3Client.putObject(
+                PutObjectRequest.builder()
+                        .bucket(properties.getBucket())
+                        .key(key)
+                        .contentType(contentType)
+                        .contentLength(size)
+                        .build(),
+                RequestBody.fromInputStream(data, size));
+    }
+
     @Override public void putObject(String key, InputStream data, long size, String contentType) {
         try {
-            ensureBucketPrepared();
-            s3Client.putObject(PutObjectRequest.builder().bucket(properties.getBucket()).key(key).contentType(contentType).contentLength(size).build(), RequestBody.fromInputStream(data, size));
+            if (!properties.isAutoCreateBucket() || bucketPrepared) {
+                putObjectInternal(key, data, size, contentType);
+                return;
+            }
+
+            try {
+                putObjectInternal(key, data, size, contentType);
+                bucketPrepared = true;
+            } catch (NoSuchBucketException e) {
+                ensureBucketPrepared();
+                putObjectInternal(key, data, size, contentType);
+            }
         } catch (RuntimeException e) {
             throw new StorageAccessException("putObject", key, e);
         }
@@ -112,7 +137,6 @@ public class S3StorageService implements ObjectStorageService {
 
     @Override public InputStream getObject(String key) {
         try {
-            ensureBucketPrepared();
             return s3Client.getObject(GetObjectRequest.builder().bucket(properties.getBucket()).key(key).build());
         } catch (RuntimeException e) {
             throw new StorageAccessException("getObject", key, e);
@@ -121,7 +145,6 @@ public class S3StorageService implements ObjectStorageService {
 
     @Override public void deleteObject(String key) {
         try {
-            ensureBucketPrepared();
             s3Client.deleteObject(DeleteObjectRequest.builder().bucket(properties.getBucket()).key(key).build());
         } catch (RuntimeException e) {
             throw new StorageAccessException("deleteObject", key, e);
@@ -131,7 +154,6 @@ public class S3StorageService implements ObjectStorageService {
     @Override public void deleteObjects(List<String> keys) {
         if (keys.isEmpty()) return;
         try {
-            ensureBucketPrepared();
             List<ObjectIdentifier> ids = keys.stream().map(k -> ObjectIdentifier.builder().key(k).build()).toList();
             s3Client.deleteObjects(DeleteObjectsRequest.builder().bucket(properties.getBucket()).delete(Delete.builder().objects(ids).build()).build());
         } catch (RuntimeException e) {
@@ -141,7 +163,6 @@ public class S3StorageService implements ObjectStorageService {
 
     @Override public boolean exists(String key) {
         try {
-            ensureBucketPrepared();
             s3Client.headObject(HeadObjectRequest.builder().bucket(properties.getBucket()).key(key).build());
             return true;
         }
@@ -151,7 +172,6 @@ public class S3StorageService implements ObjectStorageService {
 
     @Override public ObjectMetadata getMetadata(String key) {
         try {
-            ensureBucketPrepared();
             HeadObjectResponse resp = s3Client.headObject(HeadObjectRequest.builder().bucket(properties.getBucket()).key(key).build());
             return new ObjectMetadata(resp.contentLength(), resp.contentType(), resp.lastModified());
         } catch (RuntimeException e) {
