@@ -16,9 +16,12 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -115,9 +118,16 @@ class S3StorageServiceTest {
     void putObjectShouldCreateBucketAndRetryWhenMissing() {
         S3Client client = mock(S3Client.class);
         S3Presigner presigner = mock(S3Presigner.class);
+        List<String> uploadedBodies = new ArrayList<>();
         when(client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
-                .thenThrow(NoSuchBucketException.builder().message("missing").build())
-                .thenReturn(PutObjectResponse.builder().eTag("etag").build());
+                .thenAnswer(invocation -> {
+                    uploadedBodies.add(readBody(invocation.getArgument(1)));
+                    throw NoSuchBucketException.builder().message("missing").build();
+                })
+                .thenAnswer(invocation -> {
+                    uploadedBodies.add(readBody(invocation.getArgument(1)));
+                    return PutObjectResponse.builder().eTag("etag").build();
+                });
         when(client.createBucket(any(CreateBucketRequest.class)))
                 .thenReturn(CreateBucketResponse.builder().build());
         TestableS3StorageService service = new TestableS3StorageService(properties(true), client, presigner);
@@ -129,6 +139,7 @@ class S3StorageServiceTest {
         verify(client, never()).headBucket(any(HeadBucketRequest.class));
         verify(client, times(1)).createBucket(any(CreateBucketRequest.class));
         verify(client, times(2)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+        assertThat(uploadedBodies).containsExactly("hello", "hello");
     }
 
     @Test
@@ -177,6 +188,12 @@ class S3StorageServiceTest {
         properties.setBucket("skillhub");
         properties.setAutoCreateBucket(autoCreateBucket);
         return properties;
+    }
+
+    private String readBody(RequestBody body) throws Exception {
+        try (InputStream inputStream = body.contentStreamProvider().newStream()) {
+            return new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private URI presignGetObjectUrl(boolean forcePathStyle) {

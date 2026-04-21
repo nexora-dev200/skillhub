@@ -18,8 +18,12 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 import java.io.InputStream;
+import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.List;
 
@@ -106,6 +110,10 @@ public class S3StorageService implements ObjectStorageService {
     }
 
     private void putObjectInternal(String key, InputStream data, long size, String contentType) {
+        putObjectInternal(key, RequestBody.fromInputStream(data, size), size, contentType);
+    }
+
+    private void putObjectInternal(String key, RequestBody requestBody, long size, String contentType) {
         s3Client.putObject(
                 PutObjectRequest.builder()
                         .bucket(properties.getBucket())
@@ -113,25 +121,53 @@ public class S3StorageService implements ObjectStorageService {
                         .contentType(contentType)
                         .contentLength(size)
                         .build(),
-                RequestBody.fromInputStream(data, size));
+                requestBody);
+    }
+
+    private Path stagePutObjectBody(InputStream data) throws IOException {
+        Path stagedBody = Files.createTempFile("skillhub-s3-upload-", ".tmp");
+        try {
+            Files.copy(data, stagedBody, StandardCopyOption.REPLACE_EXISTING);
+            return stagedBody;
+        } catch (IOException e) {
+            Files.deleteIfExists(stagedBody);
+            throw e;
+        }
+    }
+
+    private void deleteStagedBody(Path stagedBody) {
+        if (stagedBody == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(stagedBody);
+        } catch (IOException e) {
+            log.warn("Failed to clean up staged S3 upload body {}", stagedBody, e);
+        }
     }
 
     @Override public void putObject(String key, InputStream data, long size, String contentType) {
+        Path stagedBody = null;
         try {
             if (!properties.isAutoCreateBucket() || bucketPrepared) {
                 putObjectInternal(key, data, size, contentType);
                 return;
             }
 
+            stagedBody = stagePutObjectBody(data);
             try {
-                putObjectInternal(key, data, size, contentType);
+                putObjectInternal(key, RequestBody.fromFile(stagedBody), size, contentType);
                 bucketPrepared = true;
             } catch (NoSuchBucketException e) {
                 ensureBucketPrepared();
-                putObjectInternal(key, data, size, contentType);
+                putObjectInternal(key, RequestBody.fromFile(stagedBody), size, contentType);
             }
+        } catch (IOException e) {
+            throw new StorageAccessException("putObject", key, e);
         } catch (RuntimeException e) {
             throw new StorageAccessException("putObject", key, e);
+        } finally {
+            deleteStagedBody(stagedBody);
         }
     }
 
