@@ -151,6 +151,8 @@ public class NamespacePortalCommandAppService {
         return MemberResponse.from(member, user);
     }
 
+    // Intentionally not @Transactional: each addMember runs in its own transaction
+    // so partial success is possible (some members added even if others fail).
     public BatchMemberResponse batchAddMembers(String slug, List<MemberRequest> members, String operatorUserId) {
         Namespace namespace = namespaceService.getNamespaceBySlug(slug);
         Long namespaceId = namespace.getId();
