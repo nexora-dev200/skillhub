@@ -102,6 +102,7 @@ class ClawHubCompatControllerTest {
                                 "my-skill",
                                 "My Skill",
                                 "test summary",
+                                "PUBLIC",
                                 "ACTIVE",
                                 10L,
                                 5,
