@@ -3719,6 +3719,7 @@ export interface components {
             slug?: string;
             displayName?: string;
             summary?: string;
+            visibility?: string;
             status?: string;
             /** Format: int64 */
             downloadCount?: number;
