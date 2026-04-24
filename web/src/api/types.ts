@@ -145,6 +145,7 @@ export interface SkillSummary {
   slug: string
   displayName: string
   summary?: string
+  visibility?: string
   status?: string
   downloadCount: number
   starCount: number
