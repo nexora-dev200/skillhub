@@ -326,7 +326,8 @@
     "reportsTitle": "举报管理",
     "viewReports": "查看技能举报",
     "previewMore": "...",
-    "previewMoreLabel": "查看全部"
+    "previewMoreLabel": "查看全部",
+    "userId": "用户 ID"
   },
   "mySkills": {
     "title": "我的技能",
@@ -699,7 +700,8 @@
     "reviewHint": "部分修改需要管理员审核后生效。",
     "partiallyAppliedTitle": "部分已生效",
     "partiallyAppliedDescription": "部分修改已立即生效，其余修改正在等待管理员审核。",
-    "noChanges": "没有需要保存的修改。"
+    "noChanges": "没有需要保存的修改。",
+    "userId": "用户 ID"
   },
   "security": {
     "title": "安全设置",
