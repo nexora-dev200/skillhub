@@ -36,17 +36,39 @@ test.describe('Namespace Skill List Pagination (Real API)', () => {
 
     try {
       const namespace = await builder.ensureWritableNamespace()
-      await builder.publishSkill(namespace.slug)
 
-      // Intercept the search API to inflate `total` so the pagination component renders.
-      // This avoids publishing 21 real skills which triggers 429 rate limits in CI.
-      await page.route('**/api/web/skills?**', async (route) => {
-        const response = await route.fetch()
-        const body = await response.json()
-        if (body.data) {
-          body.data.total = 21
-        }
-        await route.fulfill({ response, json: body })
+      // Build a fake skill list to simulate >20 skills without hitting rate limits.
+      const fakeSkill = (i: number) => ({
+        id: 90000 + i,
+        namespace: namespace.slug,
+        slug: `fake-skill-${i}`,
+        displayName: `Fake Skill ${i}`,
+        summary: `Pagination test skill ${i}`,
+        downloadCount: 0,
+        starCount: 0,
+        ratingAvg: 0,
+        ratingCount: 0,
+        versions: [{ id: 90000 + i, version: '1.0.0', status: 'PUBLISHED' }],
+      })
+
+      // Intercept the search API with a regex (glob '?' is ambiguous for literal '?').
+      // Return fully mocked responses to avoid needing real published skills.
+      await page.route(/\/api\/web\/skills\?/, async (route) => {
+        const url = new URL(route.request().url())
+        const reqPage = Number(url.searchParams.get('page') ?? '0')
+        const items = reqPage === 0
+          ? Array.from({ length: 20 }, (_, i) => fakeSkill(i))
+          : [fakeSkill(20)]
+
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 0,
+            msg: 'success',
+            data: { items, total: 21, page: reqPage, size: 20 },
+          }),
+        })
       })
 
       await page.goto(`/space/${namespace.slug}`)
