@@ -36,14 +36,18 @@ test.describe('Namespace Skill List Pagination (Real API)', () => {
 
     try {
       const namespace = await builder.ensureWritableNamespace()
+      await builder.publishSkill(namespace.slug)
 
-      // Publish 21 skills to trigger pagination (PAGE_SIZE = 20)
-      for (let i = 0; i < 21; i += 1) {
-        await builder.publishSkill(namespace.slug, {
-          name: `e2e-skill-${i}`,
-          description: `Test skill ${i} for pagination`,
-        })
-      }
+      // Intercept the search API to inflate `total` so the pagination component renders.
+      // This avoids publishing 21 real skills which triggers 429 rate limits in CI.
+      await page.route('**/api/web/skills?**', async (route) => {
+        const response = await route.fetch()
+        const body = await response.json()
+        if (body.data) {
+          body.data.total = 21
+        }
+        await route.fulfill({ response, json: body })
+      })
 
       await page.goto(`/space/${namespace.slug}`)
 
@@ -64,7 +68,7 @@ test.describe('Namespace Skill List Pagination (Real API)', () => {
       // Navigate to second page
       await nextButton.click()
 
-      // Second page: both buttons should be enabled (or Previous enabled, Next disabled if only 2 pages)
+      // Second page: Previous should be enabled
       await expect(previousButton).toBeEnabled()
 
       // Navigate back to first page
