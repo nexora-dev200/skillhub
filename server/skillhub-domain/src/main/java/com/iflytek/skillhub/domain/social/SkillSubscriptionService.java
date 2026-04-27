@@ -31,6 +31,7 @@ public class SkillSubscriptionService {
             return; // idempotent
         }
         subscriptionRepository.save(new SkillSubscription(skillId, userId));
+        skillRepository.incrementSubscriptionCount(skillId);
         eventPublisher.publishEvent(new SkillSubscribedEvent(skillId, userId));
     }
 
@@ -39,6 +40,7 @@ public class SkillSubscriptionService {
         ensureSkillExists(skillId);
         subscriptionRepository.findBySkillIdAndUserId(skillId, userId).ifPresent(subscription -> {
             subscriptionRepository.delete(subscription);
+            skillRepository.decrementSubscriptionCount(skillId);
             eventPublisher.publishEvent(new SkillUnsubscribedEvent(skillId, userId));
         });
     }
