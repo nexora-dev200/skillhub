@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { cac } from 'cac'
 import { doctorCommand } from './commands/doctor'
-import { helpCommand } from './commands/help'
+import { commands, formatCommandList, helpCommand } from './commands/help'
 import { installCommand, type InstallCommandOptions } from './commands/install'
 import { listCommand, type ListCommandOptions } from './commands/list'
 import { loginCommand } from './commands/login'
@@ -36,11 +36,140 @@ async function runCommand(action: () => Promise<string>, json = false): Promise<
   }
 }
 
+const KNOWN_COMMANDS = Object.keys(commands)
+
+function levenshteinDistance(left: string, right: string): number {
+  const rows = left.length + 1
+  const cols = right.length + 1
+  const matrix = Array.from({ length: rows }, () => Array<number>(cols).fill(0))
+
+  for (let row = 0; row < rows; row += 1) matrix[row]![0] = row
+  for (let col = 0; col < cols; col += 1) matrix[0]![col] = col
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let col = 1; col < cols; col += 1) {
+      const cost = left[row - 1] === right[col - 1] ? 0 : 1
+      matrix[row]![col] = Math.min(
+        matrix[row - 1]![col]! + 1,
+        matrix[row]![col - 1]! + 1,
+        matrix[row - 1]![col - 1]! + cost
+      )
+    }
+  }
+
+  return matrix[left.length]![right.length]!
+}
+
+function findCommandSuggestions(input: string): string[] {
+  return KNOWN_COMMANDS
+    .map(command => ({
+      command,
+      score: command.startsWith(input)
+        ? 0
+        : command.includes(input)
+          ? 1
+          : levenshteinDistance(input, command)
+    }))
+    .filter(({ command, score }) =>
+      command.startsWith(input) ||
+      (input.length > 2 && command.includes(input)) ||
+      score <= Math.max(2, Math.floor(command.length / 3))
+    )
+    .sort((left, right) => left.score - right.score || left.command.localeCompare(right.command))
+    .map(({ command }) => command)
+    .slice(0, 3)
+}
+
+function renderCommandDirectory(): string {
+  return ['Available commands:', formatCommandList()].join('\n')
+}
+
+function exitWithOutput(output: string, exitCode: number): never {
+  process.stderr.write(`${output}\n`)
+  process.exit(exitCode)
+}
+
+function exitWithCliError(error: CliError, json: boolean, humanOutput?: string): never {
+  return exitWithOutput(json ? renderError(error, true) : (humanOutput ?? renderError(error, false)), error.exitCode)
+}
+
+function exitUnknownCommand(command: string, json: boolean): never {
+  const suggestions = findCommandSuggestions(command)
+  const lines = [`unknown command "${command}" for "skillhub"`, '']
+
+  if (suggestions.length > 0) {
+    lines.push(`Did you mean ${suggestions.length === 1 ? 'this' : 'one of these'}?`)
+    lines.push(...suggestions.map(suggestion => `    ${suggestion}`))
+    lines.push('')
+  }
+
+  lines.push('Usage:  skillhub <command> [flags]', '')
+  lines.push(renderCommandDirectory(), '')
+  lines.push('Run "skillhub help" for more information.')
+  return exitWithCliError(new CliError(`unknown command "${command}" for "skillhub"`, 5), json, lines.join('\n'))
+}
+
+function exitUnknownFlag(flag: string, json: boolean): never {
+  return exitWithCliError(new CliError(`unknown flag: ${flag}`, 5), json, [
+    `unknown flag: ${flag}`,
+    '',
+    'Usage:  skillhub <command> [flags]',
+    '',
+    renderCommandDirectory(),
+    '',
+    'Run "skillhub help" for more information.'
+  ].join('\n'))
+}
+
+function handleCliParseError(error: unknown, json: boolean): never {
+  if (!(error instanceof Error)) {
+    return exitWithCliError(new CliError('unexpected failure', 1), json, 'Unexpected error')
+  }
+
+  if (error.name === 'CACError') {
+    const message = error.message
+
+    if (/unknown option/i.test(message)) {
+      const match = message.match(/unknown option ["`]?([^"`]+)["`]?/i)
+      return exitUnknownFlag(match?.[1] ?? 'unknown', json)
+    }
+
+    if (message.includes('missing required args')) {
+      const match = message.match(/command `([^`]+)`/)
+      const cmdName = match?.[1] ?? 'command'
+      const firstWord = cmdName.split(' ')[0] ?? 'command'
+
+      return exitWithCliError(new CliError('missing required argument', 5), json, [
+        'Error: missing required argument',
+        '',
+        `Usage:  skillhub ${cmdName}`,
+        '',
+        `Run "skillhub help ${firstWord}" for more information.`
+      ].join('\n'))
+    }
+
+    const cleanMessage = message.replace(/`/g, '"')
+    return exitWithCliError(new CliError(cleanMessage, 5), json)
+  }
+
+  return exitWithCliError(new CliError('unexpected failure', 1), json, `Unexpected error: ${error.message}`)
+}
+
+function isJsonRequested(argv: string[]): boolean {
+  return argv.includes('--json')
+}
+
+function readUnknownCommand(argv: string[]): string | undefined {
+  const firstArg = argv[0]
+  if (!firstArg || firstArg.startsWith('-') || KNOWN_COMMANDS.includes(firstArg)) {
+    return undefined
+  }
+  return firstArg
+}
+
 cli
   .command('', 'Show help')
-  .action(() => {
-    return runCommand(() => helpCommand([]))
-  })
+  .action(() => runCommand(() => helpCommand([])))
 
 cli
   .command('help [command]', 'Show help')
@@ -91,12 +220,12 @@ cli
   })
 
 cli
-  .command('search <query>', 'Search published skills')
+  .command('search [query]', 'Search published skills')
   .option('--registry <url>', 'Registry URL')
   .option('--limit <n>', 'Max results', { default: 20 })
   .option('--json', 'Output JSON')
-  .action((query: string, options: { registry?: string; limit?: number; json?: boolean }) => {
-    return runCommand(() => searchCommand(query, options), Boolean(options.json))
+  .action((query: string | undefined, options: { registry?: string; limit?: number; json?: boolean }) => {
+    return runCommand(() => searchCommand(query ?? '', options), Boolean(options.json))
   })
 
 cli
@@ -158,5 +287,15 @@ cli
 cli.help()
 
 if (import.meta.main) {
-  cli.parse(process.argv)
+  const args = process.argv.slice(2)
+  const json = isJsonRequested(args)
+  const unknownCommand = readUnknownCommand(args)
+  if (unknownCommand) {
+    exitUnknownCommand(unknownCommand, json)
+  }
+  try {
+    cli.parse(process.argv)
+  } catch (error) {
+    handleCliParseError(error, json)
+  }
 }

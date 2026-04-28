@@ -35,4 +35,19 @@ describe('search command', () => {
     expect(json.items).toHaveLength(1)
     expect(json.items[0].slug).toBe('pdf-parser')
   })
+
+  test('search without query returns full result set', async () => {
+    registry = await startFakeRegistry({
+      searchItems: [
+        { namespace: 'global', slug: 'pdf-parser', latestVersion: '1.2.0', summary: 'Parse PDFs' },
+        { namespace: 'global', slug: 'doc-parser', latestVersion: '2.0.0', summary: 'Parse docs' }
+      ]
+    })
+
+    const result = await runCli(['search', '--registry', registry.url])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('global/pdf-parser')
+    expect(result.stdout).toContain('global/doc-parser')
+  })
 })

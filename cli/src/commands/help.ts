@@ -1,6 +1,6 @@
 import { printResult } from '../shared/output'
 
-const commands = {
+export const commands = {
   help: {
     summary: 'Show available commands',
     usage: 'skillhub help [command] [--json]',
@@ -28,8 +28,8 @@ const commands = {
   },
   search: {
     summary: 'Search published skills',
-    usage: 'skillhub search <query> [--limit <n>] [--registry <url>] [--json]',
-    examples: ['skillhub search pdf', 'skillhub search "" --limit 20']
+    usage: 'skillhub search [query] [--limit <n>] [--registry <url>] [--json]',
+    examples: ['skillhub search', 'skillhub search pdf']
   },
   install: {
     summary: 'Install a skill locally',
@@ -63,6 +63,10 @@ const commands = {
   }
 } as const
 
+export function formatCommandList(): string {
+  return Object.entries(commands).map(([name, detail]) => `${name.padEnd(10)} ${detail.summary}`).join('\n')
+}
+
 export async function helpCommand(args: string[]): Promise<string> {
   const json = args.includes('--json')
   const topic = args.find(arg => !arg.startsWith('--'))
@@ -85,5 +89,5 @@ export async function helpCommand(args: string[]): Promise<string> {
       ...detail.examples.map(example => `  ${example}`)
     ].join('\n')
   }
-  return Object.entries(commands).map(([name, detail]) => `${name.padEnd(10)} ${detail.summary}`).join('\n')
+  return formatCommandList()
 }
