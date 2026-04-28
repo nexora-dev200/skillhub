@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -66,6 +67,10 @@ public class CustomOidcUserService implements OAuth2UserService<OidcUserRequest,
     static OAuthClaims toOAuthClaims(OidcUserRequest request, OidcUser oidcUser) {
         Map<String, Object> claims = new HashMap<>(oidcUser.getClaims());
         String subject = asString(claims.get("sub"));
+        if (subject == null || subject.isBlank()) {
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("missing_sub", "OIDC sub claim is required", null));
+        }
         String email = asString(claims.get("email"));
         boolean emailVerified = Boolean.TRUE.equals(claims.get("email_verified"));
         String providerLogin = firstPresent(

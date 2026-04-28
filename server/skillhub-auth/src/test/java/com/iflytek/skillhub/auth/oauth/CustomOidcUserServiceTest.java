@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.oidc.IdTokenClaimNames;
 import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.security.oauth2.core.oidc.OidcUserInfo;
@@ -21,6 +22,7 @@ import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -90,6 +92,37 @@ class CustomOidcUserServiceTest {
         assertThat(claims.email()).isEqualTo("fallback@example.com");
         assertThat(claims.emailVerified()).isFalse();
         assertThat(claims.providerLogin()).isEqualTo("Fallback Name");
+    }
+
+    @Test
+    void toOAuthClaims_throwsWhenSubIsMissing() {
+        OidcUser user = mock(OidcUser.class);
+        when(user.getClaims()).thenReturn(Map.of("email", "no-sub@example.com"));
+        assertThatThrownBy(() -> CustomOidcUserService.toOAuthClaims(oidcRequest(), user))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("sub");
+    }
+
+    @Test
+    void toOAuthClaims_throwsWhenSubIsBlank() {
+        OidcUser user = mock(OidcUser.class);
+        when(user.getClaims()).thenReturn(Map.of(IdTokenClaimNames.SUB, "   "));
+        assertThatThrownBy(() -> CustomOidcUserService.toOAuthClaims(oidcRequest(), user))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .hasMessageContaining("sub");
+    }
+
+    @Test
+    void toOAuthClaims_fallsBackToSubWhenAllOtherFieldsMissing() {
+        OAuthClaims claims = CustomOidcUserService.toOAuthClaims(
+                oidcRequest(),
+                oidcUser(Map.of(IdTokenClaimNames.SUB, "only-sub"))
+        );
+
+        assertThat(claims.subject()).isEqualTo("only-sub");
+        assertThat(claims.providerLogin()).isEqualTo("only-sub");
+        assertThat(claims.email()).isNull();
+        assertThat(claims.emailVerified()).isFalse();
     }
 
     private static OidcUserRequest oidcRequest() {
