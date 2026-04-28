@@ -1572,6 +1572,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cli/v1/skills/{namespace}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["publish_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/user/profile": {
         parameters: {
             query?: never;
@@ -2916,6 +2932,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadVersion_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/skills/{namespace}/{slug}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["resolve_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/skills/{namespace}/{slug}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadLatest_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/skills/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["search_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/auth/whoami": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["whoami_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/.well-known/clawhub.json": {
         parameters: {
             query?: never;
@@ -3039,6 +3135,22 @@ export interface paths {
         put?: never;
         post?: never;
         delete: operations["deleteSkillById_1"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/skills/{namespace}/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["deleteRemote"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3665,6 +3777,21 @@ export interface components {
         ConfirmMergeRequest: {
             /** Format: int64 */
             mergeRequestId: number;
+        };
+        ApiResponseCliPublishResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliPublishResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliPublishResponse: {
+            namespace?: string;
+            slug?: string;
+            version?: string;
+            visibility?: string;
         };
         UpdateProfileRequest: {
             displayName?: string;
@@ -4561,6 +4688,60 @@ export interface components {
             /** Format: int32 */
             size?: number;
         };
+        ApiResponseCliResolveResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliResolveResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliResolveResponse: {
+            namespace?: string;
+            slug?: string;
+            version?: string;
+            /** Format: int64 */
+            versionId?: number;
+            fingerprint?: string;
+            downloadUrl?: string;
+        };
+        ApiResponseCliSearchResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliSearchResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliSearchItemResponse: {
+            namespace?: string;
+            slug?: string;
+            latestVersion?: string;
+            summary?: string;
+        };
+        CliSearchResponse: {
+            items?: components["schemas"]["CliSearchItemResponse"][];
+            /** Format: int64 */
+            total?: number;
+            /** Format: int32 */
+            limit?: number;
+        };
+        ApiResponseCliWhoAmIResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliWhoAmIResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliWhoAmIResponse: {
+            handle?: string;
+            displayName?: string;
+            email?: string;
+        };
         ApiResponseSkillDeleteResponse: {
             /** Format: int32 */
             code?: number;
@@ -4581,6 +4762,22 @@ export interface components {
             ok?: boolean;
             unstarred?: boolean;
             alreadyUnstarred?: boolean;
+        };
+        ApiResponseCliDeleteResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliDeleteResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliDeleteResponse: {
+            ok?: boolean;
+            scope?: string;
+            action?: string;
+            namespace?: string;
+            slug?: string;
         };
     };
     responses: never;
@@ -7622,6 +7819,36 @@ export interface operations {
             };
         };
     };
+    publish_3: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    visibility?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliPublishResponse"];
+                };
+            };
+        };
+    };
     getProfile: {
         parameters: {
             query?: never;
@@ -9714,6 +9941,121 @@ export interface operations {
             };
         };
     };
+    downloadVersion_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
+    resolve_1: {
+        parameters: {
+            query?: {
+                version?: string;
+            };
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliResolveResponse"];
+                };
+            };
+        };
+    };
+    downloadLatest_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": string;
+                };
+            };
+        };
+    };
+    search_2: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliSearchResponse"];
+                };
+            };
+        };
+    };
+    whoami_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliWhoAmIResponse"];
+                };
+            };
+        };
+    };
     clawhubConfig: {
         parameters: {
             query?: never;
@@ -9886,6 +10228,29 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseSkillDeleteResponse"];
+                };
+            };
+        };
+    };
+    deleteRemote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliDeleteResponse"];
                 };
             };
         };

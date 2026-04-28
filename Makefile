@@ -1,4 +1,4 @@
-.PHONY: help dev dev-all dev-down dev-all-down dev-all-reset dev-logs dev-status build test check clean web-deps web-install web-install-ci dev-server dev-server-restart dev-web build-backend test-backend build-frontend test-frontend test-e2e-frontend test-e2e-smoke-frontend build-web test-web typecheck-web lint-web generate-api db-reset namespace-smoke validate-release-config staging staging-down staging-logs pr parallel-init parallel-sync parallel-up parallel-down docs-dev docs-build docs-preview
+.PHONY: help dev dev-all dev-down dev-all-down dev-all-reset dev-logs dev-status build test check clean web-deps web-install web-install-ci dev-server dev-server-restart dev-web build-backend test-backend build-frontend test-frontend test-e2e-frontend test-e2e-smoke-frontend build-web test-web typecheck-web lint-web generate-api db-reset namespace-smoke validate-release-config staging staging-down staging-logs pr parallel-init parallel-sync parallel-up parallel-down docs-dev docs-build docs-preview cli-install test-cli build-cli lint-cli typecheck-cli
 
 DEV_DIR := .dev
 DEV_SERVER_PID := $(DEV_DIR)/server.pid
@@ -367,3 +367,18 @@ docs-build: ## 构建文档站点
 
 docs-preview: ## 预览构建后的文档站点
 	cd docs/skillhub && npm run preview
+
+cli-install: ## 安装 CLI 依赖
+	cd cli && bun install --frozen-lockfile
+
+test-cli: ## 运行 CLI 测试
+	cd cli && bun test
+
+build-cli: ## 构建 CLI
+	cd cli && bun run build
+
+lint-cli: ## CLI lint
+	cd cli && bun run lint
+
+typecheck-cli: ## CLI 类型检查
+	cd cli && bun run typecheck
