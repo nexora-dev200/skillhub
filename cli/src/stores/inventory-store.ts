@@ -74,8 +74,8 @@ export class InventoryStore {
         const lockData = JSON.stringify({ pid: process.pid, timestamp: Date.now() })
         await writeFile(lockPath, lockData)
         return lockHandle
-      } catch (err: any) {
-        if (err.code !== 'EEXIST') throw err
+      } catch (err) {
+        if (err instanceof Error && 'code' in err && err.code !== 'EEXIST') throw err
 
         // Lock exists, check if it's stale (older than 30 seconds)
         // 30s threshold chosen to balance between:

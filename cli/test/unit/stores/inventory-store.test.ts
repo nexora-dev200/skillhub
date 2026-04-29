@@ -62,7 +62,7 @@ describe('InventoryStore', () => {
 
     const inventory = await store.read()
     expect(inventory.items).toHaveLength(1)
-    expect(inventory.items[0].slug).toBe('test-skill')
+    expect(inventory.items[0]?.slug).toBe('test-skill')
   })
 
   test('removeTarget returns false when item not found', async () => {
