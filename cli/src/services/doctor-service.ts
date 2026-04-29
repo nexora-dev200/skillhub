@@ -1,4 +1,4 @@
-import { readdir, writeFile, readFile } from 'node:fs/promises'
+import { lstat, readdir, writeFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { CliError } from '../shared/errors'
 import { EXIT } from '../shared/constants'
@@ -98,7 +98,18 @@ async function scanMetadata(cwd: string, skipped: DoctorResult['skipped']): Prom
 
   for (const dirName of topEntries) {
     if (!dirName.startsWith('.')) continue
-    const skillsDir = join(cwd, dirName, 'skills')
+    const agentDir = join(cwd, dirName)
+    try {
+      const st = await lstat(agentDir)
+      if (st.isSymbolicLink() || !st.isDirectory()) {
+        skipped.push({ path: agentDir, reason: 'not a regular directory' })
+        continue
+      }
+    } catch {
+      skipped.push({ path: agentDir, reason: 'cannot stat' })
+      continue
+    }
+    const skillsDir = join(agentDir, 'skills')
     let slugDirs: string[]
     try {
       slugDirs = await readdir(skillsDir)
@@ -107,17 +118,39 @@ async function scanMetadata(cwd: string, skipped: DoctorResult['skipped']): Prom
     }
 
     for (const slug of slugDirs) {
-      const metadataPath = join(skillsDir, slug, '.skillhub', 'metadata.json')
+      const slugPath = join(skillsDir, slug)
+      try {
+        const st = await lstat(slugPath)
+        if (st.isSymbolicLink() || !st.isDirectory()) {
+          skipped.push({ path: slugPath, reason: 'not a regular directory' })
+          continue
+        }
+      } catch {
+        skipped.push({ path: slugPath, reason: 'cannot stat' })
+        continue
+      }
+      const skillhubDir = join(slugPath, '.skillhub')
+      try {
+        const skillhubSt = await lstat(skillhubDir)
+        if (skillhubSt.isSymbolicLink() || !skillhubSt.isDirectory()) {
+          skipped.push({ path: slugPath, reason: '.skillhub is not a regular directory' })
+          continue
+        }
+      } catch {
+        skipped.push({ path: slugPath, reason: 'no .skillhub directory' })
+        continue
+      }
+      const metadataPath = join(skillhubDir, 'metadata.json')
       try {
         const content = await readFile(metadataPath, 'utf-8')
         const metadata = JSON.parse(content) as MetadataJson
         if (!metadata.registry || !metadata.namespace || !metadata.slug || !metadata.version || !metadata.agent || !metadata.installedAt) {
-          skipped.push({ path: join(skillsDir, slug), reason: 'incomplete metadata' })
+          skipped.push({ path: slugPath, reason: 'incomplete metadata' })
           continue
         }
-        results.push({ metadata, installDir: join(skillsDir, slug) })
+        results.push({ metadata, installDir: slugPath })
       } catch {
-        skipped.push({ path: join(skillsDir, slug), reason: 'no .skillhub/metadata.json' })
+        skipped.push({ path: slugPath, reason: 'no .skillhub/metadata.json' })
       }
     }
   }

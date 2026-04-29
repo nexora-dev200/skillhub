@@ -1,4 +1,4 @@
-import { readFile, rename, writeFile } from 'node:fs/promises'
+import { open, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { joinPath, userStateDir, ensureDir, pathExists } from '../platform/paths'
 
@@ -42,10 +42,74 @@ export class InventoryStore {
     await ensureDir(dirname(this.path))
     const payload = JSON.stringify(inventory, null, 2)
     JSON.parse(payload)
+
+    const lockPath = `${this.path}.lock`
     const tmpPath = `${this.path}.${process.pid}.${Date.now()}.tmp`
-    await writeFile(tmpPath, payload)
-    JSON.parse(await readFile(tmpPath, 'utf-8'))
-    await rename(tmpPath, this.path)
+
+    let lockHandle: Awaited<ReturnType<typeof open>> | null = null
+    try {
+      // Acquire exclusive lock with retry and stale lock detection
+      lockHandle = await this.acquireLock(lockPath)
+
+      await writeFile(tmpPath, payload)
+      JSON.parse(await readFile(tmpPath, 'utf-8'))
+      await rename(tmpPath, this.path)
+    } finally {
+      // Clean up temp file if it still exists
+      await rm(tmpPath, { force: true }).catch(() => {})
+
+      // Release lock
+      if (lockHandle) {
+        await lockHandle.close().catch(() => {})
+        await rm(lockPath, { force: true }).catch(() => {})
+      }
+    }
+  }
+
+  private async acquireLock(lockPath: string, maxRetries = 10, retryDelayMs = 100): Promise<Awaited<ReturnType<typeof open>>> {
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Try to create lock file with PID and timestamp
+        const lockHandle = await open(lockPath, 'wx')
+        const lockData = JSON.stringify({ pid: process.pid, timestamp: Date.now() })
+        await writeFile(lockPath, lockData)
+        return lockHandle
+      } catch (err: any) {
+        if (err.code !== 'EEXIST') throw err
+
+        // Lock exists, check if it's stale (older than 30 seconds)
+        // 30s threshold chosen to balance between:
+        // - Allowing slow operations to complete (e.g., large inventory writes)
+        // - Recovering quickly from crashed processes
+        try {
+          const lockContent = await readFile(lockPath, 'utf-8')
+          const lockData = JSON.parse(lockContent) as { pid: number; timestamp: number }
+          const ageMs = Date.now() - lockData.timestamp
+
+          if (ageMs > 30000) {
+            // Stale lock detected - verify the process is actually dead
+            try {
+              // process.kill(pid, 0) throws if process doesn't exist
+              process.kill(lockData.pid, 0)
+              // Process still alive, wait and retry
+            } catch {
+              // Process is dead, safe to remove stale lock
+              await rm(lockPath, { force: true }).catch(() => {})
+              continue
+            }
+          }
+        } catch {
+          // Lock file disappeared or corrupted, retry
+          continue
+        }
+
+        // Lock is held by another active process, wait and retry with exponential backoff
+        if (attempt < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, retryDelayMs * Math.pow(2, attempt)))
+        }
+      }
+    }
+    throw new Error(`Failed to acquire lock after ${maxRetries} attempts`)
   }
 
   async upsertTarget(
@@ -70,7 +134,7 @@ export class InventoryStore {
     } else {
       item.targets.push(target)
     }
-    await this.write(inventory)
+    await this.writeAtomic(inventory)
   }
 
   async removeTarget(registry: string, namespace: string, slug: string, installDir: string): Promise<boolean> {
@@ -83,7 +147,7 @@ export class InventoryStore {
     if (item.targets.length === 0) {
       inventory.items = inventory.items.filter(i => i !== item)
     }
-    await this.write(inventory)
+    await this.writeAtomic(inventory)
     return true
   }
 
@@ -97,7 +161,7 @@ export class InventoryStore {
     }
     if (removed > 0) {
       inventory.items = inventory.items.filter(item => item.targets.length > 0)
-      await this.write(inventory)
+      await this.writeAtomic(inventory)
     }
     return removed
   }
