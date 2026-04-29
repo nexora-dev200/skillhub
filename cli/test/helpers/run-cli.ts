@@ -1,6 +1,9 @@
+import { existsSync } from 'node:fs'
+
 export async function runCli(args: string[], env: Record<string, string> = {}) {
-  // Use Bun.which() to find bun in PATH, fallback to current executable
-  const bunPath = await Bun.which('bun') || process.execPath
+  // Use Bun.which() to find bun in PATH, but verify it exists
+  const whichBun = await Bun.which('bun')
+  const bunPath = (whichBun && existsSync(whichBun)) ? whichBun : process.execPath
 
   const proc = Bun.spawn({
     cmd: [bunPath, 'src/index.ts', ...args],

@@ -26,8 +26,11 @@ describe('version command', () => {
     const dir = await mkdtemp(join(tmpdir(), 'skillhub-node-build-'))
     const outfile = join(dir, 'index.js')
     await writeFile(join(dir, 'package.json'), JSON.stringify({ type: 'module' }))
+
+    // Use process.execPath to ensure we use the current Bun executable
+    const bunPath = process.execPath
     const build = Bun.spawn({
-      cmd: ['bun', 'build', 'src/index.ts', '--target=node', `--outfile=${outfile}`],
+      cmd: [bunPath, 'build', 'src/index.ts', '--target=node', `--outfile=${outfile}`],
       cwd: new URL('../../', import.meta.url).pathname,
       stdout: 'pipe',
       stderr: 'pipe'
