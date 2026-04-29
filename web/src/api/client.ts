@@ -1020,6 +1020,30 @@ export const meApi = {
 
     return items
   },
+
+  async getSubscriptionsPage(params?: { page?: number; size?: number }): Promise<{ items: SkillSummary[]; total: number; page: number; size: number }> {
+    const searchParams = new URLSearchParams()
+    searchParams.set('page', String(params?.page ?? 0))
+    searchParams.set('size', String(params?.size ?? 12))
+    return fetchJson<{ items: SkillSummary[]; total: number; page: number; size: number }>(`${WEB_API_PREFIX}/me/subscriptions?${searchParams.toString()}`)
+  },
+
+  async getSubscriptions(): Promise<SkillSummary[]> {
+    const items: SkillSummary[] = []
+    let page = 0
+    const size = 100
+    let hasMore = true
+
+    while (hasMore) {
+      const response = await meApi.getSubscriptionsPage({ page, size })
+      items.push(...response.items)
+
+      hasMore = (page + 1) * response.size < response.total && response.items.length > 0
+      page++
+    }
+
+    return items
+  },
 }
 
 export const profileApi = {

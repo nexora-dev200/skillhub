@@ -85,6 +85,12 @@ export function DashboardPage() {
           </Link>
         </Card>
         <Card className="p-5">
+          <div className="text-sm text-muted-foreground">{t('dashboard.subscriptions')}</div>
+          <Link to="/dashboard/subscriptions" className="mt-2 inline-block font-semibold text-primary hover:underline">
+            {t('dashboard.viewSubscriptions')}
+          </Link>
+        </Card>
+        <Card className="p-5">
           <div className="text-sm text-muted-foreground">{t('dashboard.mySkillsTitle')}</div>
           <Link to="/dashboard/skills" className="mt-2 inline-block font-semibold text-primary hover:underline">
             {t('dashboard.openMySkills')}

@@ -916,6 +916,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/namespaces/{slug}/members/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["batchAddMembers"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/web/namespaces/{slug}/members/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["batchAddMembers_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/web/namespaces/{slug}/members": {
         parameters: {
             query?: never;
@@ -3429,10 +3461,37 @@ export interface components {
             /** Format: int64 */
             targetNamespaceId?: number;
         };
+        BatchMemberRequest: {
+            members: components["schemas"]["MemberRequest"][];
+        };
         MemberRequest: {
             userId: string;
             /** @enum {string} */
             role: "OWNER" | "ADMIN" | "MEMBER";
+        };
+        ApiResponseBatchMemberResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["BatchMemberResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        BatchMemberResponse: {
+            /** Format: int32 */
+            totalCount?: number;
+            /** Format: int32 */
+            successCount?: number;
+            /** Format: int32 */
+            failureCount?: number;
+            results?: components["schemas"]["BatchMemberResult"][];
+        };
+        BatchMemberResult: {
+            userId?: string;
+            role?: string;
+            success?: boolean;
+            error?: string;
         };
         NamespaceLifecycleRequest: {
             reason?: string;
@@ -3719,7 +3778,6 @@ export interface components {
             slug?: string;
             displayName?: string;
             summary?: string;
-            visibility?: string;
             status?: string;
             /** Format: int64 */
             downloadCount?: number;
@@ -6453,6 +6511,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseNamespaceResponse"];
+                };
+            };
+        };
+    };
+    batchAddMembers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBatchMemberResponse"];
+                };
+            };
+        };
+    };
+    batchAddMembers_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchMemberRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseBatchMemberResponse"];
                 };
             };
         };

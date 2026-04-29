@@ -161,6 +161,7 @@ class SkillControllerTest {
                         "ACTIVE",
                         10L,
                         2,
+                        0,
                         null,
                         0,
                         false,

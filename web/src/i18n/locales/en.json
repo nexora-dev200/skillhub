@@ -314,6 +314,8 @@
     "platformRoles": "Platform Roles",
     "starsAndRatings": "Stars & Ratings",
     "viewStars": "View My Stars",
+    "subscriptions": "Subscriptions",
+    "viewSubscriptions": "View My Subscriptions",
     "mySkillsTitle": "My Skills",
     "openMySkills": "View My Skills",
     "mySkillsPreviewDescription": "Showing your 5 most recent skills. Open a skill or go to My Skills to view all.",
@@ -519,6 +521,11 @@
     "title": "My Stars",
     "subtitle": "View your starred skills",
     "empty": "No starred skills yet"
+  },
+  "subscriptions": {
+    "title": "My Subscriptions",
+    "subtitle": "Skills you subscribed to for updates",
+    "empty": "You haven't subscribed to any skills yet."
   },
   "promotions": {
     "title": "Promotion Review",
@@ -1191,6 +1198,10 @@
     "starred": "Starred",
     "star": "Star"
   },
+  "subscribeButton": {
+    "subscribed": "Subscribed",
+    "subscribe": "Subscribe"
+  },
   "skillCard": {
     "starred": "Starred",
     "starredAction": "Click to unstar",
@@ -1215,6 +1226,7 @@
       "myNamespaces": "My Namespaces",
       "governance": "Governance Center",
       "stars": "Starred",
+      "subscriptions": "My Subscriptions",
       "reviews": "Review Management",
       "promotions": "Promotion Management",
       "reports": "Report Management",

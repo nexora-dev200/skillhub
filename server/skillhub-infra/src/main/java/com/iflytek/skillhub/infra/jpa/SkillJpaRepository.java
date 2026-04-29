@@ -44,6 +44,16 @@ public interface SkillJpaRepository extends JpaRepository<Skill, Long>, SkillRep
     @Query("UPDATE Skill s SET s.downloadCount = s.downloadCount + 1 WHERE s.id = :skillId")
     void incrementDownloadCount(@Param("skillId") Long skillId);
 
+    @Modifying
+    @Transactional
+    @Query("UPDATE Skill s SET s.subscriptionCount = s.subscriptionCount + 1 WHERE s.id = :skillId")
+    void incrementSubscriptionCount(@Param("skillId") Long skillId);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Skill s SET s.subscriptionCount = CASE WHEN s.subscriptionCount > 0 THEN s.subscriptionCount - 1 ELSE 0 END WHERE s.id = :skillId")
+    void decrementSubscriptionCount(@Param("skillId") Long skillId);
+
     List<Skill> findBySlug(String slug);
 
     @Query("SELECT s FROM Skill s JOIN Namespace n ON s.namespaceId = n.id WHERE n.slug = :namespaceSlug AND s.slug = :slug")

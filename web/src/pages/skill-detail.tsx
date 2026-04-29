@@ -21,6 +21,7 @@ import { clearDeletedSkillQueries, isDeleteSlugConfirmationValid, resolveDeleted
 import { isSkillDetailQueriesEnabled } from './skill-detail-query'
 import { RatingInput } from '@/features/social/rating-input'
 import { StarButton } from '@/features/social/star-button'
+import { SubscribeButton } from '@/features/social/subscribe-button'
 import { useAuth } from '@/features/auth/use-auth'
 import { adminApi, ApiError, buildApiUrl, WEB_API_PREFIX } from '@/api/client'
 import { useSubmitSkillReport } from '@/features/report/use-skill-reports'
@@ -1069,6 +1070,8 @@ export function SkillDetailPage() {
                 {!isFetchingSkill ? (
                   <>
                     <StarButton skillId={skill.id} starCount={skill.starCount} onRequireLogin={requireLogin} />
+                    <div className="h-px bg-border/40" />
+                    <SubscribeButton skillId={skill.id} subscriptionCount={(skill as { subscriptionCount?: number }).subscriptionCount ?? 0} onRequireLogin={requireLogin} />
                     <RatingInput skillId={skill.id} onRequireLogin={requireLogin} />
                   </>
                 ) : null}
