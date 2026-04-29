@@ -50,4 +50,25 @@ describe('removeLocalSkill', () => {
     expect(await exists(teamDir)).toBe(false)
     expect((await store.read()).items).toEqual([])
   })
+
+  test('throws on path traversal in installDir', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-remove-traversal-'))
+
+    const store = new InventoryStore(home)
+    await store.write({
+      items: [
+        {
+          registry: 'https://skill.xfyun.cn',
+          namespace: 'global',
+          slug: 'evil',
+          version: '1.0.0',
+          targets: [{ agent: 'codex', rootDir: '/safe/root', installDir: '/etc/passwd', installedAt: '2026-04-20T00:00:00Z' }]
+        }
+      ]
+    })
+
+    await expect(
+      removeLocalSkill({ registry: 'https://skill.xfyun.cn', slug: 'evil', home })
+    ).rejects.toThrow('unsafe remove path')
+  })
 })

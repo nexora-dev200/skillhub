@@ -31,4 +31,29 @@ describe('archive helpers', () => {
 
     await expect(extractZip(unsafe.buffer as ArrayBuffer, target)).rejects.toThrow('unsafe zip entry path')
   })
+
+  test('rejects zip entries with absolute paths', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'skillhub-archive-abs-'))
+    const unsafe = zipSync({ '/etc/passwd': new TextEncoder().encode('bad') })
+
+    await expect(extractZip(unsafe.buffer as ArrayBuffer, target)).rejects.toThrow('unsafe zip entry path')
+  })
+
+  test('rejects zip entries with multi-level ../ traversal', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'skillhub-archive-multi-'))
+    const unsafe = zipSync({ 'foo/../../escape.txt': new TextEncoder().encode('escaped') })
+
+    await expect(extractZip(unsafe.buffer as ArrayBuffer, target)).rejects.toThrow('unsafe zip entry path')
+  })
+
+  test('handles empty zip gracefully', async () => {
+    const target = await mkdtemp(join(tmpdir(), 'skillhub-archive-empty-'))
+    const empty = zipSync({})
+
+    await extractZip(empty.buffer as ArrayBuffer, target)
+
+    const { readdir } = await import('node:fs/promises')
+    const entries = await readdir(target)
+    expect(entries).toEqual([])
+  })
 })
