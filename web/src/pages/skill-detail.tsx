@@ -1070,6 +1070,7 @@ export function SkillDetailPage() {
                 {!isFetchingSkill ? (
                   <>
                     <StarButton skillId={skill.id} starCount={skill.starCount} onRequireLogin={requireLogin} />
+                    <div className="h-px bg-border/40" />
                     <SubscribeButton skillId={skill.id} subscriptionCount={(skill as { subscriptionCount?: number }).subscriptionCount ?? 0} onRequireLogin={requireLogin} />
                     <RatingInput skillId={skill.id} onRequireLogin={requireLogin} />
                   </>

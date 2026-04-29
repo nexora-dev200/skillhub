@@ -44,7 +44,21 @@ export function useToggleSubscription(skillId: number) {
 
   return useMutation({
     mutationFn: (subscribed: boolean) => toggleSubscription(skillId, subscribed),
-    onSuccess: () => {
+    onMutate: async (currentSubscribed: boolean) => {
+      await queryClient.cancelQueries({ queryKey: ['skills', skillId, 'subscription'] })
+      const previous = queryClient.getQueryData<SubscriptionStatus>(['skills', skillId, 'subscription'])
+      queryClient.setQueryData<SubscriptionStatus>(
+        ['skills', skillId, 'subscription'],
+        { subscribed: !currentSubscribed },
+      )
+      return { previous }
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(['skills', skillId, 'subscription'], context.previous)
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['skills', skillId, 'subscription'] })
       queryClient.invalidateQueries({ queryKey: ['skills'] })
       queryClient.invalidateQueries({ queryKey: ['skills', 'subscriptions'] })

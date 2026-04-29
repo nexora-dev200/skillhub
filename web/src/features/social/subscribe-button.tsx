@@ -12,7 +12,7 @@ interface SubscribeButtonProps {
 
 export function SubscribeButton({ skillId, subscriptionCount, onRequireLogin }: SubscribeButtonProps) {
   const { t } = useTranslation()
-  const { data: subscriptionStatus, isLoading } = useSubscription(skillId)
+  const { data: subscriptionStatus } = useSubscription(skillId)
   const toggleMutation = useToggleSubscription(skillId)
   const { isAuthenticated } = useAuth()
 
@@ -26,7 +26,7 @@ export function SubscribeButton({ skillId, subscriptionCount, onRequireLogin }: 
     }
   }
 
-  if (isLoading || !subscriptionStatus) {
+  if (!subscriptionStatus) {
     return null
   }
 
