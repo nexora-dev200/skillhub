@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -50,19 +52,32 @@ public class S3StorageService implements ObjectStorageService {
                 .connectionAcquisitionTimeout(properties.getConnectionAcquisitionTimeout());
         this.s3Client = buildS3Client(httpClientBuilder);
         this.s3Presigner = buildPresigner();
+        String authMode = isStaticCredentials() ? "static credentials" : "IAM credentials (default provider chain)";
         if (properties.isAutoCreateBucket()) {
-            log.info("Initialized S3 storage client for bucket '{}' (bucket auto-creation is deferred until first write)",
-                    properties.getBucket());
+            log.info("Initialized S3 storage client for bucket '{}' using {} (bucket auto-creation is deferred until first write)",
+                    properties.getBucket(), authMode);
         } else {
-            log.info("Initialized S3 storage client for bucket '{}'", properties.getBucket());
+            log.info("Initialized S3 storage client for bucket '{}' using {}", properties.getBucket(), authMode);
         }
+    }
+
+    private boolean isStaticCredentials() {
+        return properties.getAccessKey() != null && !properties.getAccessKey().isBlank()
+                && properties.getSecretKey() != null && !properties.getSecretKey().isBlank();
+    }
+
+    AwsCredentialsProvider buildCredentialsProvider() {
+        if (isStaticCredentials()) {
+            return StaticCredentialsProvider.create(
+                    AwsBasicCredentials.create(properties.getAccessKey(), properties.getSecretKey()));
+        }
+        return DefaultCredentialsProvider.create();
     }
 
     protected S3Client buildS3Client(ApacheHttpClient.Builder httpClientBuilder) {
         var builder = S3Client.builder()
                 .region(Region.of(properties.getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(properties.getAccessKey(), properties.getSecretKey())))
+                .credentialsProvider(buildCredentialsProvider())
                 .forcePathStyle(properties.isForcePathStyle())
                 .httpClientBuilder(httpClientBuilder)
                 .overrideConfiguration(config -> config
@@ -77,8 +92,7 @@ public class S3StorageService implements ObjectStorageService {
     S3Presigner buildPresigner() {
         var presignerBuilder = S3Presigner.builder()
                 .region(Region.of(properties.getRegion()))
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create(properties.getAccessKey(), properties.getSecretKey())))
+                .credentialsProvider(buildCredentialsProvider())
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(properties.isForcePathStyle())
                         .build());

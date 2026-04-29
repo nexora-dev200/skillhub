@@ -1,6 +1,9 @@
 package com.iflytek.skillhub.storage;
 
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -181,6 +184,52 @@ class S3StorageServiceTest {
 
         verify(client, times(1)).createBucket(any(CreateBucketRequest.class));
         verify(client, times(2)).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+    }
+
+    @Test
+    void shouldUseStaticCredentialsWhenAccessKeyAndSecretKeyProvided() {
+        S3StorageProperties props = createProperties(true);
+        S3StorageService service = new S3StorageService(props);
+
+        AwsCredentialsProvider provider = service.buildCredentialsProvider();
+
+        assertThat(provider).isInstanceOf(StaticCredentialsProvider.class);
+    }
+
+    @Test
+    void shouldUseDefaultCredentialsProviderWhenAccessKeyIsBlank() {
+        S3StorageProperties props = createProperties(true);
+        props.setAccessKey("");
+        props.setSecretKey("");
+        S3StorageService service = new S3StorageService(props);
+
+        AwsCredentialsProvider provider = service.buildCredentialsProvider();
+
+        assertThat(provider).isInstanceOf(DefaultCredentialsProvider.class);
+    }
+
+    @Test
+    void shouldUseDefaultCredentialsProviderWhenAccessKeyIsNull() {
+        S3StorageProperties props = createProperties(true);
+        props.setAccessKey(null);
+        props.setSecretKey(null);
+        S3StorageService service = new S3StorageService(props);
+
+        AwsCredentialsProvider provider = service.buildCredentialsProvider();
+
+        assertThat(provider).isInstanceOf(DefaultCredentialsProvider.class);
+    }
+
+    @Test
+    void shouldUseDefaultCredentialsProviderWhenOnlyAccessKeyIsSet() {
+        S3StorageProperties props = createProperties(true);
+        props.setAccessKey("some-key");
+        props.setSecretKey(null);
+        S3StorageService service = new S3StorageService(props);
+
+        AwsCredentialsProvider provider = service.buildCredentialsProvider();
+
+        assertThat(provider).isInstanceOf(DefaultCredentialsProvider.class);
     }
 
     private S3StorageProperties properties(boolean autoCreateBucket) {
