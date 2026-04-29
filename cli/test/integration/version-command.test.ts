@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { runCli } from '../helpers/run-cli'
 
 describe('version command', () => {
@@ -31,7 +32,7 @@ describe('version command', () => {
     const bunPath = process.execPath
     const build = Bun.spawn({
       cmd: [bunPath, 'build', 'src/index.ts', '--target=node', `--outfile=${outfile}`],
-      cwd: new URL('../../', import.meta.url).pathname,
+      cwd: fileURLToPath(new URL('../../', import.meta.url)),
       stdout: 'pipe',
       stderr: 'pipe'
     })

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 export async function runCli(args: string[], env: Record<string, string> = {}) {
   // Use Bun.which() to find bun in PATH, but verify it exists
@@ -7,7 +8,7 @@ export async function runCli(args: string[], env: Record<string, string> = {}) {
 
   const proc = Bun.spawn({
     cmd: [bunPath, 'src/index.ts', ...args],
-    cwd: new URL('../../', import.meta.url).pathname,
+    cwd: fileURLToPath(new URL('../../', import.meta.url)),
     env: { ...process.env, ...env },
     stdout: 'pipe',
     stderr: 'pipe'
