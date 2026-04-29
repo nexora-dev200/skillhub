@@ -1,6 +1,9 @@
 export async function runCli(args: string[], env: Record<string, string> = {}) {
+  // Use Bun.which() to find bun in PATH, fallback to current executable
+  const bunPath = await Bun.which('bun') || process.execPath
+
   const proc = Bun.spawn({
-    cmd: ['bun', 'src/index.ts', ...args],
+    cmd: [bunPath, 'src/index.ts', ...args],
     cwd: new URL('../../', import.meta.url).pathname,
     env: { ...process.env, ...env },
     stdout: 'pipe',
