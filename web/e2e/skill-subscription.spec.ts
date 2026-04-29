@@ -19,7 +19,7 @@ test.describe('Skill Subscription (Real API)', () => {
 
       await page.goto(`/space/${namespace.slug}/${skill.slug}`)
 
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
 
       const subscribeButton = page.getByRole('button', { name: /Subscribe/ })
       await expect(subscribeButton).toBeVisible()
@@ -63,6 +63,8 @@ test.describe('Skill Subscription (Real API)', () => {
       const skill = await builder.publishSkill(namespace.slug)
 
       await page.goto(`/space/${namespace.slug}/${skill.slug}`)
+
+      await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
 
       const subscribeButton = page.getByRole('button', { name: /Subscribe/ })
       await expect(subscribeButton).toBeVisible()
