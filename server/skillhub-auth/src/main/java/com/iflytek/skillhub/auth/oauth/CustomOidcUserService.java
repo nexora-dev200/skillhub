@@ -4,6 +4,8 @@ import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -24,6 +26,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class CustomOidcUserService implements OAuth2UserService<OidcUserRequest, OidcUser> {
 
+    private static final Logger log = LoggerFactory.getLogger(CustomOidcUserService.class);
+
     private final OAuthLoginFlowService oauthLoginFlowService;
     private final OAuth2UserService<OidcUserRequest, OidcUser> delegate;
 
@@ -40,9 +44,24 @@ public class CustomOidcUserService implements OAuth2UserService<OidcUserRequest,
 
     @Override
     public OidcUser loadUser(OidcUserRequest request) throws OAuth2AuthenticationException {
+        String registrationId = request.getClientRegistration().getRegistrationId();
+        log.debug("OIDC login initiated for registration '{}'", registrationId);
+
         OidcUser upstreamUser = delegate.loadUser(request);
         OAuthClaims claims = toOAuthClaims(request, upstreamUser);
-        PlatformPrincipal principal = oauthLoginFlowService.authenticate(claims);
+        log.debug("OIDC claims extracted - provider: {}, subject: {}, email present: {}, emailVerified: {}",
+                claims.provider(), claims.subject(), claims.email() != null, claims.emailVerified());
+
+        PlatformPrincipal principal;
+        try {
+            principal = oauthLoginFlowService.authenticate(claims);
+        } catch (OAuth2AuthenticationException e) {
+            log.warn("OIDC authentication failed for registration '{}', subject '{}': {}",
+                    registrationId, claims.subject(), e.getMessage(), e);
+            throw e;
+        }
+        log.debug("OIDC authentication succeeded - userId: {}, roles: {}",
+                principal.userId(), principal.platformRoles());
 
         Map<String, Object> userInfoClaims = new HashMap<>(upstreamUser.getClaims());
         if (upstreamUser.getUserInfo() != null) {
@@ -73,6 +92,9 @@ public class CustomOidcUserService implements OAuth2UserService<OidcUserRequest,
         }
         String email = asString(claims.get("email"));
         boolean emailVerified = Boolean.TRUE.equals(claims.get("email_verified"));
+        if (!emailVerified) {
+            email = null;
+        }
         String providerLogin = firstPresent(
                 asString(claims.get("preferred_username")),
                 asString(claims.get("name")),

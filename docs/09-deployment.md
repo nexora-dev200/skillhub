@@ -221,6 +221,17 @@ SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_OIDC_ISSUER_URI=https://idp.example.com/r
 并把上面的环境变量中的 `OIDC` 替换为对应大写 id。registration id 会作为
 `identity_binding.provider_code`，请保持稳定。
 
+> **警告：Registration ID 冲突**
+>
+> 每个 OIDC 提供商必须使用唯一的 registration ID。Registration ID 作为
+> `identity_binding.provider_code` 存储在数据库中，用于将外部身份映射到平台
+> 用户。如果两个不同的 IdP 使用了相同的 registration ID（例如都使用 `oidc`），
+> 会导致不同 IdP 的用户 `sub` 值空间混用，可能出现身份绑定错误或账户冲突。
+>
+> 建议使用有意义的 registration ID，例如 `okta`、`keycloak`、`azure-ad`，
+> 而不是通用的 `oidc`。一旦投入使用，不要更改 registration ID，否则现有用户
+> 将无法登录。
+
 Docker Compose 发布模板默认只透传常用变量。若使用 OIDC，请通过 compose
 override 或部署平台环境变量把上述 `SPRING_SECURITY_*` 变量注入 `server`
 容器。Kubernetes 部署同理，将这些变量放入 `backend-deployment.yaml` 的

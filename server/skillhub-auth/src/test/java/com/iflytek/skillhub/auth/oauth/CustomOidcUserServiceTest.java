@@ -89,9 +89,44 @@ class CustomOidcUserServiceTest {
 
         assertThat(claims.provider()).isEqualTo("okta");
         assertThat(claims.subject()).isEqualTo("subject-2");
-        assertThat(claims.email()).isEqualTo("fallback@example.com");
+        assertThat(claims.email()).isNull();
         assertThat(claims.emailVerified()).isFalse();
         assertThat(claims.providerLogin()).isEqualTo("Fallback Name");
+    }
+
+    @Test
+    void toOAuthClaims_nullsEmailWhenNotVerified() {
+        OAuthClaims claims = CustomOidcUserService.toOAuthClaims(
+                oidcRequest(),
+                oidcUser(Map.of(
+                        IdTokenClaimNames.SUB, "subject-3",
+                        "email", "unverified@example.com",
+                        "email_verified", false,
+                        "preferred_username", "unverified-user"
+                ))
+        );
+
+        assertThat(claims.provider()).isEqualTo("okta");
+        assertThat(claims.subject()).isEqualTo("subject-3");
+        assertThat(claims.email()).isNull();
+        assertThat(claims.emailVerified()).isFalse();
+        assertThat(claims.providerLogin()).isEqualTo("unverified-user");
+    }
+
+    @Test
+    void toOAuthClaims_nullsEmailWhenEmailVerifiedClaimIsAbsent() {
+        OAuthClaims claims = CustomOidcUserService.toOAuthClaims(
+                oidcRequest(),
+                oidcUser(Map.of(
+                        IdTokenClaimNames.SUB, "subject-absent-verified",
+                        "email", "maybe@example.com",
+                        "preferred_username", "maybe-user"
+                ))
+        );
+
+        assertThat(claims.email()).isNull();
+        assertThat(claims.emailVerified()).isFalse();
+        assertThat(claims.providerLogin()).isEqualTo("maybe-user");
     }
 
     @Test
@@ -123,6 +158,34 @@ class CustomOidcUserServiceTest {
         assertThat(claims.providerLogin()).isEqualTo("only-sub");
         assertThat(claims.email()).isNull();
         assertThat(claims.emailVerified()).isFalse();
+    }
+
+    @Test
+    void loadUser_deniedWhenOidcEmailNotVerifiedAndPolicyChecksEmail() {
+        OAuthLoginFlowService loginFlowService = mock(OAuthLoginFlowService.class);
+        OAuth2UserService<OidcUserRequest, OidcUser> delegate = mock();
+        CustomOidcUserService service = new CustomOidcUserService(loginFlowService, delegate);
+        OidcUserRequest request = oidcRequest();
+        OidcUser upstreamUser = oidcUser(Map.of(
+                IdTokenClaimNames.SUB, "oidc-sub-unverified",
+                "email", "user@company.com",
+                "email_verified", false,
+                "preferred_username", "unverified-user"
+        ));
+        when(delegate.loadUser(request)).thenReturn(upstreamUser);
+
+        ArgumentCaptor<OAuthClaims> claimsCaptor = ArgumentCaptor.forClass(OAuthClaims.class);
+        when(loginFlowService.authenticate(claimsCaptor.capture()))
+                .thenThrow(new OAuth2AuthenticationException(
+                        new org.springframework.security.oauth2.core.OAuth2Error("access_denied")));
+
+        assertThatThrownBy(() -> service.loadUser(request))
+                .isInstanceOf(OAuth2AuthenticationException.class);
+
+        OAuthClaims captured = claimsCaptor.getValue();
+        assertThat(captured.email()).isNull();
+        assertThat(captured.emailVerified()).isFalse();
+        assertThat(captured.subject()).isEqualTo("oidc-sub-unverified");
     }
 
     private static OidcUserRequest oidcRequest() {
