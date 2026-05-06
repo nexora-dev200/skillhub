@@ -31,22 +31,26 @@ skillhub list
 ### Using a custom registry
 
 ```bash
-# Set custom registry URL
+# Login to a custom registry for a single command flow
+skillhub login --registry https://skillhub.yourcompany.com
+
+# Search and install from the custom registry
+skillhub search react --registry https://skillhub.yourcompany.com
+skillhub install @yourorg/custom-skill --registry https://skillhub.yourcompany.com
+```
+
+You can also set a default custom registry in your shell:
+
+```bash
 export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
-
-# Login to custom registry
-skillhub login
-
-# Install from custom registry
-skillhub install @yourorg/custom-skill
 ```
 
 ## Commands
 
 ### Authentication
 
-- `skillhub login` - Authenticate with a SkillHub registry
-- `skillhub logout` - Remove stored credentials
+- `skillhub login [--registry <url>]` - Authenticate with a SkillHub registry
+- `skillhub logout [--registry <url>]` - Remove stored credentials
 
 ### Skill Management
 
@@ -89,32 +93,34 @@ skillhub uninstall @astron-team/react-component-builder
 ### Work with custom registries
 
 ```bash
-# Set custom registry for your organization
-export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
-
 # Login to your private registry
-skillhub login
+skillhub login --registry https://skillhub.yourcompany.com
 
 # Search and install from your private registry
-skillhub search internal-tools
-skillhub install @yourorg/internal-skill
+skillhub search internal-tools --registry https://skillhub.yourcompany.com
+skillhub install @yourorg/internal-skill --registry https://skillhub.yourcompany.com
 ```
 
 ## Registry
 
 ### Default registry
 
-By default, the CLI connects to the public SkillHub registry at `https://skillhub.astron.team`. This registry hosts community-contributed skills that are freely available.
+By default, the CLI connects to the public SkillHub registry at `https://skill.xfyun.cn`.
 
 ### Custom registry
 
-Organizations can deploy their own private SkillHub instance. To use a custom registry, set the `SKILLHUB_REGISTRY` environment variable:
+Organizations can deploy their own private SkillHub instance. You can point the CLI to a custom registry in either of these ways:
 
 ```bash
+# Per-command override
+skillhub login --registry https://skillhub.yourcompany.com
+skillhub search react --registry https://skillhub.yourcompany.com
+
+# Shell-level default
 export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
 ```
 
-You can also configure this in your shell profile (~/.bashrc, ~/.zshrc) to make it persistent.
+Use `--registry` when you want to target a specific registry for one command without changing your shell environment.
 
 ### Skill namespaces
 
