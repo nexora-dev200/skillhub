@@ -120,6 +120,7 @@ skillhub:
       secret-key: ${SKILLHUB_STORAGE_S3_SECRET_KEY:}
       region: ${SKILLHUB_STORAGE_S3_REGION:us-east-1}
       force-path-style: ${SKILLHUB_STORAGE_S3_FORCE_PATH_STYLE:true}
+      disable-chunked-encoding: ${SKILLHUB_STORAGE_S3_DISABLE_CHUNKED_ENCODING:false}
       auto-create-bucket: ${SKILLHUB_STORAGE_S3_AUTO_CREATE_BUCKET:false}
       presign-expiry: ${SKILLHUB_STORAGE_S3_PRESIGN_EXPIRY:PT10M}
       max-connections: ${SKILLHUB_STORAGE_S3_MAX_CONNECTIONS:100}

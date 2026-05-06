@@ -40,6 +40,17 @@ import static org.mockito.Mockito.when;
 class S3StorageServiceTest {
 
     @Test
+    void buildS3ClientShouldDisableChunkedEncodingWhenConfigured() {
+        S3StorageProperties props = createProperties(true);
+        props.setDisableChunkedEncoding(true);
+        S3StorageService service = new S3StorageService(props);
+        ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
+        S3Client client = service.buildS3Client(httpClientBuilder);
+        assertThat(client).isNotNull();
+        client.close();
+    }
+
+    @Test
     void shouldUsePathStylePresignedUrlWhenForcePathStyleEnabled() {
         URI presignedUrl = presignGetObjectUrl(true);
 
