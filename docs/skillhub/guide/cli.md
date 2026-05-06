@@ -6,13 +6,13 @@ SkillHub CLI 是 SkillHub 的第一方命令行工具，用于搜索、安装、
 
 ```bash
 # 通过 npm 全局安装
-npm install -g skillhub
+npm install -g @astron-team/skillhub
 
 # 或使用 npx 直接运行（无需安装）
-npx skillhub@latest version
+npx @astron-team/skillhub@latest version
 
 # 或通过 Bun 全局安装
-bun add -g skillhub
+bun add -g @astron-team/skillhub
 ```
 
 ## 快速开始
@@ -283,8 +283,8 @@ skillhub update
 ```
 
 更新机制：
-- 通过 npm 全局安装：自动执行 `npm install -g skillhub@latest`
-- 通过 Bun 全局安装：自动执行 `bun add -g skillhub@latest`
+- 通过 npm 全局安装：自动执行 `npm install -g @astron-team/skillhub@latest`
+- 通过 Bun 全局安装：自动执行 `bun add -g @astron-team/skillhub@latest`
 - 通过 npx 运行：提示手动更新命令
 - 未知安装方式：提示手动更新
 

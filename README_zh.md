@@ -113,10 +113,10 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 
 ```bash
 # 安装 CLI
-npm install -g skillhub
+npm install -g @astron-team/skillhub
 
 # 或直接运行
-npx skillhub@latest version
+npx @astron-team/skillhub@latest version
 
 # 登录
 skillhub login --token sk_xxx --registry https://skill.xfyun.cn

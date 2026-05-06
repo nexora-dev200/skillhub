@@ -107,10 +107,10 @@ Install and manage Agent skills from the command line:
 
 ```bash
 # Install CLI
-npm install -g skillhub
+npm install -g @astron-team/skillhub
 
 # Or run directly
-npx skillhub@latest version
+npx @astron-team/skillhub@latest version
 
 # Login
 skillhub login --token sk_xxx --registry https://skill.xfyun.cn

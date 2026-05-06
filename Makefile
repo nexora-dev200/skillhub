@@ -261,6 +261,47 @@ typecheck-web: ## 前端类型检查
 lint-web: ## 前端代码检查
 	cd web && pnpm run lint
 
+# CLI 相关目标
+
+build-cli: ## 构建 CLI
+	cd cli && bun run build
+
+test-cli: ## 运行 CLI 单元测试
+	cd cli && bun test
+
+lint-cli: ## CLI 代码检查
+	cd cli && bun run lint
+
+typecheck-cli: ## CLI 类型检查
+	cd cli && bun run typecheck
+
+publish-cli: ## 发布 CLI 到 npm（patch 版本）
+	@if [ ! -f cli/.env.local ]; then \
+		echo "Error: cli/.env.local not found."; \
+		echo "Create cli/.env.local with NPM_TOKEN before publishing."; \
+		exit 1; \
+	fi
+	./scripts/publish-cli.sh patch
+
+publish-cli-minor: ## 发布 CLI 到 npm（minor 版本）
+	@if [ ! -f cli/.env.local ]; then \
+		echo "Error: cli/.env.local not found."; \
+		echo "Create cli/.env.local with NPM_TOKEN before publishing."; \
+		exit 1; \
+	fi
+	./scripts/publish-cli.sh minor
+
+publish-cli-major: ## 发布 CLI 到 npm（major 版本）
+	@if [ ! -f cli/.env.local ]; then \
+		echo "Error: cli/.env.local not found."; \
+		echo "Create cli/.env.local with NPM_TOKEN before publishing."; \
+		exit 1; \
+	fi
+	./scripts/publish-cli.sh major
+
+publish-cli-dry: ## 发布 CLI 到 npm（dry run）
+	DRY_RUN=true ./scripts/publish-cli.sh patch
+
 db-reset: ## 重置数据库
 	$(DEV_COMPOSE) down -v --remove-orphans
 	$(DEV_COMPOSE) up -d --wait --remove-orphans postgres
@@ -370,15 +411,3 @@ docs-preview: ## 预览构建后的文档站点
 
 cli-install: ## 安装 CLI 依赖
 	cd cli && bun install --frozen-lockfile
-
-test-cli: ## 运行 CLI 测试
-	cd cli && bun test
-
-build-cli: ## 构建 CLI
-	cd cli && bun run build
-
-lint-cli: ## CLI lint
-	cd cli && bun run lint
-
-typecheck-cli: ## CLI 类型检查
-	cd cli && bun run typecheck
