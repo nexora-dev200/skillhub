@@ -4,13 +4,13 @@ Manage and install skills for AI coding agents.
 
 SkillHub is an enterprise-grade, self-hosted skill registry that enables teams to discover, share, and install reusable skills for AI coding agents like Claude Code. This CLI provides a seamless interface to interact with SkillHub registries.
 
-## Installation
+## 📦 Installation
 
 ```bash
 npm install -g @astron-team/skillhub
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Using the default registry
 
@@ -31,28 +31,39 @@ skillhub list
 ### Using a custom registry
 
 ```bash
-# Login to a custom registry for a single command flow
+# Login to a custom registry
 skillhub login --registry https://skillhub.yourcompany.com
 
-# Search and install from the custom registry
-skillhub search react --registry https://skillhub.yourcompany.com
-skillhub install @yourorg/custom-skill --registry https://skillhub.yourcompany.com
+# After login, other commands will use the same registry
+skillhub search react
+skillhub install @yourorg/custom-skill
 ```
 
 You can also set a default custom registry in your shell:
 
+**🐧 Linux/macOS (Bash/Zsh):**
 ```bash
 export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
 ```
 
-## Commands
+**🪟 Windows (PowerShell):**
+```powershell
+$env:SKILLHUB_REGISTRY="https://skillhub.yourcompany.com"
+```
 
-### Authentication
+**🪟 Windows (CMD):**
+```cmd
+set SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
+```
+
+## 📚 Commands
+
+### 🔐 Authentication
 
 - `skillhub login [--registry <url>]` - Authenticate with a SkillHub registry
 - `skillhub logout [--registry <url>]` - Remove stored credentials
 
-### Skill Management
+### 🎯 Skill Management
 
 - `skillhub search <query>` - Search for skills in the registry
 - `skillhub install <skill-name>` - Install a skill to ~/.claude/skills/
@@ -60,12 +71,12 @@ export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
 - `skillhub list` - List all installed skills
 - `skillhub info <skill-name>` - Show detailed information about a skill
 
-### Utilities
+### 🛠️ Utilities
 
 - `skillhub version` - Display CLI version
 - `skillhub help` - Show help information
 
-## Examples
+## 💡 Examples
 
 ### Search and install a skill
 
@@ -96,12 +107,12 @@ skillhub uninstall @astron-team/react-component-builder
 # Login to your private registry
 skillhub login --registry https://skillhub.yourcompany.com
 
-# Search and install from your private registry
-skillhub search internal-tools --registry https://skillhub.yourcompany.com
-skillhub install @yourorg/internal-skill --registry https://skillhub.yourcompany.com
+# After login, search and install work automatically
+skillhub search internal-tools
+skillhub install @yourorg/internal-skill
 ```
 
-## Registry
+## 🌐 Registry
 
 ### Default registry
 
@@ -109,18 +120,29 @@ By default, the CLI connects to the public SkillHub registry at `https://skill.x
 
 ### Custom registry
 
-Organizations can deploy their own private SkillHub instance. You can point the CLI to a custom registry in either of these ways:
+Organizations can deploy their own private SkillHub instance. You can point the CLI to a custom registry:
 
+**Per-command (recommended for one-time use):**
 ```bash
-# Per-command override
 skillhub login --registry https://skillhub.yourcompany.com
-skillhub search react --registry https://skillhub.yourcompany.com
+```
 
-# Shell-level default
+**Shell-level default (persistent across commands):**
+
+🐧 Linux/macOS:
+```bash
 export SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
 ```
 
-Use `--registry` when you want to target a specific registry for one command without changing your shell environment.
+🪟 Windows PowerShell:
+```powershell
+$env:SKILLHUB_REGISTRY="https://skillhub.yourcompany.com"
+```
+
+🪟 Windows CMD:
+```cmd
+set SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
+```
 
 ### Skill namespaces
 
@@ -131,7 +153,7 @@ Skills are namespaced by organization to prevent naming conflicts:
 
 When installing skills, always include the full namespaced name.
 
-## License
+## 📄 License
 
 Apache-2.0
 
