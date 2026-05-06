@@ -142,7 +142,7 @@ EOF
 log_stage "publishing package"
 (
   cd "$CLI_DIR"
-  NPM_CONFIG_USERCONFIG="$NPM_CONFIG_FILE" npm publish --access public
+  NPM_CONFIG_USERCONFIG="$NPM_CONFIG_FILE" npm publish --access public --registry "$NPM_REGISTRY"
 )
 
 log_stage "publish completed"
