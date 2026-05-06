@@ -36,6 +36,9 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src test --ext .ts"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "cac": "^6.7.14",
     "fflate": "^0.8.2",
