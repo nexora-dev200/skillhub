@@ -963,6 +963,27 @@
       "defaultDescription": "A useful skill"
     }
   },
+  "skillCompare": {
+    "pageTitle": "Version Compare",
+    "filesChanged": "{{count}} files changed",
+    "searchFiles": "Search files",
+    "errorLoadingCompare": "Failed to load version comparison",
+    "loadDiff": "Load diff",
+    "loading": "Loading...",
+    "totalFiles": "Files",
+    "addedLines": "Added lines",
+    "removedLines": "Removed lines",
+    "baseVersion": "Base version",
+    "headVersion": "Head version",
+    "fileList": "File list",
+    "binaryFile": "Binary file — cannot display diff",
+    "truncatedFile": "Diff output is truncated",
+    "notEnoughPublishedVersions": "Publish at least two versions before comparing.",
+    "noFilesFound": "No matching files found.",
+    "changeTypeAdded": "Added",
+    "changeTypeModified": "Modified",
+    "changeTypeRemoved": "Removed"
+  },
   "reports": {
     "title": "Skill Reports",
     "subtitle": "Handle user-submitted skill reports",

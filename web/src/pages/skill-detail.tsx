@@ -618,8 +618,11 @@ export function SkillDetailPage() {
       toast.error(t('skillDetail.versionCompareUnavailableTitle'), t('skillDetail.versionCompareUnavailableDescription'))
       return
     }
-    setDiffSourceVersion(version)
-    setDiffCompareVersion(compareVersion)
+    navigate({
+      to: '/space/$namespace/$slug/compare',
+      params: { namespace, slug },
+      search: { from: version, to: compareVersion },
+    })
   }
 
   const handleSubmitPromotion = async () => {
