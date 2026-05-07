@@ -248,12 +248,30 @@ export function SkillVersionComparePage() {
               ) : file.truncated ? (
                 <div className="text-sm text-muted-foreground">{t('skillCompare.truncatedFile')}</div>
               ) : (
-                <div className="space-y-1 font-mono text-sm">
+                <div className="overflow-hidden rounded-md border border-border/40 font-mono text-sm">
                   {file.hunks.flatMap((hunk) => hunk.lines).map((line, index) => (
-                    <div key={`${file.path}-${index}`} className="grid grid-cols-[56px_56px_1fr] gap-3">
-                      <span className="text-muted-foreground">{line.oldLineNumber ?? ''}</span>
-                      <span className="text-muted-foreground">{line.newLineNumber ?? ''}</span>
-                      <span className="whitespace-pre overflow-x-auto">
+                    <div
+                      key={`${file.path}-${index}`}
+                      className={[
+                        'grid grid-cols-[56px_56px_1fr] gap-0',
+                        line.type === 'ADD' ? 'bg-emerald-50 dark:bg-emerald-950/30' : '',
+                        line.type === 'DELETE' ? 'bg-rose-50 dark:bg-rose-950/30' : '',
+                      ].join(' ')}
+                    >
+                      <span className="select-none border-r border-border/30 px-2 py-0.5 text-right text-xs text-muted-foreground">
+                        {line.oldLineNumber ?? ''}
+                      </span>
+                      <span className="select-none border-r border-border/30 px-2 py-0.5 text-right text-xs text-muted-foreground">
+                        {line.newLineNumber ?? ''}
+                      </span>
+                      <span
+                        className={[
+                          'whitespace-pre overflow-x-auto px-3 py-0.5',
+                          line.type === 'ADD' ? 'text-emerald-700 dark:text-emerald-400' : '',
+                          line.type === 'DELETE' ? 'text-rose-700 dark:text-rose-400' : '',
+                          line.type === 'CONTEXT' ? 'text-foreground' : '',
+                        ].join(' ')}
+                      >
                         {line.type === 'ADD' ? '+' : line.type === 'DELETE' ? '-' : ' '}
                         {line.content}
                       </span>
