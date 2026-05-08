@@ -95,6 +95,14 @@ public class NamespaceController extends BaseApiController {
                 namespacePortalCommandAppService.updateNamespace(slug, request, userId));
     }
 
+    @DeleteMapping("/namespaces/{slug}")
+    public ApiResponse<MessageResponse> deleteNamespace(
+            @PathVariable String slug,
+            @RequestAttribute("userId") String userId) {
+        return ok("response.success.deleted",
+                namespacePortalCommandAppService.deleteNamespace(slug, userId));
+    }
+
     @PostMapping("/namespaces/{slug}/freeze")
     public ApiResponse<NamespaceResponse> freezeNamespace(@PathVariable String slug,
                                                           @RequestBody(required = false) NamespaceLifecycleRequest request,

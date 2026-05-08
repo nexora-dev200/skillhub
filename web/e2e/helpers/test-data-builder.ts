@@ -15,6 +15,7 @@ export interface SeededNamespace {
   currentUserRole?: string
   canUnfreeze?: boolean
   canRestore?: boolean
+  canDelete?: boolean
 }
 
 export interface SeededSkill {

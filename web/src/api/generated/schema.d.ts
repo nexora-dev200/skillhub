@@ -270,7 +270,7 @@ export interface paths {
         get: operations["getNamespace"];
         put: operations["updateNamespace"];
         post?: never;
-        delete?: never;
+        delete: operations["deleteNamespace"];
         options?: never;
         head?: never;
         patch?: never;
@@ -286,7 +286,7 @@ export interface paths {
         get: operations["getNamespace_1"];
         put: operations["updateNamespace_1"];
         post?: never;
-        delete?: never;
+        delete: operations["deleteNamespace_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4183,6 +4183,7 @@ export interface components {
             canUnfreeze?: boolean;
             canArchive?: boolean;
             canRestore?: boolean;
+            canDelete?: boolean;
         };
         ApiResponseGovernanceSummaryResponse: {
             /** Format: int32 */
@@ -5351,6 +5352,28 @@ export interface operations {
             };
         };
     };
+    deleteNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMessageResponse"];
+                };
+            };
+        };
+    };
     getNamespace_1: {
         parameters: {
             query?: never;
@@ -5395,6 +5418,28 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseNamespaceResponse"];
+                };
+            };
+        };
+    };
+    deleteNamespace_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMessageResponse"];
                 };
             };
         };

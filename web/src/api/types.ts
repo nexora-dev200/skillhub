@@ -121,6 +121,7 @@ export interface ManagedNamespace extends Namespace {
   canUnfreeze: boolean
   canArchive: boolean
   canRestore: boolean
+  canDelete: boolean
 }
 
 export interface NamespaceMember {
