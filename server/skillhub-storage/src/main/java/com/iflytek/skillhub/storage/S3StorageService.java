@@ -78,7 +78,10 @@ public class S3StorageService implements ObjectStorageService {
         var builder = S3Client.builder()
                 .region(Region.of(properties.getRegion()))
                 .credentialsProvider(buildCredentialsProvider())
-                .forcePathStyle(properties.isForcePathStyle())
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(properties.isForcePathStyle())
+                        .chunkedEncodingEnabled(!properties.isDisableChunkedEncoding())
+                        .build())
                 .httpClientBuilder(httpClientBuilder)
                 .overrideConfiguration(config -> config
                         .apiCallAttemptTimeout(properties.getApiCallAttemptTimeout())
