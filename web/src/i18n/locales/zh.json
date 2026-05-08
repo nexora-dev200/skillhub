@@ -964,6 +964,27 @@
       "defaultDescription": "实用技能"
     }
   },
+  "skillCompare": {
+    "pageTitle": "版本对比",
+    "filesChanged": "{{count}} 个文件变更",
+    "searchFiles": "搜索文件",
+    "errorLoadingCompare": "加载版本对比失败",
+    "loadDiff": "加载差异",
+    "loading": "加载中...",
+    "totalFiles": "文件数",
+    "addedLines": "新增行",
+    "removedLines": "删除行",
+    "baseVersion": "基础版本",
+    "headVersion": "目标版本",
+    "fileList": "文件列表",
+    "binaryFile": "二进制文件，无法展示差异",
+    "truncatedFile": "差异输出已截断",
+    "notEnoughPublishedVersions": "至少发布两个版本后才能进行对比。",
+    "noFilesFound": "未找到匹配文件。",
+    "changeTypeAdded": "新增",
+    "changeTypeModified": "修改",
+    "changeTypeRemoved": "删除"
+  },
   "reports": {
     "title": "技能举报",
     "subtitle": "处理用户提交的技能举报",

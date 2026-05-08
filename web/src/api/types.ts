@@ -274,6 +274,47 @@ export interface SkillFile {
   sha256: string
 }
 
+export interface SkillVersionCompareLine {
+  type: 'CONTEXT' | 'ADD' | 'DELETE' | string
+  content: string
+  oldLineNumber: number | null
+  newLineNumber: number | null
+}
+
+export interface SkillVersionCompareHunk {
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  lines: SkillVersionCompareLine[]
+}
+
+export interface SkillVersionCompareFile {
+  path: string
+  changeType: 'ADDED' | 'MODIFIED' | 'REMOVED' | string
+  oldSize: number | null
+  newSize: number | null
+  binary: boolean
+  truncated: boolean
+  hunks: SkillVersionCompareHunk[]
+}
+
+export interface SkillVersionCompareSummary {
+  totalFiles: number
+  addedFiles: number
+  modifiedFiles: number
+  removedFiles: number
+  addedLines: number
+  removedLines: number
+}
+
+export interface SkillVersionCompare {
+  from: string
+  to: string
+  summary: SkillVersionCompareSummary
+  files: SkillVersionCompareFile[]
+}
+
 export interface SkillTag {
   id: number
   tagName: string
