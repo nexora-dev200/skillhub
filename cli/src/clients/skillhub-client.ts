@@ -132,6 +132,10 @@ export class SkillHubClient {
     if (response.status === 404) {
       throw new CliError('resource not found', EXIT.generic, { registry: this.registry })
     }
+    // 502/503 indicate network-level failures (connection refused, service unavailable)
+    if (response.status === 502 || response.status === 503) {
+      throw new CliError(`registry returned ${response.status}`, EXIT.network, { registry: this.registry })
+    }
     if (!response.ok) {
       const text = await response.text().catch(() => '')
       throw new CliError(`registry returned ${response.status}`, EXIT.generic, { registry: this.registry, detail: text })

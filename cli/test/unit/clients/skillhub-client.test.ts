@@ -167,12 +167,12 @@ describe('SkillHubClient', () => {
     await err.toHaveProperty('exitCode', EXIT.generic)
   })
 
-  test('search() throws generic error on 502', async () => {
+  test('search() throws network error on 502', async () => {
     const fetchImpl = (async () => new Response(null, { status: 502 })) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
     const err = expect(client.search('test', 20)).rejects
     await err.toBeInstanceOf(CliError)
-    await err.toHaveProperty('exitCode', EXIT.generic)
+    await err.toHaveProperty('exitCode', EXIT.network)
   })
 
   // --- deleteRemote() (P1) ---
