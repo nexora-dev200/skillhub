@@ -40,15 +40,27 @@ The active registry is resolved in the following priority order:
 
 1. `--registry <url>` command-line argument
 2. `SKILLHUB_REGISTRY` environment variable
-3. `registry` in user configuration
+3. `registry` in `~/.skillhub/config.json`
 4. Default value `https://skill.xfyun.cn`
 
 ```bash
 # Temporarily use another registry
 skillhub search pdf --registry https://skillhub.example.com
 
-# Set via environment variable
+# Set via environment variable (Linux/macOS)
 export SKILLHUB_REGISTRY=https://skillhub.example.com
+```
+
+**Windows PowerShell:**
+
+```powershell
+$env:SKILLHUB_REGISTRY="https://skillhub.example.com"
+```
+
+**Windows CMD:**
+
+```cmd
+set SKILLHUB_REGISTRY=https://skillhub.example.com
 ```
 
 ## Authentication
@@ -583,8 +595,14 @@ bun link
 cd ..
 make dev-all
 
-# 3. Configure CLI to connect to local service
+# 3. Configure CLI to connect to local service (Linux/macOS)
 export SKILLHUB_REGISTRY=http://localhost:8080
+
+# Windows PowerShell:
+# $env:SKILLHUB_REGISTRY="http://localhost:8080"
+
+# Windows CMD:
+# set SKILLHUB_REGISTRY=http://localhost:8080
 
 # 4. Test commands
 skillhub search test
@@ -597,3 +615,9 @@ skillhub list
 - [SkillHub Homepage](https://skill.xfyun.cn)
 - [GitHub Repository](https://github.com/iflytek/skillhub)
 - [Issue Tracker](https://github.com/iflytek/skillhub/issues)
+
+## License
+
+Apache-2.0
+
+Copyright 2026 iFlytek Co., Ltd.

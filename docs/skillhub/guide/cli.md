@@ -47,8 +47,20 @@ skillhub publish ./my-skill --namespace myspace
 # 临时使用其他 registry
 skillhub search pdf --registry https://skillhub.example.com
 
-# 通过环境变量设置
+# 通过环境变量设置（Linux/macOS）
 export SKILLHUB_REGISTRY=https://skillhub.example.com
+```
+
+**Windows PowerShell:**
+
+```powershell
+$env:SKILLHUB_REGISTRY="https://skillhub.example.com"
+```
+
+**Windows CMD:**
+
+```cmd
+set SKILLHUB_REGISTRY=https://skillhub.example.com
 ```
 
 ## 认证
@@ -583,8 +595,14 @@ bun link
 cd ..
 make dev-all
 
-# 3. 配置 CLI 连接本地服务
+# 3. 配置 CLI 连接本地服务（Linux/macOS）
 export SKILLHUB_REGISTRY=http://localhost:8080
+
+# Windows PowerShell:
+# $env:SKILLHUB_REGISTRY="http://localhost:8080"
+
+# Windows CMD:
+# set SKILLHUB_REGISTRY=http://localhost:8080
 
 # 4. 测试命令
 skillhub search test
@@ -597,3 +615,9 @@ skillhub list
 - [SkillHub 主页](https://skill.xfyun.cn)
 - [GitHub 仓库](https://github.com/iflytek/skillhub)
 - [问题反馈](https://github.com/iflytek/skillhub/issues)
+
+## 许可证
+
+Apache-2.0
+
+Copyright 2026 iFlytek Co., Ltd.
