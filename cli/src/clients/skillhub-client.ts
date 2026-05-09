@@ -87,7 +87,7 @@ export class SkillHubClient {
       throw new CliError('skill or version not found', EXIT.generic, { registry: this.registry })
     }
     if (!response.ok) {
-      throw new CliError(`download failed with status ${response.status}`, EXIT.network, { registry: this.registry })
+      throw new CliError(`download failed with status ${response.status}`, EXIT.generic, { registry: this.registry })
     }
     return response
   }
@@ -134,7 +134,7 @@ export class SkillHubClient {
     }
     if (!response.ok) {
       const text = await response.text().catch(() => '')
-      throw new CliError(`registry returned ${response.status}`, EXIT.network, { registry: this.registry, detail: text })
+      throw new CliError(`registry returned ${response.status}`, EXIT.generic, { registry: this.registry, detail: text })
     }
     const body = await response.json()
     return body.data as T

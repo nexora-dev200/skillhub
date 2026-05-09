@@ -11,8 +11,10 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<stri
       ok: true,
       inventoryPath: result.inventoryPath,
       backupPath: result.backupPath,
-      itemsRestored: result.itemsRestored,
-      targetsRestored: result.targetsRestored,
+      itemsScanned: result.itemsScanned,
+      targetsScanned: result.targetsScanned,
+      itemsPreserved: result.itemsPreserved,
+      targetsPreserved: result.targetsPreserved,
       skipped: result.skipped,
       conflicts: result.conflicts
     })
@@ -20,7 +22,10 @@ export async function doctorCommand(options: DoctorCommandOptions): Promise<stri
   const lines = [
     `Inventory: ${result.inventoryPath}`,
     result.backupPath ? `Backup: ${result.backupPath}` : null,
-    `Restored: ${result.itemsRestored} items, ${result.targetsRestored} targets`,
+    `Scanned: ${result.itemsScanned} items, ${result.targetsScanned} targets`,
+    result.itemsPreserved > 0
+      ? `Preserved (outside scan): ${result.itemsPreserved} items, ${result.targetsPreserved} targets`
+      : null,
     result.skipped.length > 0 ? `Skipped: ${result.skipped.length} directories` : null,
     result.conflicts.length > 0 ? `Conflicts: ${result.conflicts.length} groups` : null
   ].filter(Boolean)

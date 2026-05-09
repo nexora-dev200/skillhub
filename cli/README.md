@@ -75,6 +75,7 @@ set SKILLHUB_REGISTRY=https://skillhub.yourcompany.com
 
 - `skillhub version` - Display CLI version
 - `skillhub help` - Show help information
+- `skillhub doctor [--json]` - Scan the current project for installed skills and merge findings into the local inventory. Existing entries outside the scan are preserved; conflicts are reported but unrelated records are not deleted.
 
 ## 💡 Examples
 

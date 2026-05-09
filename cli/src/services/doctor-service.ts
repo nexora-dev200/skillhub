@@ -16,8 +16,10 @@ interface MetadataJson {
 interface DoctorResult {
   inventoryPath: string
   backupPath: string | null
-  itemsRestored: number
-  targetsRestored: number
+  itemsScanned: number
+  targetsScanned: number
+  itemsPreserved: number
+  targetsPreserved: number
   skipped: Array<{ path: string; reason: string }>
   conflicts: Array<{ key: string; versions: string[] }>
 }
@@ -38,8 +40,8 @@ export async function runDoctor(cwd: string, home?: string): Promise<DoctorResul
     groups.get(key)!.push(entry)
   }
 
-  // Build new inventory
-  const items: InventoryItem[] = []
+  // Build scanned items
+  const scannedItems: InventoryItem[] = []
   for (const [key, group] of groups) {
     const versions = new Set(group.map(e => e.metadata.version))
     if (versions.size > 1) {
@@ -53,7 +55,7 @@ export async function runDoctor(cwd: string, home?: string): Promise<DoctorResul
       installDir: e.installDir,
       installedAt: e.metadata.installedAt
     }))
-    items.push({
+    scannedItems.push({
       registry: first.metadata.registry,
       namespace: first.metadata.namespace,
       slug: first.metadata.slug,
@@ -61,6 +63,38 @@ export async function runDoctor(cwd: string, home?: string): Promise<DoctorResul
       targets
     })
   }
+
+  // Read old inventory
+  let oldInventory: Inventory
+  try {
+    oldInventory = await store.read()
+  } catch {
+    oldInventory = { items: [] }
+  }
+
+  // Collect scanned installDirs
+  const scannedInstallDirs = new Set<string>()
+  for (const item of scannedItems) {
+    for (const target of item.targets) {
+      scannedInstallDirs.add(target.installDir)
+    }
+  }
+
+  // Preserve old items where installDir is not in scanned set
+  // This allows the same slug to coexist in different installDirs (e.g., different projects)
+  const preservedItems: InventoryItem[] = []
+  for (const oldItem of oldInventory.items) {
+    const preservedTargets = oldItem.targets.filter(t => !scannedInstallDirs.has(t.installDir))
+    if (preservedTargets.length > 0) {
+      preservedItems.push({
+        ...oldItem,
+        targets: preservedTargets
+      })
+    }
+  }
+
+  // Merge scanned and preserved items
+  const items = [...scannedItems, ...preservedItems]
 
   // Backup old inventory
   let backupPath: string | null = null
@@ -79,8 +113,10 @@ export async function runDoctor(cwd: string, home?: string): Promise<DoctorResul
   return {
     inventoryPath: store.path,
     backupPath,
-    itemsRestored: items.length,
-    targetsRestored: items.reduce((sum, item) => sum + item.targets.length, 0),
+    itemsScanned: scannedItems.length,
+    targetsScanned: scannedItems.reduce((sum, item) => sum + item.targets.length, 0),
+    itemsPreserved: preservedItems.length,
+    targetsPreserved: preservedItems.reduce((sum, item) => sum + item.targets.length, 0),
     skipped,
     conflicts
   }

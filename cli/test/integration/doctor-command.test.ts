@@ -44,8 +44,10 @@ describe('doctor command', () => {
     expect(json.inventoryPath).toContain('.skillhub')
     expect(json.inventoryPath).toContain('inventory.json')
     expect(json.backupPath).toBeNull()
-    expect(json.itemsRestored).toBe(0)
-    expect(json.targetsRestored).toBe(0)
+    expect(json.itemsScanned).toBe(0)
+    expect(json.targetsScanned).toBe(0)
+    expect(json.itemsPreserved).toBe(0)
+    expect(json.targetsPreserved).toBe(0)
     expect(Array.isArray(json.skipped)).toBe(true)
     expect(Array.isArray(json.conflicts)).toBe(true)
   })
@@ -62,7 +64,7 @@ describe('doctor command', () => {
     expect(result.stdout).toContain('Inventory:')
     expect(result.stdout).toContain('.skillhub')
     expect(result.stdout).toContain('inventory.json')
-    expect(result.stdout).toContain('Restored: 0 items, 0 targets')
+    expect(result.stdout).toContain('Scanned: 0 items, 0 targets')
     expect(result.stdout).not.toContain('Backup:')
   })
 
@@ -132,8 +134,8 @@ describe('doctor command', () => {
 
     const json = JSON.parse(result.stdout)
     expect(json.ok).toBe(true)
-    expect(json.itemsRestored).toBe(1)
-    expect(json.targetsRestored).toBe(1)
+    expect(json.itemsScanned).toBe(1)
+    expect(json.targetsScanned).toBe(1)
     expect(json.backupPath).toBeNull()
     expect(Array.isArray(json.skipped)).toBe(true)
     expect(json.conflicts).toHaveLength(0)
@@ -163,5 +165,66 @@ describe('doctor command', () => {
 
     expect(result.stdout).toContain('Backup:')
     expect(result.stdout).toContain('inventory.json.bak')
+  })
+
+  test('doctor merges with existing inventory and preserves out-of-cwd entries', async () => {
+    const { home, cwd } = await createTempHome()
+
+    const skillhubDir = join(home, '.skillhub')
+    await mkdir(skillhubDir, { recursive: true })
+    const inventoryPath = join(skillhubDir, 'inventory.json')
+
+    await writeFile(inventoryPath, JSON.stringify({
+      items: [
+        {
+          registry: 'https://skill.xfyun.cn',
+          namespace: 'global',
+          slug: 'external-skill',
+          version: '1.0.0',
+          targets: [
+            {
+              agent: 'claude-code',
+              rootDir: '/external/project/.claude',
+              installDir: '/external/project/.claude/skills/external-skill',
+              installedAt: '2026-04-01T00:00:00Z'
+            }
+          ]
+        }
+      ]
+    }))
+
+    await seedSkill(cwd, {
+      agentDir: '.claude',
+      slug: 'local-skill',
+      metadata: {
+        registry: 'https://skill.xfyun.cn',
+        namespace: 'global',
+        slug: 'local-skill',
+        version: '2.0.0',
+        agent: 'claude-code',
+        installedAt: '2026-04-21T09:00:00Z'
+      }
+    })
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home,
+      USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+
+    const json = JSON.parse(result.stdout)
+    expect(json.itemsScanned).toBe(1)
+    expect(json.itemsPreserved).toBe(1)
+    expect(json.targetsPreserved).toBe(1)
+
+    const raw = await readFile(inventoryPath, 'utf-8')
+    const inventory = JSON.parse(raw) as {
+      items: Array<{ slug: string }>
+    }
+
+    expect(inventory.items.map(item => item.slug)).toEqual(
+      expect.arrayContaining(['external-skill', 'local-skill'])
+    )
   })
 })

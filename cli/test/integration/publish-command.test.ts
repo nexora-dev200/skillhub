@@ -221,9 +221,9 @@ describe('publish command — P1', () => {
     expect(json.detailUrl).toContain(encodeURIComponent(json.slug))
   })
 
-  test('server error during publish returns EXIT.network', async () => {
+  test('server error during publish returns EXIT.generic', async () => {
     const env = await createTempHome()
-    // 'server_error' returns HTTP 500, which the client maps to EXIT.network.
+    // 'server_error' returns HTTP 500; request reached registry but failed, so EXIT.generic.
     registry = await startFakeRegistry({ token: 'sk_ok', failures: { publish: 'server_error' } })
     await login(env, registry.url)
 
@@ -233,7 +233,7 @@ describe('publish command — P1', () => {
       USERPROFILE: env.home
     })
 
-    expect(result.exitCode).toBe(3)
+    expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain('registry')
   })
 })

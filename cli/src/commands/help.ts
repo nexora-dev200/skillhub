@@ -47,7 +47,7 @@ export const commands = {
     examples: ['skillhub remove pdf-parser', 'skillhub remove pdf-parser --remote --hard']
   },
   doctor: {
-    summary: 'Rebuild local inventory',
+    summary: 'Scan project and merge into local inventory (preserves entries outside scan scope)',
     usage: 'skillhub doctor [--json]',
     examples: ['skillhub doctor', 'skillhub doctor --json']
   },

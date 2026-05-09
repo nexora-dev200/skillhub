@@ -54,6 +54,24 @@ describe('SkillHubClient', () => {
     await err.toHaveProperty('exitCode', EXIT.generic)
   })
 
+  test('download() throws generic error on 400', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 400 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+    const err = expect(client.download('ns', 'slug')).rejects
+    await err.toBeInstanceOf(CliError)
+    await err.toHaveProperty('message', 'download failed with status 400')
+    await err.toHaveProperty('exitCode', EXIT.generic)
+  })
+
+  test('download() throws generic error on 500', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+    const err = expect(client.download('ns', 'slug')).rejects
+    await err.toBeInstanceOf(CliError)
+    await err.toHaveProperty('message', 'download failed with status 500')
+    await err.toHaveProperty('exitCode', EXIT.generic)
+  })
+
   test('download() throws network error on fetch failure', async () => {
     const fetchImpl = (async () => { throw new TypeError('fetch failed') }) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
@@ -137,6 +155,24 @@ describe('SkillHubClient', () => {
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
     await client.resolve('ns', 'sk', '2.0.0')
     expect(capturedUrl).toContain('?version=2.0.0')
+  })
+
+  // --- handleJsonResponse() non-2xx classification ---
+
+  test('whoami() throws generic error on 500', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+    const err = expect(client.whoami()).rejects
+    await err.toBeInstanceOf(CliError)
+    await err.toHaveProperty('exitCode', EXIT.generic)
+  })
+
+  test('search() throws generic error on 502', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 502 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+    const err = expect(client.search('test', 20)).rejects
+    await err.toBeInstanceOf(CliError)
+    await err.toHaveProperty('exitCode', EXIT.generic)
   })
 
   // --- deleteRemote() (P1) ---

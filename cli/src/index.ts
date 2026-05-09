@@ -268,7 +268,7 @@ cli
   })
 
 cli
-  .command('doctor', 'Rebuild local inventory')
+  .command('doctor', 'Scan project and merge into local inventory')
   .option('--json', 'Output JSON')
   .action((options: { json?: boolean }) => {
     return runCommand(() => doctorCommand(options), Boolean(options.json))
