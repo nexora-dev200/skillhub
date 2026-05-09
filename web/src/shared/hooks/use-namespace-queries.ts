@@ -36,6 +36,10 @@ async function removeNamespaceMember(params: { slug: string; userId: string }): 
   return namespaceApi.removeMember(params.slug, params.userId)
 }
 
+async function deleteNamespace(params: { slug: string }): Promise<void> {
+  return namespaceApi.delete(params.slug)
+}
+
 async function batchAddNamespaceMembers(params: { slug: string; members: Array<{ userId: string; role: string }> }): Promise<BatchMemberResponse> {
   return namespaceApi.batchAddMembers(params.slug, params.members)
 }
@@ -208,6 +212,18 @@ export function useTransferNamespaceOwnership() {
       queryClient.invalidateQueries({ queryKey: ['namespaces', variables.slug] })
       queryClient.invalidateQueries({ queryKey: ['namespaces', 'my'] })
       queryClient.invalidateQueries({ queryKey: ['namespaces', variables.slug, 'members'] })
+    },
+  })
+}
+
+export function useDeleteNamespace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: deleteNamespace,
+    onSuccess: (_data, variables) => {
+      invalidateNamespaceQueries(queryClient, variables.slug)
+      queryClient.invalidateQueries({ queryKey: ['namespaces'] })
     },
   })
 }

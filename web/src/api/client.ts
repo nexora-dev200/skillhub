@@ -675,6 +675,13 @@ export const namespaceApi = {
     })
   },
 
+  async delete(slug: string): Promise<void> {
+    await fetchJson<void>(`${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}`, {
+      method: 'DELETE',
+      headers: await ensureCsrfHeaders(),
+    })
+  },
+
   async listMembers(slug: string, params?: { page?: number; size?: number }): Promise<PagedResponse<NamespaceMember>> {
     const queryPage = params?.page ?? 0
     const querySize = params?.size ?? 20

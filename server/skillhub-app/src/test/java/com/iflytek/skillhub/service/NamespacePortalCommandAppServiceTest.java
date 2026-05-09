@@ -77,6 +77,17 @@ class NamespacePortalCommandAppServiceTest {
         verify(namespaceGovernanceService).freezeNamespace("team-alpha", "owner-1", "cleanup", null, "127.0.0.1", "JUnit");
     }
 
+    @Test
+    void deleteNamespace_delegatesToDomainService() {
+        Namespace namespace = namespace(7L, "team-alpha");
+        when(namespaceService.getNamespaceBySlug("team-alpha")).thenReturn(namespace);
+
+        MessageResponse response = service.deleteNamespace("team-alpha", "owner-1");
+
+        assertThat(response.message()).isEqualTo("Namespace deleted successfully");
+        verify(namespaceService).deleteNamespace(7L, "owner-1");
+    }
+
     private Namespace namespace(Long id, String slug) {
         Namespace namespace = new Namespace(slug, "Team Alpha", "owner-1");
         ReflectionTestUtils.setField(namespace, "id", id);

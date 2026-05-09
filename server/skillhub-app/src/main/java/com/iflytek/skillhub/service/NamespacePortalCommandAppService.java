@@ -83,6 +83,13 @@ public class NamespacePortalCommandAppService {
     }
 
     @Transactional
+    public MessageResponse deleteNamespace(String slug, String userId) {
+        Namespace namespace = namespaceService.getNamespaceBySlug(slug);
+        namespaceService.deleteNamespace(namespace.getId(), userId);
+        return new MessageResponse("Namespace deleted successfully");
+    }
+
+    @Transactional
     public NamespaceResponse freezeNamespace(String slug,
                                              NamespaceLifecycleRequest request,
                                              String userId,
