@@ -23,6 +23,7 @@ public interface SkillJpaRepository extends JpaRepository<Skill, Long>, SkillRep
     List<Skill> findByIdIn(List<Long> ids);
     List<Skill> findByNamespaceIdAndSlug(Long namespaceId, String slug);
     Optional<Skill> findByNamespaceIdAndSlugAndOwnerId(Long namespaceId, String slug, String ownerId);
+    boolean existsByNamespaceId(Long namespaceId);
 
     @Override
     default List<Skill> findByNamespaceIdAndStatus(Long namespaceId, SkillStatus status) {
