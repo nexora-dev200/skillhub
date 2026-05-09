@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Namespace, NamespaceMember, ManagedNamespace, CreateNamespaceRequest, NamespaceCandidateUser, NamespaceRole, BatchMemberResponse, PagedResponse } from '@/api/types'
 import { namespaceApi } from '@/api/client'
-import { appendNamespaceMember, replaceNamespaceMemberRole } from '@/shared/lib/namespace-member-cache'
+import { replaceNamespaceMemberRole } from '@/shared/lib/namespace-member-cache'
 import { shouldEnableNamespaceMemberCandidates } from './skill-query-helpers'
 
 async function getMyNamespaces(): Promise<ManagedNamespace[]> {
@@ -96,11 +96,9 @@ export function useAddNamespaceMember() {
 
   return useMutation({
     mutationFn: addNamespaceMember,
-    onSuccess: (member, variables) => {
-      queryClient.setQueriesData<PagedResponse<NamespaceMember>>(
-        { queryKey: ['namespaces', variables.slug, 'members'] },
-        (currentPage) => appendNamespaceMember(currentPage, member),
-      )
+    onSuccess: (_member, variables) => {
+      // Skip optimistic update for additions — appending to every cached page
+      // causes duplicates across pages. Invalidation refreshes correctly.
       invalidateNamespaceQueries(queryClient, variables.slug)
     },
   })
