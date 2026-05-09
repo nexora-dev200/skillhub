@@ -15,9 +15,6 @@ export default defineConfig({
     target: LEGACY_BROWSER_TARGETS,
     cssTarget: LEGACY_BROWSER_TARGETS,
   },
-  esbuild: {
-    target: LEGACY_BROWSER_TARGETS,
-  },
   optimizeDeps: {
     esbuildOptions: {
       target: LEGACY_BROWSER_TARGETS,
