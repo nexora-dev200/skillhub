@@ -682,9 +682,12 @@ export const namespaceApi = {
     })
   },
 
-  async listMembers(slug: string): Promise<NamespaceMember[]> {
-    const page = await fetchJson<{ items: NamespaceMember[] }>(`${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}/members`)
-    return page.items
+  async listMembers(slug: string, params?: { page?: number; size?: number }): Promise<PagedResponse<NamespaceMember>> {
+    const queryPage = params?.page ?? 0
+    const querySize = params?.size ?? 20
+    return fetchJson<PagedResponse<NamespaceMember>>(
+      `${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}/members?page=${queryPage}&size=${querySize}`,
+    )
   },
 
   async searchMemberCandidates(slug: string, search: string, size = 10): Promise<NamespaceCandidateUser[]> {
@@ -737,6 +740,33 @@ export const namespaceApi = {
     await fetchJson<void>(`${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}/members/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
       headers: await ensureCsrfHeaders(),
+    })
+  },
+
+  async update(slug: string, request: { displayName?: string; description?: string }): Promise<Namespace> {
+    const body: Record<string, string> = {}
+    if (request.displayName !== undefined) {
+      body.displayName = request.displayName.trim()
+    }
+    if (request.description !== undefined) {
+      body.description = request.description === '' ? '' : request.description.trim()
+    }
+    return fetchJson<Namespace>(`/api/v1/namespaces/${normalizeNamespaceSlug(slug)}`, {
+      method: 'PUT',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify(body),
+    })
+  },
+
+  async transferOwnership(slug: string, newOwnerUserId: string): Promise<{ message: string }> {
+    return fetchJson<{ message: string }>(`${WEB_API_PREFIX}/namespaces/${normalizeNamespaceSlug(slug)}/transfer-ownership`, {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({
+        'Content-Type': 'application/json',
+      }),
+      body: JSON.stringify({ newOwnerId: newOwnerUserId.trim() }),
     })
   },
 }

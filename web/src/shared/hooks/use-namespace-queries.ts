@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { Namespace, NamespaceMember, ManagedNamespace, CreateNamespaceRequest, NamespaceCandidateUser, NamespaceRole, BatchMemberResponse } from '@/api/types'
+import type { Namespace, NamespaceMember, ManagedNamespace, CreateNamespaceRequest, NamespaceCandidateUser, NamespaceRole, BatchMemberResponse, PagedResponse } from '@/api/types'
 import { namespaceApi } from '@/api/client'
-import { appendNamespaceMember, replaceNamespaceMemberRole } from '@/shared/lib/namespace-member-cache'
+import { replaceNamespaceMemberRole } from '@/shared/lib/namespace-member-cache'
 import { shouldEnableNamespaceMemberCandidates } from './skill-query-helpers'
 
 async function getMyNamespaces(): Promise<ManagedNamespace[]> {
@@ -16,8 +16,8 @@ async function getNamespaceDetail(slug: string): Promise<Namespace> {
   return namespaceApi.getDetail(slug)
 }
 
-async function getNamespaceMembers(slug: string): Promise<NamespaceMember[]> {
-  return namespaceApi.listMembers(slug)
+async function getNamespaceMembers(slug: string, page = 0, size = 20): Promise<PagedResponse<NamespaceMember>> {
+  return namespaceApi.listMembers(slug, { page, size })
 }
 
 async function searchNamespaceMemberCandidates(params: { slug: string; search: string }): Promise<NamespaceCandidateUser[]> {
@@ -79,10 +79,10 @@ export function useNamespaceDetail(slug: string) {
   })
 }
 
-export function useNamespaceMembers(slug: string) {
+export function useNamespaceMembers(slug: string, page = 0, size = 20) {
   return useQuery({
-    queryKey: ['namespaces', slug, 'members'],
-    queryFn: () => getNamespaceMembers(slug),
+    queryKey: ['namespaces', slug, 'members', { page, size }],
+    queryFn: () => getNamespaceMembers(slug, page, size),
     enabled: !!slug,
   })
 }
@@ -100,11 +100,9 @@ export function useAddNamespaceMember() {
 
   return useMutation({
     mutationFn: addNamespaceMember,
-    onSuccess: (member, variables) => {
-      queryClient.setQueryData<NamespaceMember[]>(
-        ['namespaces', variables.slug, 'members'],
-        (currentMembers) => appendNamespaceMember(currentMembers, member),
-      )
+    onSuccess: (_member, variables) => {
+      // Skip optimistic update for additions — appending to every cached page
+      // causes duplicates across pages. Invalidation refreshes correctly.
       invalidateNamespaceQueries(queryClient, variables.slug)
     },
   })
@@ -127,9 +125,9 @@ export function useUpdateNamespaceMemberRole() {
   return useMutation({
     mutationFn: updateNamespaceMemberRole,
     onSuccess: (member, variables) => {
-      queryClient.setQueryData<NamespaceMember[]>(
-        ['namespaces', variables.slug, 'members'],
-        (currentMembers) => replaceNamespaceMemberRole(currentMembers, variables.userId, member.role),
+      queryClient.setQueriesData<PagedResponse<NamespaceMember>>(
+        { queryKey: ['namespaces', variables.slug, 'members'] },
+        (currentPage) => replaceNamespaceMemberRole(currentPage, variables.userId, member.role),
       )
       invalidateNamespaceQueries(queryClient, variables.slug)
     },
@@ -187,6 +185,33 @@ export function useRestoreNamespace() {
     mutationFn: ({ slug }: { slug: string }) => namespaceApi.restore(slug),
     onSuccess: (_data, variables) => {
       invalidateNamespaceQueries(queryClient, variables.slug)
+    },
+  })
+}
+
+export function useUpdateNamespace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ slug, displayName, description }: { slug: string; displayName?: string; description?: string }) =>
+      namespaceApi.update(slug, { displayName, description }),
+    onSuccess: (namespace) => {
+      queryClient.invalidateQueries({ queryKey: ['namespaces', namespace.slug] })
+      queryClient.invalidateQueries({ queryKey: ['namespaces', 'my'] })
+    },
+  })
+}
+
+export function useTransferNamespaceOwnership() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ slug, newOwnerUserId }: { slug: string; newOwnerUserId: string }) =>
+      namespaceApi.transferOwnership(slug, newOwnerUserId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['namespaces', variables.slug] })
+      queryClient.invalidateQueries({ queryKey: ['namespaces', 'my'] })
+      queryClient.invalidateQueries({ queryKey: ['namespaces', variables.slug, 'members'] })
     },
   })
 }
