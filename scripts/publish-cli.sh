@@ -55,24 +55,20 @@ NODE
 assert_version_not_published() {
   local package_name="$1"
   local version="$2"
-  local view_error
+  local view_output
 
-  view_error="$(mktemp)"
-  if npm view "${package_name}@${version}" version --registry "$NPM_REGISTRY" >/dev/null 2>"$view_error"; then
-    rm -f "$view_error"
+  if view_output="$(npm view "${package_name}@${version}" version --registry "$NPM_REGISTRY" 2>&1)"; then
     echo "${package_name}@${version} already exists on $NPM_REGISTRY" >&2
     echo "Update cli/package.json to the latest published version before running this release." >&2
     exit 1
   fi
 
-  if grep -Eiq '(E404|404 Not Found|is not in this registry|Not found)' "$view_error"; then
-    rm -f "$view_error"
+  if echo "$view_output" | grep -Eiq '(E404|404 Not Found|is not in this registry|Not found)'; then
     return 0
   fi
 
   echo "failed to verify whether ${package_name}@${version} exists on $NPM_REGISTRY" >&2
-  cat "$view_error" >&2
-  rm -f "$view_error"
+  echo "$view_output" >&2
   exit 1
 }
 
