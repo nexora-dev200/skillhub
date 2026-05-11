@@ -83,6 +83,166 @@ fi
 grep -F "checking git working tree" "$TMP_DIR/stdout.log"
 grep -F "git working tree is not clean" "$TMP_DIR/stderr.log"
 
+CONFLICT_DIR="$(mktemp -d)"
+cleanup_conflict() {
+  rm -rf "$CONFLICT_DIR"
+}
+CONFLICT_STDOUT="$(mktemp)"
+CONFLICT_STDERR="$(mktemp)"
+trap 'cleanup; cleanup_conflict; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR"' EXIT
+
+CONFLICT_CLI_DIR="$CONFLICT_DIR/cli"
+CONFLICT_SCRIPTS_DIR="$CONFLICT_DIR/scripts"
+CONFLICT_BIN_DIR="$CONFLICT_DIR/bin"
+CONFLICT_CALLS="$CONFLICT_DIR/calls.log"
+mkdir -p "$CONFLICT_CLI_DIR" "$CONFLICT_SCRIPTS_DIR" "$CONFLICT_BIN_DIR"
+cp "$PUBLISH_SCRIPT" "$CONFLICT_SCRIPTS_DIR/publish-cli.sh"
+cat >"$CONFLICT_CLI_DIR/.env.local" <<'EOF'
+NPM_TOKEN=test-token
+NPM_ORG=astron-team
+DRY_RUN=true
+EOF
+cat >"$CONFLICT_CLI_DIR/package.json" <<'EOF'
+{
+  "name": "@astron-team/skillhub",
+  "version": "0.1.4",
+  "bin": { "skillhub": "./dist/index.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": { "access": "public" }
+}
+EOF
+cat >"$CONFLICT_BIN_DIR/bun" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf "bun %s\\n" "\$*" >>"$CONFLICT_CALLS"
+exit 1
+EOF
+cat >"$CONFLICT_BIN_DIR/npm" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf "npm %s\\n" "\$*" >>"$CONFLICT_CALLS"
+case "\$1" in
+  version)
+    node - "\$PWD/package.json" <<'NODE'
+const fs = require("fs")
+const path = process.argv[2]
+const pkg = JSON.parse(fs.readFileSync(path, "utf8"))
+pkg.version = "0.1.5"
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\\n")
+NODE
+    ;;
+  view)
+    if [[ "\$2" == "@astron-team/skillhub@0.1.5" ]]; then
+      echo "0.1.5"
+      exit 0
+    fi
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+chmod +x "$CONFLICT_BIN_DIR/bun" "$CONFLICT_BIN_DIR/npm"
+
+git -C "$CONFLICT_DIR" init -q
+git -C "$CONFLICT_DIR" config user.name "Test User"
+git -C "$CONFLICT_DIR" config user.email "test@example.com"
+git -C "$CONFLICT_DIR" add cli/.env.local cli/package.json scripts/publish-cli.sh bin/bun bin/npm
+git -C "$CONFLICT_DIR" commit -q -m "init"
+
+if printf 'y\n' | REPO_ROOT="$CONFLICT_DIR" PATH="$CONFLICT_BIN_DIR:$PATH" bash "$CONFLICT_SCRIPTS_DIR/publish-cli.sh" patch >"$CONFLICT_STDOUT" 2>"$CONFLICT_STDERR"; then
+  echo "expected script to fail when bumped version already exists on npm" >&2
+  exit 1
+fi
+
+grep -F "checking registry version" "$CONFLICT_STDOUT"
+grep -F "@astron-team/skillhub@0.1.5 already exists" "$CONFLICT_STDERR"
+grep -F "Update cli/package.json to the latest published version" "$CONFLICT_STDERR"
+if grep -Fq "bun run build" "$CONFLICT_CALLS"; then
+  echo "build should not run when bumped version already exists" >&2
+  exit 1
+fi
+if grep -Fq "npm version" "$CONFLICT_CALLS"; then
+  echo "version bump should not run when bumped version already exists" >&2
+  exit 1
+fi
+grep -F '"version": "0.1.4"' "$CONFLICT_CLI_DIR/package.json"
+
+REGISTRY_ERROR_DIR="$(mktemp -d)"
+cleanup_registry_error() {
+  rm -rf "$REGISTRY_ERROR_DIR"
+}
+REGISTRY_ERROR_STDOUT="$(mktemp)"
+REGISTRY_ERROR_STDERR="$(mktemp)"
+trap 'cleanup; cleanup_conflict; cleanup_registry_error; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR"' EXIT
+
+REGISTRY_ERROR_CLI_DIR="$REGISTRY_ERROR_DIR/cli"
+REGISTRY_ERROR_SCRIPTS_DIR="$REGISTRY_ERROR_DIR/scripts"
+REGISTRY_ERROR_BIN_DIR="$REGISTRY_ERROR_DIR/bin"
+REGISTRY_ERROR_CALLS="$REGISTRY_ERROR_DIR/calls.log"
+mkdir -p "$REGISTRY_ERROR_CLI_DIR" "$REGISTRY_ERROR_SCRIPTS_DIR" "$REGISTRY_ERROR_BIN_DIR"
+cp "$PUBLISH_SCRIPT" "$REGISTRY_ERROR_SCRIPTS_DIR/publish-cli.sh"
+cat >"$REGISTRY_ERROR_CLI_DIR/.env.local" <<'EOF'
+NPM_TOKEN=test-token
+NPM_ORG=astron-team
+DRY_RUN=true
+EOF
+cat >"$REGISTRY_ERROR_CLI_DIR/package.json" <<'EOF'
+{
+  "name": "@astron-team/skillhub",
+  "version": "0.3.0",
+  "bin": { "skillhub": "./dist/index.js" },
+  "files": ["dist", "README.md", "LICENSE"],
+  "publishConfig": { "access": "public" }
+}
+EOF
+cat >"$REGISTRY_ERROR_BIN_DIR/bun" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf "bun %s\\n" "\$*" >>"$REGISTRY_ERROR_CALLS"
+exit 1
+EOF
+cat >"$REGISTRY_ERROR_BIN_DIR/npm" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+printf "npm %s\\n" "\$*" >>"$REGISTRY_ERROR_CALLS"
+case "\$1" in
+  view)
+    echo "npm ERR! code E500" >&2
+    echo "npm ERR! registry temporarily unavailable" >&2
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac
+EOF
+chmod +x "$REGISTRY_ERROR_BIN_DIR/bun" "$REGISTRY_ERROR_BIN_DIR/npm"
+
+git -C "$REGISTRY_ERROR_DIR" init -q
+git -C "$REGISTRY_ERROR_DIR" config user.name "Test User"
+git -C "$REGISTRY_ERROR_DIR" config user.email "test@example.com"
+git -C "$REGISTRY_ERROR_DIR" add cli/.env.local cli/package.json scripts/publish-cli.sh bin/bun bin/npm
+git -C "$REGISTRY_ERROR_DIR" commit -q -m "init"
+
+if REPO_ROOT="$REGISTRY_ERROR_DIR" PATH="$REGISTRY_ERROR_BIN_DIR:$PATH" bash "$REGISTRY_ERROR_SCRIPTS_DIR/publish-cli.sh" skip >"$REGISTRY_ERROR_STDOUT" 2>"$REGISTRY_ERROR_STDERR"; then
+  echo "expected script to fail when registry lookup fails unexpectedly" >&2
+  exit 1
+fi
+
+grep -F "checking registry version" "$REGISTRY_ERROR_STDOUT"
+grep -F "failed to verify whether @astron-team/skillhub@0.3.0 exists" "$REGISTRY_ERROR_STDERR"
+grep -F "npm ERR! code E500" "$REGISTRY_ERROR_STDERR"
+if grep -Fq "npm version" "$REGISTRY_ERROR_CALLS"; then
+  echo "version bump should not run when registry lookup fails" >&2
+  exit 1
+fi
+if grep -Fq "bun run build" "$REGISTRY_ERROR_CALLS"; then
+  echo "build should not run when registry lookup fails" >&2
+  exit 1
+fi
+
 SUCCESS_DIR="$(mktemp -d)"
 cleanup_success() {
   rm -rf "$SUCCESS_DIR"
@@ -90,6 +250,8 @@ cleanup_success() {
 SUCCESS_STDOUT="$(mktemp)"
 SUCCESS_STDERR="$(mktemp)"
 trap 'cleanup; cleanup_success; rm -f "$SUCCESS_STDOUT" "$SUCCESS_STDERR"' EXIT
+
+trap 'cleanup; cleanup_conflict; cleanup_registry_error; cleanup_success; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR" "$SUCCESS_STDOUT" "$SUCCESS_STDERR"' EXIT
 
 SUCCESS_CLI_DIR="$SUCCESS_DIR/cli"
 SUCCESS_SCRIPTS_DIR="$SUCCESS_DIR/scripts"
@@ -118,8 +280,21 @@ set -euo pipefail
 printf "bun %s\\n" "\$*" >>"$SUCCESS_CALLS"
 case "\$1 \$2" in
   "run build")
-    mkdir -p dist
-    printf "build output" > dist/index.js
+    mkdir -p dist src/generated
+    node - "\$PWD/package.json" "\$PWD/src/generated/pkg-info.ts" "\$PWD/dist/index.js" <<'NODE'
+const fs = require("fs")
+const pkgPath = process.argv[2]
+const generatedPath = process.argv[3]
+const distPath = process.argv[4]
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"))
+fs.writeFileSync(generatedPath, [
+  "// Generated by scripts/generate-pkg-info.ts - do not edit by hand.",
+  "export const PKG_NAME = " + JSON.stringify(pkg.name),
+  "export const PKG_VERSION = " + JSON.stringify(pkg.version),
+  ""
+].join("\\n"))
+fs.writeFileSync(distPath, "#!/usr/bin/env node\\nconsole.log(\\"SkillHub CLI " + pkg.version + "\\")\\n")
+NODE
     ;;
   "run test")
     ;;
@@ -134,6 +309,11 @@ set -euo pipefail
 printf "npm %s\\n" "\$*" >>"$SUCCESS_CALLS"
 case "\$1" in
   pack)
+    ;;
+  view)
+    echo "npm ERR! code E404" >&2
+    echo "npm ERR! 404 Not Found" >&2
+    exit 1
     ;;
   version)
     node - "\$PWD/package.json" "\$2" <<'NODE'
@@ -178,19 +358,31 @@ fi
 
 grep -F "running preflight build" "$SUCCESS_STDOUT"
 grep -F "running preflight tests" "$SUCCESS_STDOUT"
+grep -F "verifying built version" "$SUCCESS_STDOUT"
 grep -F "running preflight pack" "$SUCCESS_STDOUT"
+grep -F "checking registry version" "$SUCCESS_STDOUT"
 grep -F "bumping version (patch)" "$SUCCESS_STDOUT"
 grep -F "ready to publish @astron-team/skillhub@0.1.1" "$SUCCESS_STDOUT"
 grep -F "DRY_RUN=true, skipping npm publish" "$SUCCESS_STDOUT"
 grep -F "bun run build" "$SUCCESS_CALLS"
 grep -F "bun run test" "$SUCCESS_CALLS"
 grep -F "npm pack --dry-run" "$SUCCESS_CALLS"
+grep -F "npm version patch --no-git-tag-version" "$SUCCESS_CALLS"
 if grep -Fq "npm publish" "$SUCCESS_CALLS"; then
   echo "expected npm publish to be skipped in dry run" >&2
   exit 1
 fi
 
 grep -F '"version": "0.1.1"' "$SUCCESS_CLI_DIR/package.json"
+grep -F 'export const PKG_VERSION = "0.1.1"' "$SUCCESS_CLI_DIR/src/generated/pkg-info.ts"
+node "$SUCCESS_CLI_DIR/dist/index.js" version | grep -F "SkillHub CLI 0.1.1"
+
+SUCCESS_VERSION_LINE="$(grep -nF "npm version patch --no-git-tag-version" "$SUCCESS_CALLS" | cut -d: -f1)"
+SUCCESS_BUILD_LINE="$(grep -nF "bun run build" "$SUCCESS_CALLS" | cut -d: -f1)"
+if [[ "$SUCCESS_VERSION_LINE" -ge "$SUCCESS_BUILD_LINE" ]]; then
+  echo "expected version bump to happen before build" >&2
+  exit 1
+fi
 
 CANCEL_DIR="$(mktemp -d)"
 cleanup_cancel() {
@@ -199,6 +391,8 @@ cleanup_cancel() {
 CANCEL_STDOUT="$(mktemp)"
 CANCEL_STDERR="$(mktemp)"
 trap 'cleanup; cleanup_success; cleanup_cancel; rm -f "$SUCCESS_STDOUT" "$SUCCESS_STDERR" "$CANCEL_STDOUT" "$CANCEL_STDERR"' EXIT
+
+trap 'cleanup; cleanup_conflict; cleanup_registry_error; cleanup_success; cleanup_cancel; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR" "$SUCCESS_STDOUT" "$SUCCESS_STDERR" "$CANCEL_STDOUT" "$CANCEL_STDERR"' EXIT
 
 CANCEL_CLI_DIR="$CANCEL_DIR/cli"
 CANCEL_SCRIPTS_DIR="$CANCEL_DIR/scripts"
@@ -227,8 +421,21 @@ set -euo pipefail
 printf "bun %s\\n" "\$*" >>"$CANCEL_CALLS"
 case "\$1 \$2" in
   "run build")
-    mkdir -p dist
-    printf "build output" > dist/index.js
+    mkdir -p dist src/generated
+    node - "\$PWD/package.json" "\$PWD/src/generated/pkg-info.ts" "\$PWD/dist/index.js" <<'NODE'
+const fs = require("fs")
+const pkgPath = process.argv[2]
+const generatedPath = process.argv[3]
+const distPath = process.argv[4]
+const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"))
+fs.writeFileSync(generatedPath, [
+  "// Generated by scripts/generate-pkg-info.ts - do not edit by hand.",
+  "export const PKG_NAME = " + JSON.stringify(pkg.name),
+  "export const PKG_VERSION = " + JSON.stringify(pkg.version),
+  ""
+].join("\\n"))
+fs.writeFileSync(distPath, "#!/usr/bin/env node\\nconsole.log(\\"SkillHub CLI " + pkg.version + "\\")\\n")
+NODE
     ;;
   "run test")
     ;;
@@ -243,6 +450,11 @@ set -euo pipefail
 printf "npm %s\\n" "\$*" >>"$CANCEL_CALLS"
 case "\$1" in
   pack)
+    ;;
+  view)
+    echo "npm ERR! code E404" >&2
+    echo "npm ERR! 404 Not Found" >&2
+    exit 1
     ;;
   version)
     node - "\$PWD/package.json" "\$2" <<'NODE'
@@ -293,6 +505,7 @@ if [[ "$CANCEL_EXIT_CODE" -ne 2 ]]; then
 fi
 
 grep -F "ready to publish @astron-team/skillhub@0.2.1" "$CANCEL_STDOUT"
+grep -F "verifying built version" "$CANCEL_STDOUT"
 grep -F "publish cancelled" "$CANCEL_STDERR"
 if grep -Fq "npm publish" "$CANCEL_CALLS"; then
   echo "npm publish should not be called after cancellation" >&2
@@ -300,3 +513,5 @@ if grep -Fq "npm publish" "$CANCEL_CALLS"; then
 fi
 
 grep -F '"version": "0.2.1"' "$CANCEL_CLI_DIR/package.json"
+grep -F 'export const PKG_VERSION = "0.2.1"' "$CANCEL_CLI_DIR/src/generated/pkg-info.ts"
+node "$CANCEL_CLI_DIR/dist/index.js" version | grep -F "SkillHub CLI 0.2.1"
