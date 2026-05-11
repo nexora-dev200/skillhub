@@ -109,9 +109,8 @@ public class SecurityScanService {
         audit.setScannedAt(Instant.now(Clock.systemUTC()));
         auditRepository.save(audit);
 
-        // Only transition status if the version is not already published (auto-publish flow)
-        if (version.getStatus() != SkillVersionStatus.PUBLISHED) {
-            // Set status based on requestedVisibility
+        // Only transition from SCANNING — leave PUBLISHED/REJECTED/YANKED untouched
+        if (version.getStatus() == SkillVersionStatus.SCANNING) {
             if (version.getRequestedVisibility() == SkillVisibility.PRIVATE) {
                 version.setStatus(SkillVersionStatus.UPLOADED);
             } else {

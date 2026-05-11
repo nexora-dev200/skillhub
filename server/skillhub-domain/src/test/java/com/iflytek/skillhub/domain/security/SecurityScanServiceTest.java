@@ -172,6 +172,7 @@ class SecurityScanServiceTest {
     void processScanResult_updatesAuditAndMovesVersionToPendingReview() {
         SecurityAudit audit = new SecurityAudit(42L, ScannerType.SKILL_SCANNER);
         SkillVersion version = new SkillVersion(8L, "1.0.0", "publisher-1");
+        version.setStatus(SkillVersionStatus.SCANNING);
 
         given(auditRepository.findLatestActiveByVersionIdAndScannerType(42L, ScannerType.SKILL_SCANNER))
                 .willReturn(Optional.of(audit));
