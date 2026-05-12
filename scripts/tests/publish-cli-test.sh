@@ -1,517 +1,289 @@
 #!/usr/bin/env bash
 
+# Integration tests for scripts/publish-cli.sh.
+#
+# The script bumps cli/package.json, commits, tags `cli-vX.Y.Z`, and pushes
+# both refs to origin. These tests build a self-contained fake repo for each
+# scenario, using a real bare repository as origin so git fetch / pull / push
+# are actually exercised. `npm` is stubbed to keep `npm version` deterministic.
+
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PUBLISH_SCRIPT="$REPO_ROOT/scripts/publish-cli.sh"
-TMP_DIR="$(mktemp -d)"
-CLI_DIR="$TMP_DIR/cli"
-SCRIPTS_DIR="$TMP_DIR/scripts"
 
+TMP_DIRS=()
 cleanup() {
-  rm -rf "$TMP_DIR"
+  local d
+  for d in "${TMP_DIRS[@]+"${TMP_DIRS[@]}"}"; do
+    rm -rf "$d"
+  done
 }
 trap cleanup EXIT
 
-mkdir -p "$CLI_DIR" "$SCRIPTS_DIR"
-cp "$PUBLISH_SCRIPT" "$SCRIPTS_DIR/publish-cli.sh"
-cat >"$CLI_DIR/package.json" <<'EOF'
+new_tmp() {
+  local d
+  d="$(mktemp -d)"
+  TMP_DIRS+=("$d")
+  echo "$d"
+}
+
+fail() {
+  echo "FAIL: $*" >&2
+  exit 1
+}
+
+# init_repo <repo_dir> [initial_pkg_version] [tag_to_seed ...]
+#
+# Builds a minimal repo with:
+#   - cli/package.json at the requested version
+#   - scripts/publish-cli.sh (the script under test)
+#   - bin/npm stub that implements `npm version <bump> --no-git-tag-version`
+#   - a sibling bare repo as `origin`
+#   - HEAD on `main` with the init commit already pushed
+#   - optional pre-seeded `cli-v*` tags (created locally AND on origin)
+init_repo() {
+  local repo="$1"
+  local version="${2:-0.1.0}"
+  local tags=()
+  if [[ $# -gt 2 ]]; then
+    tags=("${@:3}")
+  fi
+
+  local origin="$repo.origin.git"
+  TMP_DIRS+=("$origin")
+
+  mkdir -p "$repo/cli" "$repo/scripts" "$repo/bin"
+  cp "$PUBLISH_SCRIPT" "$repo/scripts/publish-cli.sh"
+
+  cat >"$repo/cli/package.json" <<EOF
 {
   "name": "@astron-team/skillhub",
-  "version": "0.1.0",
+  "version": "$version",
   "bin": { "skillhub": "./dist/index.js" },
   "files": ["dist", "README.md", "LICENSE"],
   "publishConfig": { "access": "public" }
 }
 EOF
 
-if REPO_ROOT="$TMP_DIR" bash "$SCRIPTS_DIR/publish-cli.sh" >"$TMP_DIR/stdout.log" 2>"$TMP_DIR/stderr.log"; then
-  echo "expected script to fail when cli/.env.local is missing" >&2
-  exit 1
-fi
-
-grep -F "cli/.env.local not found" "$TMP_DIR/stderr.log"
-grep -F "Copy cli/.env.example to cli/.env.local" "$TMP_DIR/stderr.log"
-
-cat >"$CLI_DIR/.env.local" <<'EOF'
-NPM_TOKEN=test-token
-NPM_ORG=astron-team
-EOF
-
-cat >"$CLI_DIR/package.json" <<'EOF'
-{
-  "name": "astron-team/skillhub",
-  "version": "0.1.0",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
-}
-EOF
-
-if REPO_ROOT="$TMP_DIR" bash "$SCRIPTS_DIR/publish-cli.sh" >"$TMP_DIR/stdout.log" 2>"$TMP_DIR/stderr.log"; then
-  echo "expected script to fail for invalid package scope" >&2
-  exit 1
-fi
-
-grep -F "loading environment" "$TMP_DIR/stdout.log"
-grep -F "validating package metadata" "$TMP_DIR/stdout.log"
-grep -F "package name must match @astron-team/*" "$TMP_DIR/stderr.log"
-
-cat >"$CLI_DIR/package.json" <<'EOF'
-{
-  "name": "@astron-team/skillhub",
-  "version": "0.1.0",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
-}
-EOF
-
-git -C "$TMP_DIR" init -q
-git -C "$TMP_DIR" config user.name "Test User"
-git -C "$TMP_DIR" config user.email "test@example.com"
-git -C "$TMP_DIR" add cli/.env.local cli/package.json
-git -C "$TMP_DIR" commit -q -m "init"
-
-touch "$TMP_DIR/dirty-file.txt"
-
-if REPO_ROOT="$TMP_DIR" bash "$SCRIPTS_DIR/publish-cli.sh" >"$TMP_DIR/stdout.log" 2>"$TMP_DIR/stderr.log"; then
-  echo "expected script to fail when git working tree is dirty" >&2
-  exit 1
-fi
-
-grep -F "checking git working tree" "$TMP_DIR/stdout.log"
-grep -F "git working tree is not clean" "$TMP_DIR/stderr.log"
-
-CONFLICT_DIR="$(mktemp -d)"
-cleanup_conflict() {
-  rm -rf "$CONFLICT_DIR"
-}
-CONFLICT_STDOUT="$(mktemp)"
-CONFLICT_STDERR="$(mktemp)"
-trap 'cleanup; cleanup_conflict; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR"' EXIT
-
-CONFLICT_CLI_DIR="$CONFLICT_DIR/cli"
-CONFLICT_SCRIPTS_DIR="$CONFLICT_DIR/scripts"
-CONFLICT_BIN_DIR="$CONFLICT_DIR/bin"
-CONFLICT_CALLS="$CONFLICT_DIR/calls.log"
-mkdir -p "$CONFLICT_CLI_DIR" "$CONFLICT_SCRIPTS_DIR" "$CONFLICT_BIN_DIR"
-cp "$PUBLISH_SCRIPT" "$CONFLICT_SCRIPTS_DIR/publish-cli.sh"
-cat >"$CONFLICT_CLI_DIR/.env.local" <<'EOF'
-NPM_TOKEN=test-token
-NPM_ORG=astron-team
-DRY_RUN=true
-EOF
-cat >"$CONFLICT_CLI_DIR/package.json" <<'EOF'
-{
-  "name": "@astron-team/skillhub",
-  "version": "0.1.4",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
-}
-EOF
-cat >"$CONFLICT_BIN_DIR/bun" <<EOF
+  # Stub `npm`: only `npm version <patch|minor|major> --no-git-tag-version` is
+  # supported. Mutates package.json in cwd and echoes `vX.Y.Z` (matching real
+  # npm behaviour the script depends on).
+  cat >"$repo/bin/npm" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-printf "bun %s\\n" "\$*" >>"$CONFLICT_CALLS"
-exit 1
-EOF
-cat >"$CONFLICT_BIN_DIR/npm" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "npm %s\\n" "\$*" >>"$CONFLICT_CALLS"
-case "\$1" in
-  version)
-    node - "\$PWD/package.json" <<'NODE'
-const fs = require("fs")
-const path = process.argv[2]
-const pkg = JSON.parse(fs.readFileSync(path, "utf8"))
-pkg.version = "0.1.5"
-fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\\n")
+if [[ "${1:-}" != "version" ]]; then
+  echo "npm stub: unsupported subcommand: $*" >&2
+  exit 1
+fi
+BUMP="$2"
+node - "$PWD/package.json" "$BUMP" <<'NODE'
+const fs = require("fs");
+const path = process.argv[2];
+const bump = process.argv[3];
+const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+const parts = pkg.version.split(".").map(Number);
+if (bump === "patch") parts[2] += 1;
+else if (bump === "minor") { parts[1] += 1; parts[2] = 0; }
+else if (bump === "major") { parts[0] += 1; parts[1] = 0; parts[2] = 0; }
+else throw new Error("unexpected bump: " + bump);
+const next = parts.join(".");
+pkg.version = next;
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");
+console.log("v" + next);
 NODE
-    ;;
-  view)
-    if [[ "\$2" == "@astron-team/skillhub@0.1.5" ]]; then
-      echo "0.1.5"
-      exit 0
-    fi
-    exit 1
-    ;;
-  *)
-    exit 1
-    ;;
-esac
 EOF
-chmod +x "$CONFLICT_BIN_DIR/bun" "$CONFLICT_BIN_DIR/npm"
+  chmod +x "$repo/bin/npm"
 
-git -C "$CONFLICT_DIR" init -q
-git -C "$CONFLICT_DIR" config user.name "Test User"
-git -C "$CONFLICT_DIR" config user.email "test@example.com"
-git -C "$CONFLICT_DIR" add cli/.env.local cli/package.json scripts/publish-cli.sh bin/bun bin/npm
-git -C "$CONFLICT_DIR" commit -q -m "init"
+  git init -q --bare "$origin"
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.name "Test User"
+  git -C "$repo" config user.email "test@example.com"
+  git -C "$repo" remote add origin "$origin"
+  git -C "$repo" add cli/package.json scripts/publish-cli.sh bin/npm
+  git -C "$repo" commit -q -m "init"
+  git -C "$repo" push -q -u origin main
 
-if printf 'y\n' | REPO_ROOT="$CONFLICT_DIR" PATH="$CONFLICT_BIN_DIR:$PATH" bash "$CONFLICT_SCRIPTS_DIR/publish-cli.sh" patch >"$CONFLICT_STDOUT" 2>"$CONFLICT_STDERR"; then
-  echo "expected script to fail when bumped version already exists on npm" >&2
-  exit 1
-fi
-
-grep -F "checking registry version" "$CONFLICT_STDOUT"
-grep -F "@astron-team/skillhub@0.1.5 already exists" "$CONFLICT_STDERR"
-grep -F "Update cli/package.json to the latest published version" "$CONFLICT_STDERR"
-if grep -Fq "bun run build" "$CONFLICT_CALLS"; then
-  echo "build should not run when bumped version already exists" >&2
-  exit 1
-fi
-if grep -Fq "npm version" "$CONFLICT_CALLS"; then
-  echo "version bump should not run when bumped version already exists" >&2
-  exit 1
-fi
-grep -F '"version": "0.1.4"' "$CONFLICT_CLI_DIR/package.json"
-
-REGISTRY_ERROR_DIR="$(mktemp -d)"
-cleanup_registry_error() {
-  rm -rf "$REGISTRY_ERROR_DIR"
+  local tag
+  for tag in "${tags[@]+"${tags[@]}"}"; do
+    git -C "$repo" tag "$tag"
+    git -C "$repo" push -q origin "$tag"
+  done
 }
-REGISTRY_ERROR_STDOUT="$(mktemp)"
-REGISTRY_ERROR_STDERR="$(mktemp)"
-trap 'cleanup; cleanup_conflict; cleanup_registry_error; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR"' EXIT
 
-REGISTRY_ERROR_CLI_DIR="$REGISTRY_ERROR_DIR/cli"
-REGISTRY_ERROR_SCRIPTS_DIR="$REGISTRY_ERROR_DIR/scripts"
-REGISTRY_ERROR_BIN_DIR="$REGISTRY_ERROR_DIR/bin"
-REGISTRY_ERROR_CALLS="$REGISTRY_ERROR_DIR/calls.log"
-mkdir -p "$REGISTRY_ERROR_CLI_DIR" "$REGISTRY_ERROR_SCRIPTS_DIR" "$REGISTRY_ERROR_BIN_DIR"
-cp "$PUBLISH_SCRIPT" "$REGISTRY_ERROR_SCRIPTS_DIR/publish-cli.sh"
-cat >"$REGISTRY_ERROR_CLI_DIR/.env.local" <<'EOF'
-NPM_TOKEN=test-token
-NPM_ORG=astron-team
-DRY_RUN=true
-EOF
-cat >"$REGISTRY_ERROR_CLI_DIR/package.json" <<'EOF'
-{
-  "name": "@astron-team/skillhub",
-  "version": "0.3.0",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
+# run_publish <repo> <bump> [stdin]
+# Writes stdout to $repo/stdout.log and stderr to $repo/stderr.log.
+# Prints the exit code on stdout.
+run_publish() {
+  local repo="$1"
+  local bump="$2"
+  local input="${3-}"
+  local status=0
+  if [[ -n "$input" ]]; then
+    printf '%s' "$input" | REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
+      bash "$repo/scripts/publish-cli.sh" "$bump" \
+      >"$repo/stdout.log" 2>"$repo/stderr.log" || status=$?
+  else
+    REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
+      bash "$repo/scripts/publish-cli.sh" "$bump" \
+      >"$repo/stdout.log" 2>"$repo/stderr.log" || status=$?
+  fi
+  echo "$status"
 }
-EOF
-cat >"$REGISTRY_ERROR_BIN_DIR/bun" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "bun %s\\n" "\$*" >>"$REGISTRY_ERROR_CALLS"
-exit 1
-EOF
-cat >"$REGISTRY_ERROR_BIN_DIR/npm" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "npm %s\\n" "\$*" >>"$REGISTRY_ERROR_CALLS"
-case "\$1" in
-  view)
-    echo "npm ERR! code E500" >&2
-    echo "npm ERR! registry temporarily unavailable" >&2
-    exit 1
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-EOF
-chmod +x "$REGISTRY_ERROR_BIN_DIR/bun" "$REGISTRY_ERROR_BIN_DIR/npm"
 
-git -C "$REGISTRY_ERROR_DIR" init -q
-git -C "$REGISTRY_ERROR_DIR" config user.name "Test User"
-git -C "$REGISTRY_ERROR_DIR" config user.email "test@example.com"
-git -C "$REGISTRY_ERROR_DIR" add cli/.env.local cli/package.json scripts/publish-cli.sh bin/bun bin/npm
-git -C "$REGISTRY_ERROR_DIR" commit -q -m "init"
+# ----------------------------------------------------------------------------
+# Test 1: invalid bump type → usage error, exit non-zero
+# ----------------------------------------------------------------------------
+echo "[test] invalid bump type"
+REPO1="$(new_tmp)"
+init_repo "$REPO1"
+status="$(run_publish "$REPO1" "foo")"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit for invalid bump type"
+grep -F "Usage:" "$REPO1/stderr.log" >/dev/null
 
-if REPO_ROOT="$REGISTRY_ERROR_DIR" PATH="$REGISTRY_ERROR_BIN_DIR:$PATH" bash "$REGISTRY_ERROR_SCRIPTS_DIR/publish-cli.sh" skip >"$REGISTRY_ERROR_STDOUT" 2>"$REGISTRY_ERROR_STDERR"; then
-  echo "expected script to fail when registry lookup fails unexpectedly" >&2
-  exit 1
+# ----------------------------------------------------------------------------
+# Test 2: dirty working tree → abort before any side effect
+# ----------------------------------------------------------------------------
+echo "[test] dirty working tree aborts"
+REPO2="$(new_tmp)"
+init_repo "$REPO2"
+touch "$REPO2/dirty.txt"
+status="$(run_publish "$REPO2" "patch")"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit for dirty tree"
+grep -F "checking git working tree" "$REPO2/stdout.log" >/dev/null
+grep -F "git working tree is not clean" "$REPO2/stderr.log" >/dev/null
+
+# ----------------------------------------------------------------------------
+# Test 3: not on main branch → abort
+# ----------------------------------------------------------------------------
+echo "[test] non-main branch aborts"
+REPO3="$(new_tmp)"
+init_repo "$REPO3"
+git -C "$REPO3" checkout -q -b feature/x
+status="$(run_publish "$REPO3" "patch")"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit when not on main"
+grep -F "releases must be cut from 'main'" "$REPO3/stderr.log" >/dev/null
+grep -F "feature/x" "$REPO3/stderr.log" >/dev/null
+
+# ----------------------------------------------------------------------------
+# Test 4: package.json behind latest cli-v* tag → baseline sync, then bump
+# ----------------------------------------------------------------------------
+echo "[test] baseline sync from latest cli-v* tag, then bump + push"
+REPO4="$(new_tmp)"
+init_repo "$REPO4" "0.1.0" "cli-v0.2.0"
+status="$(run_publish "$REPO4" "patch" $'y\n')"
+[[ "$status" -eq 0 ]] || { cat "$REPO4/stderr.log" >&2; fail "expected success, got $status"; }
+grep -F "syncing package.json 0.1.0 -> 0.2.0 (from cli-v0.2.0)" "$REPO4/stdout.log" >/dev/null
+grep -F "bumping version (patch)" "$REPO4/stdout.log" >/dev/null
+grep -F "new version: 0.2.1 (tag: cli-v0.2.1)" "$REPO4/stdout.log" >/dev/null
+grep -F '"version": "0.2.1"' "$REPO4/cli/package.json" >/dev/null
+git -C "$REPO4" rev-parse "cli-v0.2.1" >/dev/null \
+  || fail "local tag cli-v0.2.1 missing"
+git -C "$REPO4" log --oneline | grep -F "chore(cli): bump version to 0.2.1" >/dev/null
+git -C "$REPO4.origin.git" rev-parse "cli-v0.2.1" >/dev/null \
+  || fail "origin tag cli-v0.2.1 missing — atomic push not delivered"
+
+# ----------------------------------------------------------------------------
+# Test 5: no cli-v* tags → fall back to package.json
+# ----------------------------------------------------------------------------
+echo "[test] no cli-v* tags falls back to package.json"
+REPO5="$(new_tmp)"
+init_repo "$REPO5" "0.1.0"
+status="$(run_publish "$REPO5" "minor" $'y\n')"
+[[ "$status" -eq 0 ]] || { cat "$REPO5/stderr.log" >&2; fail "expected success, got $status"; }
+grep -F "no cli-v* tags found, bumping from package.json" "$REPO5/stdout.log" >/dev/null
+grep -F "new version: 0.2.0 (tag: cli-v0.2.0)" "$REPO5/stdout.log" >/dev/null
+git -C "$REPO5.origin.git" rev-parse "cli-v0.2.0" >/dev/null \
+  || fail "origin tag cli-v0.2.0 missing"
+
+# ----------------------------------------------------------------------------
+# Test 6: confirmation cancel → revert package.json, no commit, no tag
+# ----------------------------------------------------------------------------
+echo "[test] confirmation cancel reverts everything"
+REPO6="$(new_tmp)"
+init_repo "$REPO6" "0.1.0" "cli-v0.1.0"
+INITIAL_HEAD="$(git -C "$REPO6" rev-parse HEAD)"
+status="$(run_publish "$REPO6" "patch" $'n\n')"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit on cancel"
+grep -F "release cancelled" "$REPO6/stderr.log" >/dev/null
+grep -F '"version": "0.1.0"' "$REPO6/cli/package.json" >/dev/null \
+  || fail "package.json not reverted to 0.1.0 after cancel"
+[[ "$(git -C "$REPO6" rev-parse HEAD)" == "$INITIAL_HEAD" ]] \
+  || fail "HEAD advanced after cancel — extra commit was made"
+if git -C "$REPO6" rev-parse -q --verify "refs/tags/cli-v0.1.1" >/dev/null 2>&1; then
+  fail "tag cli-v0.1.1 must not exist after cancel"
 fi
+[[ -z "$(git -C "$REPO6" status --porcelain)" ]] \
+  || fail "working tree not clean after cancel — revert incomplete"
 
-grep -F "checking registry version" "$REGISTRY_ERROR_STDOUT"
-grep -F "failed to verify whether @astron-team/skillhub@0.3.0 exists" "$REGISTRY_ERROR_STDERR"
-grep -F "npm ERR! code E500" "$REGISTRY_ERROR_STDERR"
-if grep -Fq "npm version" "$REGISTRY_ERROR_CALLS"; then
-  echo "version bump should not run when registry lookup fails" >&2
-  exit 1
-fi
-if grep -Fq "bun run build" "$REGISTRY_ERROR_CALLS"; then
-  echo "build should not run when registry lookup fails" >&2
-  exit 1
-fi
+# ----------------------------------------------------------------------------
+# Test 7: remote tag conflict → abort with package.json reverted
+#
+# Set up: cli-v0.1.1 exists on origin but not locally. Local has no cli-v*
+# tags, so baseline sync skips and the patch bump from 0.1.0 lands on 0.1.1,
+# which collides with origin.
+# ----------------------------------------------------------------------------
+echo "[test] remote tag conflict aborts and reverts"
+REPO7="$(new_tmp)"
+init_repo "$REPO7" "0.1.0"
+git -C "$REPO7" tag "cli-v0.1.1"
+git -C "$REPO7" push -q origin "cli-v0.1.1"
+git -C "$REPO7" tag -d "cli-v0.1.1" >/dev/null
+git -C "$REPO7" rev-parse -q --verify "refs/tags/cli-v0.1.1" >/dev/null 2>&1 \
+  && fail "setup error: local tag still present"
+git -C "$REPO7.origin.git" rev-parse "cli-v0.1.1" >/dev/null \
+  || fail "setup error: remote tag missing"
+# Disable automatic tag fetching so `git fetch --tags` doesn't pull cli-v0.1.1
+# back into the local repo and short-circuit the remote check.
+git -C "$REPO7" config remote.origin.tagOpt --no-tags
+git -C "$REPO7" config --unset-all remote.origin.fetch 2>/dev/null || true
+git -C "$REPO7" config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
 
-SUCCESS_DIR="$(mktemp -d)"
-cleanup_success() {
-  rm -rf "$SUCCESS_DIR"
-}
-SUCCESS_STDOUT="$(mktemp)"
-SUCCESS_STDERR="$(mktemp)"
-trap 'cleanup; cleanup_success; rm -f "$SUCCESS_STDOUT" "$SUCCESS_STDERR"' EXIT
+status="$(run_publish "$REPO7" "patch")"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit on remote tag conflict"
+grep -F "tag cli-v0.1.1 already exists" "$REPO7/stderr.log" >/dev/null \
+  || { cat "$REPO7/stderr.log" >&2; fail "expected tag conflict message"; }
+grep -F '"version": "0.1.0"' "$REPO7/cli/package.json" >/dev/null \
+  || fail "package.json not reverted after remote conflict"
+[[ -z "$(git -C "$REPO7" status --porcelain)" ]] \
+  || fail "working tree not clean after remote conflict"
 
-trap 'cleanup; cleanup_conflict; cleanup_registry_error; cleanup_success; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR" "$SUCCESS_STDOUT" "$SUCCESS_STDERR"' EXIT
+# ----------------------------------------------------------------------------
+# Test 8: happy path — atomic push delivers branch + tag together
+# ----------------------------------------------------------------------------
+echo "[test] happy path pushes branch and tag atomically"
+REPO8="$(new_tmp)"
+init_repo "$REPO8" "0.5.0"
+status="$(run_publish "$REPO8" "patch" $'y\n')"
+[[ "$status" -eq 0 ]] || { cat "$REPO8/stderr.log" >&2; fail "expected success, got $status"; }
+ORIGIN8="$REPO8.origin.git"
+git -C "$ORIGIN8" rev-parse "cli-v0.5.1" >/dev/null \
+  || fail "origin missing tag cli-v0.5.1"
+ORIGIN_HEAD="$(git -C "$ORIGIN8" rev-parse main)"
+LOCAL_HEAD="$(git -C "$REPO8" rev-parse main)"
+[[ "$ORIGIN_HEAD" == "$LOCAL_HEAD" ]] \
+  || fail "origin/main HEAD did not advance to match local main"
+# The bump commit must be the tip and the tag must point to it (atomic).
+TAG_COMMIT="$(git -C "$ORIGIN8" rev-parse "cli-v0.5.1^{commit}")"
+[[ "$TAG_COMMIT" == "$ORIGIN_HEAD" ]] \
+  || fail "origin tag cli-v0.5.1 does not point to origin/main HEAD"
+grep -F "release triggered" "$REPO8/stdout.log" >/dev/null
 
-SUCCESS_CLI_DIR="$SUCCESS_DIR/cli"
-SUCCESS_SCRIPTS_DIR="$SUCCESS_DIR/scripts"
-SUCCESS_BIN_DIR="$SUCCESS_DIR/bin"
-SUCCESS_CALLS="$SUCCESS_DIR/calls.log"
-mkdir -p "$SUCCESS_CLI_DIR" "$SUCCESS_SCRIPTS_DIR" "$SUCCESS_BIN_DIR"
-cp "$PUBLISH_SCRIPT" "$SUCCESS_SCRIPTS_DIR/publish-cli.sh"
-cat >"$SUCCESS_CLI_DIR/.env.local" <<'EOF'
-NPM_TOKEN=test-token
-NPM_ORG=astron-team
-DRY_RUN=true
-EOF
-cat >"$SUCCESS_CLI_DIR/package.json" <<'EOF'
-{
-  "name": "@astron-team/skillhub",
-  "version": "0.1.0",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
-}
-EOF
-mkdir -p "$SUCCESS_CLI_DIR/dist"
-cat >"$SUCCESS_BIN_DIR/bun" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "bun %s\\n" "\$*" >>"$SUCCESS_CALLS"
-case "\$1 \$2" in
-  "run build")
-    mkdir -p dist src/generated
-    node - "\$PWD/package.json" "\$PWD/src/generated/pkg-info.ts" "\$PWD/dist/index.js" <<'NODE'
-const fs = require("fs")
-const pkgPath = process.argv[2]
-const generatedPath = process.argv[3]
-const distPath = process.argv[4]
-const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"))
-fs.writeFileSync(generatedPath, [
-  "// Generated by scripts/generate-pkg-info.ts - do not edit by hand.",
-  "export const PKG_NAME = " + JSON.stringify(pkg.name),
-  "export const PKG_VERSION = " + JSON.stringify(pkg.version),
-  ""
-].join("\\n"))
-fs.writeFileSync(distPath, "#!/usr/bin/env node\\nconsole.log(\\"SkillHub CLI " + pkg.version + "\\")\\n")
-NODE
-    ;;
-  "run test")
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-EOF
-cat >"$SUCCESS_BIN_DIR/npm" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "npm %s\\n" "\$*" >>"$SUCCESS_CALLS"
-case "\$1" in
-  pack)
-    ;;
-  view)
-    echo "npm ERR! code E404" >&2
-    echo "npm ERR! 404 Not Found" >&2
-    exit 1
-    ;;
-  version)
-    node - "\$PWD/package.json" "\$2" <<'NODE'
-const fs = require("fs")
-const path = process.argv[2]
-const bump = process.argv[3]
-const pkg = JSON.parse(fs.readFileSync(path, "utf8"))
-const parts = pkg.version.split(".").map(Number)
-if (bump === "patch") parts[2] += 1
-else if (bump === "minor") { parts[1] += 1; parts[2] = 0 }
-else if (bump === "major") { parts[0] += 1; parts[1] = 0; parts[2] = 0 }
-else throw new Error('unexpected bump: ' + bump)
-pkg.version = parts.join(".")
-fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n")
-NODE
-    ;;
-  publish)
-    echo "publish should not run in dry run" >&2
-    exit 1
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-EOF
-chmod +x "$SUCCESS_BIN_DIR/bun" "$SUCCESS_BIN_DIR/npm"
+# ----------------------------------------------------------------------------
+# Test 9: push failure → script exits non-zero (commit + tag stay local)
+#
+# Break origin to force `git push origin main cli-vX.Y.Z` to fail.
+# ----------------------------------------------------------------------------
+echo "[test] push failure surfaces error"
+REPO9="$(new_tmp)"
+init_repo "$REPO9" "0.6.0"
+git -C "$REPO9" remote set-url origin "$REPO9.does-not-exist.git"
+status="$(run_publish "$REPO9" "patch" $'y\n')"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit when push fails"
+# Local refs must still exist — operator can recover by deleting tag + resetting.
+git -C "$REPO9" rev-parse "cli-v0.6.1" >/dev/null \
+  || fail "local tag cli-v0.6.1 missing after push failure"
+git -C "$REPO9" log --oneline | grep -F "chore(cli): bump version to 0.6.1" >/dev/null \
+  || fail "local bump commit missing after push failure"
 
-git -C "$SUCCESS_DIR" init -q
-git -C "$SUCCESS_DIR" config user.name "Test User"
-git -C "$SUCCESS_DIR" config user.email "test@example.com"
-git -C "$SUCCESS_DIR" add cli/.env.local cli/package.json cli/dist scripts/publish-cli.sh bin/bun bin/npm
-git -C "$SUCCESS_DIR" commit -q -m "init"
-
-if printf 'y\n' | REPO_ROOT="$SUCCESS_DIR" PATH="$SUCCESS_BIN_DIR:$PATH" bash "$SUCCESS_SCRIPTS_DIR/publish-cli.sh" patch >"$SUCCESS_STDOUT" 2>"$SUCCESS_STDERR"; then
-  :
-else
-  status=$?
-  cat "$SUCCESS_STDOUT" >&2 || true
-  cat "$SUCCESS_STDERR" >&2 || true
-  exit "$status"
-fi
-
-grep -F "running preflight build" "$SUCCESS_STDOUT"
-grep -F "running preflight tests" "$SUCCESS_STDOUT"
-grep -F "verifying built version" "$SUCCESS_STDOUT"
-grep -F "running preflight pack" "$SUCCESS_STDOUT"
-grep -F "checking registry version" "$SUCCESS_STDOUT"
-grep -F "bumping version (patch)" "$SUCCESS_STDOUT"
-grep -F "ready to publish @astron-team/skillhub@0.1.1" "$SUCCESS_STDOUT"
-grep -F "DRY_RUN=true, skipping npm publish" "$SUCCESS_STDOUT"
-grep -F "bun run build" "$SUCCESS_CALLS"
-grep -F "bun run test" "$SUCCESS_CALLS"
-grep -F "npm pack --dry-run" "$SUCCESS_CALLS"
-grep -F "npm version patch --no-git-tag-version" "$SUCCESS_CALLS"
-if grep -Fq "npm publish" "$SUCCESS_CALLS"; then
-  echo "expected npm publish to be skipped in dry run" >&2
-  exit 1
-fi
-
-grep -F '"version": "0.1.1"' "$SUCCESS_CLI_DIR/package.json"
-grep -F 'export const PKG_VERSION = "0.1.1"' "$SUCCESS_CLI_DIR/src/generated/pkg-info.ts"
-node "$SUCCESS_CLI_DIR/dist/index.js" version | grep -F "SkillHub CLI 0.1.1"
-
-SUCCESS_VERSION_LINE="$(grep -nF "npm version patch --no-git-tag-version" "$SUCCESS_CALLS" | cut -d: -f1)"
-SUCCESS_BUILD_LINE="$(grep -nF "bun run build" "$SUCCESS_CALLS" | cut -d: -f1)"
-if [[ "$SUCCESS_VERSION_LINE" -ge "$SUCCESS_BUILD_LINE" ]]; then
-  echo "expected version bump to happen before build" >&2
-  exit 1
-fi
-
-CANCEL_DIR="$(mktemp -d)"
-cleanup_cancel() {
-  rm -rf "$CANCEL_DIR"
-}
-CANCEL_STDOUT="$(mktemp)"
-CANCEL_STDERR="$(mktemp)"
-trap 'cleanup; cleanup_success; cleanup_cancel; rm -f "$SUCCESS_STDOUT" "$SUCCESS_STDERR" "$CANCEL_STDOUT" "$CANCEL_STDERR"' EXIT
-
-trap 'cleanup; cleanup_conflict; cleanup_registry_error; cleanup_success; cleanup_cancel; rm -f "$CONFLICT_STDOUT" "$CONFLICT_STDERR" "$REGISTRY_ERROR_STDOUT" "$REGISTRY_ERROR_STDERR" "$SUCCESS_STDOUT" "$SUCCESS_STDERR" "$CANCEL_STDOUT" "$CANCEL_STDERR"' EXIT
-
-CANCEL_CLI_DIR="$CANCEL_DIR/cli"
-CANCEL_SCRIPTS_DIR="$CANCEL_DIR/scripts"
-CANCEL_BIN_DIR="$CANCEL_DIR/bin"
-CANCEL_CALLS="$CANCEL_DIR/calls.log"
-mkdir -p "$CANCEL_CLI_DIR" "$CANCEL_SCRIPTS_DIR" "$CANCEL_BIN_DIR"
-cp "$PUBLISH_SCRIPT" "$CANCEL_SCRIPTS_DIR/publish-cli.sh"
-cat >"$CANCEL_CLI_DIR/.env.local" <<'EOF'
-NPM_TOKEN=test-token
-NPM_ORG=astron-team
-DRY_RUN=false
-EOF
-cat >"$CANCEL_CLI_DIR/package.json" <<'EOF'
-{
-  "name": "@astron-team/skillhub",
-  "version": "0.2.0",
-  "bin": { "skillhub": "./dist/index.js" },
-  "files": ["dist", "README.md", "LICENSE"],
-  "publishConfig": { "access": "public" }
-}
-EOF
-mkdir -p "$CANCEL_CLI_DIR/dist"
-cat >"$CANCEL_BIN_DIR/bun" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "bun %s\\n" "\$*" >>"$CANCEL_CALLS"
-case "\$1 \$2" in
-  "run build")
-    mkdir -p dist src/generated
-    node - "\$PWD/package.json" "\$PWD/src/generated/pkg-info.ts" "\$PWD/dist/index.js" <<'NODE'
-const fs = require("fs")
-const pkgPath = process.argv[2]
-const generatedPath = process.argv[3]
-const distPath = process.argv[4]
-const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"))
-fs.writeFileSync(generatedPath, [
-  "// Generated by scripts/generate-pkg-info.ts - do not edit by hand.",
-  "export const PKG_NAME = " + JSON.stringify(pkg.name),
-  "export const PKG_VERSION = " + JSON.stringify(pkg.version),
-  ""
-].join("\\n"))
-fs.writeFileSync(distPath, "#!/usr/bin/env node\\nconsole.log(\\"SkillHub CLI " + pkg.version + "\\")\\n")
-NODE
-    ;;
-  "run test")
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-EOF
-cat >"$CANCEL_BIN_DIR/npm" <<EOF
-#!/usr/bin/env bash
-set -euo pipefail
-printf "npm %s\\n" "\$*" >>"$CANCEL_CALLS"
-case "\$1" in
-  pack)
-    ;;
-  view)
-    echo "npm ERR! code E404" >&2
-    echo "npm ERR! 404 Not Found" >&2
-    exit 1
-    ;;
-  version)
-    node - "\$PWD/package.json" "\$2" <<'NODE'
-const fs = require("fs")
-const path = process.argv[2]
-const bump = process.argv[3]
-const pkg = JSON.parse(fs.readFileSync(path, "utf8"))
-const parts = pkg.version.split(".").map(Number)
-if (bump === "patch") parts[2] += 1
-else if (bump === "minor") { parts[1] += 1; parts[2] = 0 }
-else if (bump === "major") { parts[0] += 1; parts[1] = 0; parts[2] = 0 }
-else throw new Error('unexpected bump: ' + bump)
-pkg.version = parts.join(".")
-fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n")
-NODE
-    ;;
-  publish)
-    echo "npm publish should not be called after cancellation" >&2
-    exit 1
-    ;;
-  *)
-    exit 1
-    ;;
-esac
-EOF
-chmod +x "$CANCEL_BIN_DIR/bun" "$CANCEL_BIN_DIR/npm"
-
-git -C "$CANCEL_DIR" init -q
-git -C "$CANCEL_DIR" config user.name "Test User"
-git -C "$CANCEL_DIR" config user.email "test@example.com"
-git -C "$CANCEL_DIR" add cli/.env.local cli/package.json cli/dist scripts/publish-cli.sh bin/bun bin/npm
-git -C "$CANCEL_DIR" commit -q -m "init"
-
-if printf 'y\nn\n' | REPO_ROOT="$CANCEL_DIR" PATH="$CANCEL_BIN_DIR:$PATH" bash "$CANCEL_SCRIPTS_DIR/publish-cli.sh" patch >"$CANCEL_STDOUT" 2>"$CANCEL_STDERR"; then
-  CANCEL_EXIT_CODE=0
-else
-  CANCEL_EXIT_CODE=$?
-fi
-
-if [[ "$CANCEL_EXIT_CODE" -eq 0 ]]; then
-  echo "expected script to exit with non-zero when publish is cancelled" >&2
-  exit 1
-fi
-
-if [[ "$CANCEL_EXIT_CODE" -ne 2 ]]; then
-  echo "expected exit code 2 when publish is cancelled, got $CANCEL_EXIT_CODE" >&2
-  exit 1
-fi
-
-grep -F "ready to publish @astron-team/skillhub@0.2.1" "$CANCEL_STDOUT"
-grep -F "verifying built version" "$CANCEL_STDOUT"
-grep -F "publish cancelled" "$CANCEL_STDERR"
-if grep -Fq "npm publish" "$CANCEL_CALLS"; then
-  echo "npm publish should not be called after cancellation" >&2
-  exit 1
-fi
-
-grep -F '"version": "0.2.1"' "$CANCEL_CLI_DIR/package.json"
-grep -F 'export const PKG_VERSION = "0.2.1"' "$CANCEL_CLI_DIR/src/generated/pkg-info.ts"
-node "$CANCEL_CLI_DIR/dist/index.js" version | grep -F "SkillHub CLI 0.2.1"
+echo "all tests passed"

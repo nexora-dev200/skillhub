@@ -174,8 +174,12 @@ jobs:
           echo "Published ${{ needs.build-and-test.outputs.package_name }}@${{ needs.build-and-test.outputs.version }}"
 
   create-release:
-    needs: build-and-test
+    needs: [build-and-test, publish-npm]
     runs-on: ubuntu-latest
+    # Only create the GitHub Release after npm publish has actually succeeded
+    # (or was explicitly skipped via skip_npm=true). This prevents a
+    # half-released state where Release exists but `npm install -g` fails.
+    if: ${{ always() && needs.build-and-test.result == 'success' && (needs.publish-npm.result == 'success' || (inputs.skip_npm && needs.publish-npm.result == 'skipped')) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
