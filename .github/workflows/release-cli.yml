@@ -135,6 +135,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -232,6 +234,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
