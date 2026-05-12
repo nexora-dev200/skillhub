@@ -54,6 +54,47 @@ git -C "$REPO_ROOT" pull --ff-only origin "$CURRENT_BRANCH"
 log_stage "fetching tags from origin"
 git -C "$REPO_ROOT" fetch --tags --prune origin
 
+log_stage "checking for unpushed release artifacts"
+UNPUSHED_COMMITS="$(git -C "$REPO_ROOT" log --oneline origin/"$CURRENT_BRANCH"..HEAD 2>/dev/null || true)"
+UNPUSHED_RELEASE_TAGS="$(git -C "$REPO_ROOT" tag --list 'cli-v*' --no-merged origin/"$CURRENT_BRANCH" 2>/dev/null || true)"
+
+if [[ -n "$UNPUSHED_COMMITS" ]] || [[ -n "$UNPUSHED_RELEASE_TAGS" ]]; then
+  echo "" >&2
+  echo "ERROR: Detected unpushed release artifacts from a previous failed push:" >&2
+  echo "" >&2
+
+  if [[ -n "$UNPUSHED_COMMITS" ]]; then
+    echo "  Unpushed commits:" >&2
+    echo "$UNPUSHED_COMMITS" | sed 's/^/    /' >&2
+    echo "" >&2
+  fi
+
+  if [[ -n "$UNPUSHED_RELEASE_TAGS" ]]; then
+    echo "  Unpushed tags:" >&2
+    echo "$UNPUSHED_RELEASE_TAGS" | sed 's/^/    /' >&2
+    echo "" >&2
+  fi
+
+  echo "Choose a recovery option:" >&2
+  echo "" >&2
+  echo "  1. Retry push (if the previous failure was temporary, e.g., network issue):" >&2
+  if [[ -n "$UNPUSHED_RELEASE_TAGS" ]]; then
+    FIRST_TAG="$(echo "$UNPUSHED_RELEASE_TAGS" | head -n1)"
+    echo "     git push origin $CURRENT_BRANCH $FIRST_TAG" >&2
+  else
+    echo "     git push origin $CURRENT_BRANCH" >&2
+  fi
+  echo "" >&2
+  echo "  2. Rollback and retry release (if you want to start fresh):" >&2
+  if [[ -n "$UNPUSHED_RELEASE_TAGS" ]]; then
+    echo "     git tag -d $UNPUSHED_RELEASE_TAGS" | tr '\n' ' ' | sed 's/ $/\n/' >&2
+  fi
+  echo "     git reset --hard origin/$CURRENT_BRANCH" >&2
+  echo "     # Then re-run: make publish-cli" >&2
+  echo "" >&2
+  exit 1
+fi
+
 log_stage "resolving baseline version from latest cli-v* tag"
 LATEST_TAG="$(git -C "$REPO_ROOT" tag --list 'cli-v*' --sort=-version:refname | head -n1)"
 if [[ -n "$LATEST_TAG" ]]; then
