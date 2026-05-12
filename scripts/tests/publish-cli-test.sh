@@ -241,14 +241,20 @@ init_repo "$REPO7" "0.1.0"
 mkdir -p "$REPO7/bin-git"
 cat >"$REPO7/bin-git/git" <<'WRAPPER'
 #!/usr/bin/env bash
+# Log every invocation for debugging.
+echo "WRAPPER: $*" >> "${RACE_WRAPPER_LOG:-/dev/null}"
 # Inject cli-v0.1.1 into origin right before the script's remote tag check.
 if [[ "$*" == *"ls-remote --exit-code --tags origin refs/tags/cli-v0.1.1"* ]]; then
   if [[ ! -f "$RACE_INJECTED_FLAG" ]]; then
     touch "$RACE_INJECTED_FLAG"
     SCRATCH=$(mktemp -d)
-    /usr/bin/git clone -q "$ORIGIN_REPO" "$SCRATCH" >/dev/null 2>&1
-    /usr/bin/git -C "$SCRATCH" tag cli-v0.1.1 >/dev/null 2>&1
-    /usr/bin/git -C "$SCRATCH" push -q origin cli-v0.1.1 >/dev/null 2>&1
+    echo "WRAPPER: injecting cli-v0.1.1 into $ORIGIN_REPO" >> "${RACE_WRAPPER_LOG:-/dev/null}"
+    /usr/bin/git clone -q "$ORIGIN_REPO" "$SCRATCH" >>"${RACE_WRAPPER_LOG:-/dev/null}" 2>&1 || \
+      echo "WRAPPER: clone failed" >> "${RACE_WRAPPER_LOG:-/dev/null}"
+    /usr/bin/git -C "$SCRATCH" tag cli-v0.1.1 >>"${RACE_WRAPPER_LOG:-/dev/null}" 2>&1 || \
+      echo "WRAPPER: tag failed" >> "${RACE_WRAPPER_LOG:-/dev/null}"
+    /usr/bin/git -C "$SCRATCH" push -q origin cli-v0.1.1 >>"${RACE_WRAPPER_LOG:-/dev/null}" 2>&1 || \
+      echo "WRAPPER: push failed" >> "${RACE_WRAPPER_LOG:-/dev/null}"
     rm -rf "$SCRATCH"
   fi
 fi
@@ -259,12 +265,13 @@ chmod +x "$REPO7/bin-git/git"
 status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
   ORIGIN_REPO="$REPO7.origin.git" \
   RACE_INJECTED_FLAG="$REPO7/.race-injected" \
+  RACE_WRAPPER_LOG="$REPO7/wrapper.log" \
   REPO_ROOT="$REPO7" PATH="$REPO7/bin-git:$REPO7/bin:$PATH" \
   bash "$REPO7/scripts/publish-cli.sh" "patch" \
   >"$REPO7/stdout.log" 2>"$REPO7/stderr.log" && echo 0 || echo $?)"
-[[ "$status" -ne 0 ]] || fail "expected non-zero exit on remote tag race"
+[[ "$status" -ne 0 ]] || { echo "=== wrapper.log ==="; cat "$REPO7/wrapper.log"; fail "expected non-zero exit on remote tag race"; }
 grep -F "tag cli-v0.1.1 already exists on origin" "$REPO7/stderr.log" >/dev/null \
-  || { cat "$REPO7/stderr.log" >&2; fail "expected remote tag conflict message"; }
+  || { echo "=== stderr ==="; cat "$REPO7/stderr.log"; echo "=== wrapper.log ==="; cat "$REPO7/wrapper.log"; fail "expected remote tag conflict message"; }
 grep -F '"version": "0.1.0"' "$REPO7/cli/package.json" >/dev/null \
   || fail "package.json not reverted after remote conflict"
 [[ -z "$(git -C "$REPO7" status --porcelain)" ]] \
