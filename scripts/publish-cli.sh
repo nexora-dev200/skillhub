@@ -112,8 +112,7 @@ log_stage "creating tag $TAG"
 git -C "$REPO_ROOT" tag "$TAG"
 
 log_stage "pushing commit and tag to origin"
-git -C "$REPO_ROOT" push origin "$CURRENT_BRANCH"
-git -C "$REPO_ROOT" push origin "$TAG"
+git -C "$REPO_ROOT" push origin "$CURRENT_BRANCH" "$TAG"
 
 log_stage "release triggered — CI workflow will build and publish"
 log_stage "watch progress at: https://github.com/iflytek/skillhub/actions/workflows/release-cli.yml"
