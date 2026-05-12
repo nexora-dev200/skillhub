@@ -29,6 +29,34 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Validate tag (workflow_dispatch only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+
+          # Verify tag exists
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "ERROR: Tag '$TAG' does not exist in the repository" >&2
+            exit 1
+          fi
+
+          # Verify current checkout matches the tag
+          TAG_SHA=$(git rev-parse "refs/tags/$TAG^{commit}")
+          CURRENT_SHA=$(git rev-parse HEAD)
+
+          if [ "$TAG_SHA" != "$CURRENT_SHA" ]; then
+            echo "ERROR: Current checkout SHA does not match tag '$TAG'" >&2
+            echo "  Tag SHA:     $TAG_SHA" >&2
+            echo "  Current SHA: $CURRENT_SHA" >&2
+            echo "" >&2
+            echo "This indicates the checkout did not switch to the specified tag." >&2
+            exit 1
+          fi
+
+          echo "✓ Tag '$TAG' validated (SHA: $TAG_SHA)"
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -140,12 +168,33 @@ jobs:
           PACKAGE_NAME="${{ needs.build-and-test.outputs.package_name }}"
           VERSION="${{ needs.build-and-test.outputs.version }}"
 
-          if npm view "${PACKAGE_NAME}@${VERSION}" version --registry "$NPM_REGISTRY" 2>&1 | grep -Eiq '(E404|404 Not Found|is not in this registry|Not found)'; then
+          # Three-state check: success (exists) / 404 (missing) / error (fail job)
+          set +e
+          NPM_OUTPUT=$(npm view "${PACKAGE_NAME}@${VERSION}" version --registry "$NPM_REGISTRY" 2>&1)
+          NPM_EXIT_CODE=$?
+          set -e
+
+          if [ $NPM_EXIT_CODE -eq 0 ]; then
+            # Success: version exists on registry
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Version $VERSION already exists on registry, skipping publish"
+          elif echo "$NPM_OUTPUT" | grep -Eiq '(E404|404 Not Found|is not in this registry|Not found)'; then
+            # Explicit 404: version does not exist
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "Version $VERSION does not exist on registry, proceeding with publish"
           else
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Version $VERSION already exists on registry, skipping publish"
+            # Uncertain state: network error, auth failure, registry error, etc.
+            echo "ERROR: Failed to check npm registry (exit code: $NPM_EXIT_CODE)" >&2
+            echo "Output: $NPM_OUTPUT" >&2
+            echo "" >&2
+            echo "This could be due to:" >&2
+            echo "  - Network connectivity issues" >&2
+            echo "  - Registry service errors (5xx)" >&2
+            echo "  - Authentication/authorization failures" >&2
+            echo "  - DNS or TLS problems" >&2
+            echo "" >&2
+            echo "Cannot safely determine if version exists. Failing job to prevent silent skip." >&2
+            exit 1
           fi
 
       - name: Configure npm authentication

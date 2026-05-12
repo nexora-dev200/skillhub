@@ -120,11 +120,13 @@ run_publish() {
   local input="${3-}"
   local status=0
   if [[ -n "$input" ]]; then
-    printf '%s' "$input" | REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
+    printf '%s' "$input" | env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+      REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
       bash "$repo/scripts/publish-cli.sh" "$bump" \
       >"$repo/stdout.log" 2>"$repo/stderr.log" || status=$?
   else
-    REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
+    env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+      REPO_ROOT="$repo" PATH="$repo/bin:$PATH" \
       bash "$repo/scripts/publish-cli.sh" "$bump" \
       >"$repo/stdout.log" 2>"$repo/stderr.log" || status=$?
   fi
@@ -272,7 +274,7 @@ grep -F "release triggered" "$REPO8/stdout.log" >/dev/null
 # ----------------------------------------------------------------------------
 # Test 9: push failure → script exits non-zero (commit + tag stay local)
 #
-# Break origin to force `git push origin main cli-vX.Y.Z` to fail.
+# Break origin to force `git push --atomic origin main cli-vX.Y.Z` to fail.
 # ----------------------------------------------------------------------------
 echo "[test] push failure surfaces error"
 REPO9="$(new_tmp)"
@@ -285,5 +287,63 @@ git -C "$REPO9" rev-parse "cli-v0.6.1" >/dev/null \
   || fail "local tag cli-v0.6.1 missing after push failure"
 git -C "$REPO9" log --oneline | grep -F "chore(cli): bump version to 0.6.1" >/dev/null \
   || fail "local bump commit missing after push failure"
+
+# ----------------------------------------------------------------------------
+# Test 10: unpushed detection catches "branch pushed, tag not pushed" state
+#
+# Simulate: commit is on origin/main, local tag exists but was never pushed.
+# The old `--no-merged` approach would miss this because the tagged commit is
+# already reachable from origin/main. The new ls-remote approach catches it.
+# ----------------------------------------------------------------------------
+echo "[test] unpushed detection catches tag-only failure"
+REPO10="$(new_tmp)"
+init_repo "$REPO10" "0.7.0"
+# Manually create a release commit and push only the branch (not the tag)
+cd "$REPO10/cli"
+node -e "
+  const fs = require('fs');
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  pkg.version = '0.7.1';
+  fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
+cd "$REPO10"
+git -C "$REPO10" add cli/package.json
+git -C "$REPO10" commit -q -m "chore(cli): bump version to 0.7.1"
+git -C "$REPO10" tag "cli-v0.7.1"
+git -C "$REPO10" push -q origin main
+# Tag NOT pushed — simulates atomic push partial failure recovery
+# (or a scenario where user manually pushed branch but tag failed)
+status="$(run_publish "$REPO10" "patch")"
+[[ "$status" -ne 0 ]] || fail "expected non-zero exit when unpushed tag detected"
+grep -F "Unpushed tags" "$REPO10/stderr.log" >/dev/null \
+  || { cat "$REPO10/stderr.log" >&2; fail "expected unpushed tag warning"; }
+grep -F "cli-v0.7.1" "$REPO10/stderr.log" >/dev/null \
+  || fail "expected cli-v0.7.1 in unpushed tag warning"
+
+# ----------------------------------------------------------------------------
+# Test 11: --atomic flag is actually passed to git push
+#
+# Use a git wrapper to capture the push command and verify --atomic is present.
+# ----------------------------------------------------------------------------
+echo "[test] push uses --atomic flag"
+REPO11="$(new_tmp)"
+init_repo "$REPO11" "0.8.0"
+# Create a git wrapper that logs push commands
+mkdir -p "$REPO11/bin-git"
+cat >"$REPO11/bin-git/git" <<'WRAPPER'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "push" ]]; then
+  echo "GIT_PUSH_ARGS: $*" >> "$REPO_ROOT/git-push-log.txt"
+fi
+exec /usr/bin/git "$@"
+WRAPPER
+chmod +x "$REPO11/bin-git/git"
+status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+  REPO_ROOT="$REPO11" PATH="$REPO11/bin-git:$REPO11/bin:$PATH" \
+  printf 'y\n' | bash "$REPO11/scripts/publish-cli.sh" "patch" \
+  >"$REPO11/stdout.log" 2>"$REPO11/stderr.log" && echo 0 || echo $?)"
+[[ "$status" -eq 0 ]] || { cat "$REPO11/stderr.log" >&2; fail "expected success, got $status"; }
+grep -F -- "--atomic" "$REPO11/git-push-log.txt" >/dev/null \
+  || { cat "$REPO11/git-push-log.txt" >&2; fail "git push did not include --atomic flag"; }
 
 echo "all tests passed"

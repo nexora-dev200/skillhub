@@ -56,7 +56,18 @@ git -C "$REPO_ROOT" fetch --tags --prune origin
 
 log_stage "checking for unpushed release artifacts"
 UNPUSHED_COMMITS="$(git -C "$REPO_ROOT" log --oneline origin/"$CURRENT_BRANCH"..HEAD 2>/dev/null || true)"
-UNPUSHED_RELEASE_TAGS="$(git -C "$REPO_ROOT" tag --list 'cli-v*' --no-merged origin/"$CURRENT_BRANCH" 2>/dev/null || true)"
+
+# Detect local cli-v* tags that don't exist on origin.
+# This catches both: (a) commit not pushed + tag not pushed, and
+# (b) commit pushed but tag push failed (where --no-merged would miss it).
+UNPUSHED_RELEASE_TAGS=""
+while IFS= read -r local_tag; do
+  [[ -z "$local_tag" ]] && continue
+  if ! git -C "$REPO_ROOT" ls-remote --exit-code --tags origin "refs/tags/$local_tag" >/dev/null 2>&1; then
+    UNPUSHED_RELEASE_TAGS="${UNPUSHED_RELEASE_TAGS:+$UNPUSHED_RELEASE_TAGS
+}$local_tag"
+  fi
+done < <(git -C "$REPO_ROOT" tag --list 'cli-v*' 2>/dev/null)
 
 if [[ -n "$UNPUSHED_COMMITS" ]] || [[ -n "$UNPUSHED_RELEASE_TAGS" ]]; then
   echo "" >&2
@@ -152,8 +163,8 @@ git -C "$REPO_ROOT" commit -m "chore(cli): bump version to $NEW_VERSION"
 log_stage "creating tag $TAG"
 git -C "$REPO_ROOT" tag "$TAG"
 
-log_stage "pushing commit and tag to origin"
-git -C "$REPO_ROOT" push origin "$CURRENT_BRANCH" "$TAG"
+log_stage "pushing commit and tag to origin (atomic)"
+git -C "$REPO_ROOT" push --atomic origin "$CURRENT_BRANCH" "$TAG"
 
 log_stage "release triggered — CI workflow will build and publish"
 log_stage "watch progress at: https://github.com/iflytek/skillhub/actions/workflows/release-cli.yml"
