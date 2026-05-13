@@ -249,13 +249,26 @@ grep -F "release triggered" "$REPO7/stdout.log" >/dev/null
 # ----------------------------------------------------------------------------
 # Test 8: push failure → script exits non-zero (commit + tag stay local)
 #
-# Break origin to force `git push --atomic origin main cli-vX.Y.Z` to fail.
+# Use a git wrapper that fails only on `git push`, so pull/fetch succeed
+# but the final push does not.
 # ----------------------------------------------------------------------------
 echo "[test] push failure surfaces error"
 REPO8="$(new_tmp)"
 init_repo "$REPO8" "0.6.0"
-git -C "$REPO8" remote set-url origin "$REPO8.does-not-exist.git"
-status="$(run_publish "$REPO8" "patch" $'y\n')"
+mkdir -p "$REPO8/bin-git"
+cat >"$REPO8/bin-git/git" <<'WRAPPER'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "push" ]]; then
+  echo "fatal: could not read from remote repository." >&2
+  exit 128
+fi
+exec /usr/bin/git "$@"
+WRAPPER
+chmod +x "$REPO8/bin-git/git"
+status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+  REPO_ROOT="$REPO8" PATH="$REPO8/bin-git:$REPO8/bin:$PATH" \
+  printf 'y\n' | bash "$REPO8/scripts/publish-cli.sh" "patch" \
+  >"$REPO8/stdout.log" 2>"$REPO8/stderr.log" && echo 0 || echo $?)"
 [[ "$status" -ne 0 ]] || fail "expected non-zero exit when push fails"
 git -C "$REPO8" rev-parse "cli-v0.6.1" >/dev/null \
   || fail "local tag cli-v0.6.1 missing after push failure"
