@@ -98,4 +98,54 @@ describe('whoami command', () => {
     expect(result.exitCode).toBe(2)
     expect(result.stderr.toLowerCase()).toContain('authentication failed')
   })
+
+  // ---------------------------------------------------------------------------
+  // P1 — Stored-token revocation: token persists in credentials.json but
+  // server now rejects it. whoami must surface the auth failure on first
+  // call, not silently use a stale principal.
+  // ---------------------------------------------------------------------------
+  test('stored token that the server now rejects surfaces EXIT.auth on whoami', async () => {
+    // Configure a registry that requires sk_new but seed sk_old in credentials
+    // — simulates a token that was valid at login time but has since been
+    // revoked or rotated server-side.
+    registry = await startFakeRegistry({
+      token: 'sk_new',
+      user: { handle: 'should-not-see', displayName: 'X' }
+    })
+    const { home } = await createTempHome()
+    const env = { HOME: home, USERPROFILE: home }
+
+    const { mkdir, writeFile } = await import('node:fs/promises')
+    const { join } = await import('node:path')
+    await mkdir(join(home, '.skillhub'), { recursive: true })
+    await writeFile(
+      join(home, '.skillhub', 'credentials.json'),
+      JSON.stringify({ tokens: { [registry.url]: 'sk_old_revoked' } })
+    )
+
+    const result = await runCli(['whoami', '--registry', registry.url], env)
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr.toLowerCase()).toMatch(/auth|401|unauthorized/)
+  })
+
+  // ---------------------------------------------------------------------------
+  // P1 — Token priority --token > SKILLHUB_TOKEN > stored, end-to-end via
+  // whoami. Cross-checks the auth-resolution suite by verifying the wired
+  // contract on this specific command.
+  // ---------------------------------------------------------------------------
+  test('--token wins over SKILLHUB_TOKEN env on whoami', async () => {
+    registry = await startFakeRegistry({
+      token: 'sk_winner',
+      user: { handle: 'winner', displayName: 'W' }
+    })
+    const { home } = await createTempHome()
+    const env = { HOME: home, USERPROFILE: home, SKILLHUB_TOKEN: 'sk_loser_env' }
+
+    const result = await runCli(
+      ['whoami', '--token', 'sk_winner', '--registry', registry.url],
+      env
+    )
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('winner')
+  })
 })
