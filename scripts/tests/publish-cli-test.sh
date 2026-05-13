@@ -265,10 +265,11 @@ fi
 exec /usr/bin/git "$@"
 WRAPPER
 chmod +x "$REPO8/bin-git/git"
-status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+status=0
+printf 'y\n' | env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
   REPO_ROOT="$REPO8" PATH="$REPO8/bin-git:$REPO8/bin:$PATH" \
-  printf 'y\n' | bash "$REPO8/scripts/publish-cli.sh" "patch" \
-  >"$REPO8/stdout.log" 2>"$REPO8/stderr.log" && echo 0 || echo $?)"
+  bash "$REPO8/scripts/publish-cli.sh" "patch" \
+  >"$REPO8/stdout.log" 2>"$REPO8/stderr.log" || status=$?
 [[ "$status" -ne 0 ]] || fail "expected non-zero exit when push fails"
 git -C "$REPO8" rev-parse "cli-v0.6.1" >/dev/null \
   || fail "local tag cli-v0.6.1 missing after push failure"
@@ -322,10 +323,11 @@ fi
 exec /usr/bin/git "$@"
 WRAPPER
 chmod +x "$REPO10/bin-git/git"
-status="$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
+status=0
+printf 'y\n' | env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE \
   REPO_ROOT="$REPO10" PATH="$REPO10/bin-git:$REPO10/bin:$PATH" \
-  printf 'y\n' | bash "$REPO10/scripts/publish-cli.sh" "patch" \
-  >"$REPO10/stdout.log" 2>"$REPO10/stderr.log" && echo 0 || echo $?)"
+  bash "$REPO10/scripts/publish-cli.sh" "patch" \
+  >"$REPO10/stdout.log" 2>"$REPO10/stderr.log" || status=$?
 [[ "$status" -eq 0 ]] || { cat "$REPO10/stderr.log" >&2; fail "expected success, got $status"; }
 grep -F -- "--atomic" "$REPO10/git-push-log.txt" >/dev/null \
   || { cat "$REPO10/git-push-log.txt" >&2; fail "git push did not include --atomic flag"; }
