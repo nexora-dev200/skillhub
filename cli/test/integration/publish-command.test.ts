@@ -301,11 +301,14 @@ describe('publish command — content shape', () => {
 
       const captured = server.getCaptured()
       expect(captured).not.toBeNull()
-      const entries = unzipSync(captured!)
+      const rawEntries = unzipSync(captured!)
+      // Normalize all entry keys to use forward slashes for cross-platform compatibility
+      const entries = Object.fromEntries(
+        Object.entries(rawEntries).map(([key, value]) => [key.replace(/\\/g, '/'), value])
+      )
       // Filter out directory marker entries (zip records empty entries for
       // dirs with a trailing slash); we only care about file entries.
-      // Normalize path separators for cross-platform compatibility (Windows uses backslashes).
-      const files = Object.keys(entries).filter(k => !k.endsWith('/')).map(k => k.replace(/\\/g, '/')).sort()
+      const files = Object.keys(entries).filter(k => !k.endsWith('/')).sort()
       expect(files).toEqual([
         'SKILL.md',
         'references/a.md',
@@ -336,7 +339,11 @@ describe('publish command — content shape', () => {
 
       const captured = server.getCaptured()
       expect(captured).not.toBeNull()
-      const entries = unzipSync(captured!)
+      const rawEntries = unzipSync(captured!)
+      // Normalize all entry keys to use forward slashes for cross-platform compatibility
+      const entries = Object.fromEntries(
+        Object.entries(rawEntries).map(([key, value]) => [key.replace(/\\/g, '/'), value])
+      )
       // Pin current behavior so future filtering changes are intentional.
       expect(Object.keys(entries).sort()).toEqual(['.DS_Store', '.editorconfig', 'SKILL.md'])
     } finally {
