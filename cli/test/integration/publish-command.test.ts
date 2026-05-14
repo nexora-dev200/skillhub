@@ -304,7 +304,8 @@ describe('publish command — content shape', () => {
       const entries = unzipSync(captured!)
       // Filter out directory marker entries (zip records empty entries for
       // dirs with a trailing slash); we only care about file entries.
-      const files = Object.keys(entries).filter(k => !k.endsWith('/')).sort()
+      // Normalize path separators for cross-platform compatibility (Windows uses backslashes).
+      const files = Object.keys(entries).filter(k => !k.endsWith('/')).map(k => k.replace(/\\/g, '/')).sort()
       expect(files).toEqual([
         'SKILL.md',
         'references/a.md',
