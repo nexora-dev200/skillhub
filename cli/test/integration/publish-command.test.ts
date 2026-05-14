@@ -460,7 +460,7 @@ describe('publish command — content shape', () => {
     }
   })
 
-  test('publish response missing required fields surfaces a non-zero exit', async () => {
+  test('publish response missing required fields is handled without crash', async () => {
     const env = await createTempHome()
     const server = Bun.serve({
       port: 0,

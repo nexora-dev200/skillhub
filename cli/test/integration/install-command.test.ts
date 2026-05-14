@@ -628,7 +628,8 @@ describe('install command — multi-agent & auto-detect', () => {
     expect(parsed.installed[0]?.agent).toBe('codex')
     // On macOS env.cwd may resolve through /private/var/... symlinks; assert
     // against the structural part of the path instead of an exact prefix.
-    expect(parsed.installed[0]?.dir).toContain('/.codex/skills/pdf-parser')
+    // Use a regex that accepts both Unix (/) and Windows (\) path separators.
+    expect(parsed.installed[0]?.dir).toMatch(/[/\\]\.codex[/\\]skills[/\\]pdf-parser/)
     expect(parsed.installed[0]?.dir).not.toContain(env.home) // not user-level
   })
 
