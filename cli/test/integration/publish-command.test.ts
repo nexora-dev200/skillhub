@@ -404,11 +404,9 @@ describe('publish command — content shape', () => {
     }
   })
 
-  // Per commit a14d89d8 (refactor: unify download/handleJsonResponse error
-  // mapping) non-2xx responses surface as EXIT.generic (1), not
-  // EXIT.network (3). EXIT.network is reserved for transport-layer
-  // failures (couldn't reach the registry at all).
-  test('server 503 Service Unavailable maps to EXIT.generic with status in stderr', async () => {
+  // 502/503 are special-cased to EXIT.network because they indicate
+  // infrastructure-level unavailability (gateway/proxy failure).
+  test('server 503 Service Unavailable maps to EXIT.network with status in stderr', async () => {
     const env = await createTempHome()
     const server = Bun.serve({
       port: 0,
