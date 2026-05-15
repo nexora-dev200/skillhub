@@ -272,3 +272,154 @@ describe('install command — P1', () => {
   // test/unit/agents/resolver.test.ts.
   // -------------------------------------------------------------------------
 })
+
+// ---------------------------------------------------------------------------
+// P0 — --scope flag
+// ---------------------------------------------------------------------------
+
+describe('install command — --scope', () => {
+  test('--scope project --agent codex installs to <cwd>/.codex/skills', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({
+      token: 'sk_ok',
+      user: { handle: 'u1', displayName: 'User One' },
+      skills: [{ namespace: 'global', slug: 'foo', version: '1.0.0', zipBytes: makeSkillZip() }]
+    })
+
+    await runCli(
+      ['login', '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+
+    const result = await runCli(
+      ['install', 'foo', '--scope', 'project', '--agent', 'codex',
+        '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home },
+      { cwd: env.cwd }
+    )
+
+    expect(result.exitCode).toBe(0)
+    const metaPath = join(env.cwd, '.codex', 'skills', 'foo', '.skillhub', 'metadata.json')
+    const meta = JSON.parse(await readFile(metaPath, 'utf-8'))
+    expect(meta.slug).toBe('foo')
+  })
+
+  test('--scope user --agent codex installs to <home>/.codex/skills', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({
+      token: 'sk_ok',
+      user: { handle: 'u1', displayName: 'User One' },
+      skills: [{ namespace: 'global', slug: 'foo', version: '1.0.0', zipBytes: makeSkillZip() }]
+    })
+
+    await runCli(
+      ['login', '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+
+    const result = await runCli(
+      ['install', 'foo', '--scope', 'user', '--agent', 'codex',
+        '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home },
+      { cwd: env.cwd }
+    )
+
+    expect(result.exitCode).toBe(0)
+    const metaPath = join(env.home, '.codex', 'skills', 'foo', '.skillhub', 'metadata.json')
+    const meta = JSON.parse(await readFile(metaPath, 'utf-8'))
+    expect(meta.slug).toBe('foo')
+  })
+
+  test('--scope user clean env falls back to <home>/.agents/skills', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({
+      token: 'sk_ok',
+      user: { handle: 'u1', displayName: 'User One' },
+      skills: [{ namespace: 'global', slug: 'foo', version: '1.0.0', zipBytes: makeSkillZip() }]
+    })
+
+    await runCli(
+      ['login', '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+
+    const result = await runCli(
+      ['install', 'foo', '--scope', 'user',
+        '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home },
+      { cwd: env.cwd }
+    )
+
+    expect(result.exitCode).toBe(0)
+    const metaPath = join(env.home, '.agents', 'skills', 'foo', '.skillhub', 'metadata.json')
+    const meta = JSON.parse(await readFile(metaPath, 'utf-8'))
+    expect(meta.slug).toBe('foo')
+  })
+
+  test('--scope project --agent codex --json output omits scope field on installed entries', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({
+      token: 'sk_ok',
+      user: { handle: 'u1', displayName: 'User One' },
+      skills: [{ namespace: 'global', slug: 'foo', version: '1.0.0', zipBytes: makeSkillZip() }]
+    })
+
+    await runCli(
+      ['login', '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+
+    const result = await runCli(
+      ['install', 'foo', '--scope', 'project', '--agent', 'codex', '--json',
+        '--registry', registry.url, '--token', 'sk_ok'],
+      { HOME: env.home, USERPROFILE: env.home },
+      { cwd: env.cwd }
+    )
+
+    expect(result.exitCode).toBe(0)
+    const parsed = JSON.parse(result.stdout)
+    expect(parsed).toMatchObject({ ok: true, namespace: 'global', slug: 'foo' })
+    expect(parsed.installed[0]).toHaveProperty('agent')
+    expect(parsed.installed[0]).toHaveProperty('dir')
+    expect(parsed.installed[0]).not.toHaveProperty('scope')
+  })
+
+  test('--scope invalid returns exit code 5 with usage error', async () => {
+    const result = await runCli(['install', 'foo', '--scope', 'invalid'])
+    expect(result.exitCode).toBe(5)
+    expect(result.stderr).toMatch(/user.+project|"user".+"project"/)
+  })
+
+  test('--scope invalid --json returns JSON error shape', async () => {
+    const result = await runCli(['install', 'foo', '--scope', 'invalid', '--json'])
+    expect(result.exitCode).toBe(5)
+    const parsed = JSON.parse(result.stderr)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.exitCode).toBe(5)
+    expect(parsed.message).toMatch(/user.+project/)
+  })
+
+  test('--dir + --scope returns usage error', async () => {
+    const result = await runCli(['install', 'foo', '--dir', '/tmp/x', '--scope', 'user'])
+    expect(result.exitCode).toBe(5)
+    expect(result.stderr).toMatch(/--dir cannot be used with --scope/)
+  })
+
+  test('--dir + --scope --json returns JSON usage error', async () => {
+    const result = await runCli(
+      ['install', 'foo', '--dir', '/tmp/x', '--scope', 'user', '--json']
+    )
+    expect(result.exitCode).toBe(5)
+    const parsed = JSON.parse(result.stderr)
+    expect(parsed.ok).toBe(false)
+    expect(parsed.message).toMatch(/--dir cannot be used with --scope/)
+  })
+
+  test('help install includes --scope usage and examples', async () => {
+    const result = await runCli(['help', 'install'])
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toMatch(/--scope/)
+    expect(result.stdout).toMatch(/--scope user/)
+    expect(result.stdout).toMatch(/--scope project --agent codex/)
+  })
+})
