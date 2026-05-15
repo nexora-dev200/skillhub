@@ -44,6 +44,18 @@ describe('resolveInstallTargets', () => {
     expect(targets).toEqual([{ agent: 'codex', rootDir: '/home/u/.codex/skills', scope: 'user', source: 'explicit' }])
   })
 
+  test('explicit agent without scope labels root by userRoots membership when cwd === home', async () => {
+    const targets = await resolveInstallTargets({
+      cwd: '/home/u',
+      home: '/home/u',
+      agents: ['codex'],
+      json: false,
+      interactive: false
+    })
+    expect(targets[0]!.scope).toBe('user')
+    expect(targets[0]!.rootDir).toBe('/home/u/.codex/skills')
+  })
+
   test('deduplicates repeated explicit agents by target root', async () => {
     const targets = await resolveInstallTargets({
       cwd: '/repo',

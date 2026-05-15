@@ -133,10 +133,11 @@ async function resolveExplicitAgents(
       const userRoots = home ? profile.userRoots(home) : []
       roots = userRoots.length > 0 ? userRoots : profile.projectRoots(cwd)
     }
+    const userRootSet = new Set(home ? profile.userRoots(home) : [])
     for (const root of roots) {
       const candidateScope: AgentCandidate['scope'] = scope !== undefined
         ? scope
-        : (root.startsWith(cwd) ? 'project' : 'user')
+        : (userRootSet.has(root) ? 'user' : 'project')
       results.push({
         agent: agentId,
         rootDir: root,
