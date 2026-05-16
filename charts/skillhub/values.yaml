@@ -1,0 +1,312 @@
+# ============================================================================
+# SkillHub Helm Chart 全局配置
+# ============================================================================
+
+# ============================================================================
+# Global
+# ============================================================================
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# ============================================================================
+# 镜像配置
+# ============================================================================
+images:
+  registry: ghcr.io/iflytek
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# ============================================================================
+# 副本数
+# ============================================================================
+replicaCount: 1
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ============================================================================
+# 服务配置
+# ============================================================================
+service:
+  # ClusterIP | NodePort | LoadBalancer
+  type: ClusterIP
+  serverPort: 8080
+  webPort: 80
+  scannerPort: 8000
+  # type: NodePort 时指定 nodePort（不指定则由集群分配）
+  serverNodePort: ""
+  webNodePort: ""
+  scannerNodePort: ""
+  # type: LoadBalancer 时可选固定 IP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+
+# ============================================================================
+# Ingress 配置
+# ============================================================================
+ingress:
+  enabled: false
+  className: nginx
+  host: skills.example.com
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+  tls:
+    enabled: false
+    secretName: ""
+  certManager:
+    enabled: false
+    issuerName: letsencrypt-prod
+    issuerKind: ClusterIssuer
+
+# ============================================================================
+# 应用组件配置
+# ============================================================================
+server:
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  javaOpts: ""
+  extraEnv: []
+  podAnnotations: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # HPA（自动扩缩容）
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  # PDB（自愿干扰预算，多副本时保证最少可用实例）
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    startup:
+      httpGet:
+        path: /actuator/health
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      failureThreshold: 30
+    readiness:
+      httpGet:
+        path: /actuator/health
+        port: http
+      initialDelaySeconds: 20
+      periodSeconds: 10
+    liveness:
+      httpGet:
+        path: /actuator/health
+        port: http
+      initialDelaySeconds: 30
+      periodSeconds: 15
+
+web:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  extraEnv: []
+  podAnnotations: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # HPA（自动扩缩容）
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  # PDB（自愿干扰预算，多副本时保证最少可用实例）
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    readiness:
+      httpGet:
+        path: /nginx-health
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    liveness:
+      httpGet:
+        path: /nginx-health
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 15
+
+scanner:
+  enabled: true
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  extraEnv: []
+  podAnnotations: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # HPA（自动扩缩容）
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+  # PDB（自愿干扰预算，多副本时保证最少可用实例）
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+  probes:
+    readiness:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+    liveness:
+      httpGet:
+        path: /health
+        port: http
+      initialDelaySeconds: 20
+      periodSeconds: 15
+
+# ============================================================================
+# 数据库配置（PostgreSQL）
+# ============================================================================
+# mode:      internal（内置）| external（外置）
+# architecture: standalone（单实例）| cluster（高可用集群）
+#            - standalone + internal: 部署单实例 PostgreSQL
+#            - standalone + external: 连接外置单节点 PostgreSQL
+#            - cluster 时建议使用 external 模式
+database:
+  mode: internal
+  architecture: standalone
+
+  internal:
+    image: postgres:16-alpine
+    registry: docker.io
+    storage: 10Gi
+    storageClassName: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  external:
+    host: postgres.example.com
+    port: 5432
+    database: skillhub
+    username: skillhub
+    password: ""
+    parameters: ""
+    # 自定义 JDBC URL（非空时覆盖 host/port/database/parameters 的拼接结果）
+    # 用于连接外部 PostgreSQL 集群（如 Patroni、JDBC 多主机等）
+    jdbcUrl: ""
+
+# ============================================================================
+# Redis 配置
+# ============================================================================
+# mode: internal（内置单实例）| external（外置）
+# 注意: Redis Cluster 模式不支持
+redis:
+  mode: internal
+
+  internal:
+    image: redis:7-alpine
+    registry: docker.io
+    storage: 5Gi
+    storageClassName: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+  external:
+    host: redis.example.com
+    port: 6379
+    password: ""
+    sentinel:
+      enabled: false
+      masterSet: mymaster
+      nodes: []
+
+# ============================================================================
+# 存储配置
+# ============================================================================
+storage:
+  provider: local
+  local:
+    # 多副本 (replicaCount > 1) 时必须设为 ReadWriteMany，底层需支持 RWX（如 NFS/Longhorn）
+    accessMode: ReadWriteOnce
+    storage: 10Gi
+    storageClassName: ""
+  s3:
+    bucket: skillhub-storage
+    endpoint: ""
+    region: ""
+    accessKey: ""
+    secretKey: ""
+
+# ============================================================================
+# Bootstrap 管理员
+# ============================================================================
+bootstrapAdmin:
+  enabled: true
+  userId: docker-admin
+  username: admin
+  displayName: "Platform Admin"
+  email: admin@example.com
+  password: ""
+
+# ============================================================================
+# Session 配置
+# ============================================================================
+session:
+  cookieSecure: false
+
+# ============================================================================
+# Spring Profiles
+# ============================================================================
+springProfilesActive: docker
+
+# ============================================================================
+# Secret 配置
+# ============================================================================
+# 使用已有 Secret（优先级高于下方 secrets.* 字段）
+# 设置后 chart 不会创建 Secret，而是直接引用该名称
+existingSecret: ""
+
+secrets:
+  springDatasourceUrl: ""
+  springDatasourceUsername: ""
+  springDatasourcePassword: ""
+  bootstrapAdminPassword: ""
+  oauth2GithubClientId: ""
+  oauth2GithubClientSecret: ""
+  scannerLlmApiKey: ""
+  scannerLlmModel: ""
+

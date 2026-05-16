@@ -1,0 +1,66 @@
+{{- if .Values.scanner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "skillhub.fullname" . }}-scanner
+  labels:
+    {{- include "skillhub.scanner.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "skillhub.scanner.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "skillhub.scanner.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- toYaml .Values.scanner.podAnnotations | nindent 8 }}
+    spec:
+      {{- $secrets := .Values.scanner.imagePullSecrets | default .Values.global.imagePullSecrets }}
+      {{- if $secrets }}
+      imagePullSecrets:
+        {{- toYaml $secrets | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: scanner
+          image: {{ .Values.images.registry }}/skillhub-scanner:{{ .Values.images.tag }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.scannerPort }}
+              name: http
+          env:
+            - name: SKILL_SCANNER_LLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: skill-scanner-llm-api-key
+                  optional: true
+            - name: SKILL_SCANNER_LLM_MODEL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: skill-scanner-llm-model
+                  optional: true
+            {{- with .Values.scanner.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.scanner.resources | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.scanner.probes.readiness | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.scanner.probes.liveness | nindent 12 }}
+      {{- with .Values.scanner.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scanner.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scanner.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

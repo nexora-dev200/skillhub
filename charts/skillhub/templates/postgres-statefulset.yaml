@@ -1,0 +1,100 @@
+{{- if eq .Values.database.mode "internal" }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "skillhub.fullname" . }}-postgres
+  labels:
+    {{- include "skillhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  serviceName: {{ include "skillhub.fullname" . }}-postgres
+  replicas: {{ if eq .Values.database.architecture "cluster" }}3{{ else }}1{{ end }}
+  selector:
+    matchLabels:
+      {{- include "skillhub.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        {{- include "skillhub.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: database
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.database.internal.registry }}/{{ .Values.database.internal.image }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              value: skillhub
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: spring-datasource-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: spring-datasource-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            {{- toYaml .Values.database.internal.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - skillhub
+                - -h
+                - localhost
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - skillhub
+                - -h
+                - localhost
+            initialDelaySeconds: 30
+            periodSeconds: 15
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+        labels:
+          {{- include "skillhub.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - {{ .Values.storage.local.accessMode }}
+        {{- if .Values.database.internal.storageClassName }}
+        storageClassName: {{ .Values.database.internal.storageClassName }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.internal.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "skillhub.fullname" . }}-postgres
+  labels:
+    {{- include "skillhub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      name: postgres
+  selector:
+    {{- include "skillhub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+{{- end }}

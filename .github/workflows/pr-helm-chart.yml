@@ -1,0 +1,146 @@
+name: PR Helm Chart
+
+on:
+  pull_request:
+    paths:
+      - charts/skillhub/**
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+  workflow_dispatch:
+
+concurrency:
+  group: pr-helm-chart-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint Chart
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: charts/skillhub
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Lint chart
+        run: helm lint
+
+      - name: Validate chart metadata
+        run: |
+          CHART_VERSION=$(helm show chart . | grep '^version:' | awk '{print $2}')
+          APP_VERSION=$(helm show chart . | grep '^appVersion:' | awk '{print $2}')
+          echo "Chart version: $CHART_VERSION"
+          echo "App version: $APP_VERSION"
+          if [ -z "$CHART_VERSION" ]; then
+            echo "ERROR: Chart version is empty"
+            exit 1
+          fi
+
+  template:
+    name: Template Validation
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: charts/skillhub
+
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - name: internal-default
+            description: 内置 PostgreSQL + Redis
+            args: ""
+          - name: external-db-redis
+            description: 外置 PostgreSQL + Redis
+            args: >
+              --set database.mode=external
+              --set redis.mode=external
+          - name: external-sentinel
+            description: 外置 DB + Redis 哨兵模式
+            args: >
+              --set database.mode=external
+              --set redis.mode=external
+              --set redis.external.sentinel.enabled=true
+              --set redis.external.sentinel.nodes="{10.0.0.1:26379,10.0.0.2:26379}"
+          - name: ingress-tls-certmanager
+            description: Ingress + TLS + cert-manager
+            args: >
+              --set ingress.enabled=true
+              --set ingress.tls.enabled=true
+              --set ingress.certManager.enabled=true
+          - name: s3-storage
+            description: S3 存储
+            args: >
+              --set storage.provider=s3
+              --set storage.s3.bucket=test-bucket
+              --set storage.s3.endpoint=s3.amazonaws.com
+              --set storage.s3.region=us-east-1
+          - name: external-secret
+            description: 引用已有 Secret
+            args: --set existingSecret=my-custom-secret
+          - name: scanner-disabled
+            description: 禁用 Scanner
+            args: --set scanner.enabled=false
+          - name: db-cluster
+            description: PostgreSQL cluster 模式
+            args: --set database.architecture=cluster
+          - name: hpa-pdb
+            description: HPA + PDB 开启
+            args: >
+              --set server.autoscaling.enabled=true
+              --set web.autoscaling.enabled=true
+              --set scanner.autoscaling.enabled=true
+              --set server.podDisruptionBudget.enabled=true
+              --set web.podDisruptionBudget.enabled=true
+              --set scanner.podDisruptionBudget.enabled=true
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: latest
+
+      - name: Render template - ${{ matrix.scenario.name }}
+        run: |
+          echo "## ${{ matrix.scenario.description }}"
+          helm template test-release . ${{ matrix.scenario.args }} > /dev/null
+          echo "✅ Template rendered successfully"
+
+      - name: Validate no empty resources
+        run: |
+          RESOURCES=$(helm template test-release . ${{ matrix.scenario.args }} | grep -c '^kind:')
+          echo "Rendered $RESOURCES resources for ${{ matrix.scenario.name }}"
+          if [ "$RESOURCES" -eq 0 ]; then
+            echo "ERROR: No resources rendered for ${{ matrix.scenario.name }}"
+            exit 1
+          fi
+
+      - name: Validate resource names are well-formed
+        run: |
+          helm template test-release . ${{ matrix.scenario.args }} | \
+            grep -E '^  name:' | \
+            while read -r line; do
+              if echo "$line" | grep -qP '\{\{'; then
+                echo "ERROR: Unrendered template in name: $line"
+                exit 1
+              fi
+            done
+          echo "✅ All resource names properly rendered"

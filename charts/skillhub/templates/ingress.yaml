@@ -1,0 +1,47 @@
+{{- if .Values.ingress.enabled }}
+{{- $secretName := .Values.ingress.tls.secretName | default (printf "%s-tls" (include "skillhub.fullname" .)) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "skillhub.fullname" . }}
+  labels:
+    {{- include "skillhub.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.annotations }}
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- end }}
+    {{- if .Values.ingress.certManager.enabled }}
+    {{- if eq .Values.ingress.certManager.issuerKind "ClusterIssuer" }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.certManager.issuerName }}
+    {{- else }}
+    cert-manager.io/issuer: {{ .Values.ingress.certManager.issuerName }}
+    {{- end }}
+    cert-manager.io/issuer-kind: {{ .Values.ingress.certManager.issuerKind }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if or .Values.ingress.tls.enabled .Values.ingress.certManager.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ $secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "skillhub.fullname" . }}-server
+                port:
+                  number: {{ .Values.service.serverPort }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "skillhub.fullname" . }}-web
+                port:
+                  number: {{ .Values.service.webPort }}
+{{- end }}

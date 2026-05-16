@@ -1,0 +1,17 @@
+{{- if and .Values.ingress.enabled .Values.ingress.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "skillhub.fullname" . }}-tls
+  labels:
+    {{- include "skillhub.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "skillhub.fullname" . }}-tls
+  duration: 2160h
+  renewBefore: 360h
+  dnsNames:
+    - {{ .Values.ingress.host }}
+  issuerRef:
+    name: {{ .Values.ingress.certManager.issuerName }}
+    kind: {{ .Values.ingress.certManager.issuerKind }}
+{{- end }}

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: skillhub
+description: Self-hosted, open-source agent skill registry for enterprises.
+type: application
+version: 0.1.0
+appVersion: 0.2.8
+keywords:
+  - skillhub
+  - ai
+  - skills
+home: https://github.com/iflytek/skillhub
+sources:
+  - https://github.com/iflytek/skillhub
