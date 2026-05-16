@@ -34,9 +34,9 @@ jobs:
         id: chartver
         run: |
           REF="${{ github.ref_name }}"
-          # Support helm-vX.Y.Z or just vX.Y.Z tags
-          if [[ "$REF" =~ ^helm-v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            VERSION="${BASH_REMATCH[1]}"
+          # Support helm-vX.Y.Z, chart-vX.Y.Z, or just vX.Y.Z tags
+          if [[ "$REF" =~ ^(helm|chart)-v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            VERSION="${BASH_REMATCH[2]}"
           elif [[ "$REF" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
             VERSION="${BASH_REMATCH[1]}"
           else
