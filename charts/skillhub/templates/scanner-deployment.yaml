@@ -28,7 +28,7 @@ spec:
       {{- end }}
       containers:
         - name: scanner
-          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-scanner:{{ .Values.images.tag }}
+          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-scanner:{{ .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.scannerPort }}
