@@ -14,7 +14,7 @@ global:
 # ============================================================================
 images:
   registry: ghcr.io/iflytek
-  tag: latest
+  tag: v0.2.8
   pullPolicy: IfNotPresent
 
 # ============================================================================
@@ -261,7 +261,7 @@ storage:
   provider: local
   local:
     # 多副本 (replicaCount > 1) 时必须设为 ReadWriteMany，底层需支持 RWX（如 NFS/Longhorn）
-    accessMode: ReadWriteOnce
+    accessMode: ReadWriteMany
     storage: 10Gi
     storageClassName: ""
   s3:

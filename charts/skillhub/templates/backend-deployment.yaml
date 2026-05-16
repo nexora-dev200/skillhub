@@ -14,7 +14,11 @@ spec:
       labels:
         {{- include "skillhub.server.selectorLabels" . | nindent 8 }}
       annotations:
-        {{- toYaml .Values.server.podAnnotations | nindent 8 }}
+        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        {{- range $key, $val := .Values.server.podAnnotations }}
+        {{ $key }}: {{ $val }}
+        {{- end }}
     spec:
       {{- $secrets := .Values.server.imagePullSecrets | default .Values.global.imagePullSecrets }}
       {{- if $secrets }}
@@ -45,7 +49,7 @@ spec:
               echo "Redis is ready!"
       containers:
         - name: server
-          image: {{ .Values.images.registry }}/skillhub-server:{{ .Values.images.tag }}
+          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-server:{{ .Values.images.tag }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.serverPort }}
@@ -83,9 +87,13 @@ spec:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: redis-port
 
-            {{- if and (eq .Values.redis.mode "external") .Values.redis.external.password }}
+            {{- if eq .Values.redis.mode "external" }}
             - name: SPRING_DATA_REDIS_PASSWORD
-              value: {{ .Values.redis.external.password }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: redis-password
+                  optional: true
             {{- end }}
 
             {{- if .Values.redis.external.sentinel.enabled }}
@@ -114,14 +122,18 @@ spec:
               value: {{ .Values.storage.s3.endpoint }}
             - name: SKILLHUB_S3_REGION
               value: {{ .Values.storage.s3.region }}
-              {{- if .Values.storage.s3.accessKey }}
             - name: SKILLHUB_S3_ACCESS_KEY
-              value: {{ .Values.storage.s3.accessKey }}
-              {{- end }}
-              {{- if .Values.storage.s3.secretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: s3-access-key
+                  optional: true
             - name: SKILLHUB_S3_SECRET_KEY
-              value: {{ .Values.storage.s3.secretKey }}
-              {{- end }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: s3-secret-key
+                  optional: true
             {{- end }}
 
             # Scanner

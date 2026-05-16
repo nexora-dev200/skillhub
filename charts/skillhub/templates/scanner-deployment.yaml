@@ -15,7 +15,11 @@ spec:
       labels:
         {{- include "skillhub.scanner.selectorLabels" . | nindent 8 }}
       annotations:
-        {{- toYaml .Values.scanner.podAnnotations | nindent 8 }}
+        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        {{- range $key, $val := .Values.scanner.podAnnotations }}
+        {{ $key }}: {{ $val }}
+        {{- end }}
     spec:
       {{- $secrets := .Values.scanner.imagePullSecrets | default .Values.global.imagePullSecrets }}
       {{- if $secrets }}
@@ -24,7 +28,7 @@ spec:
       {{- end }}
       containers:
         - name: scanner
-          image: {{ .Values.images.registry }}/skillhub-scanner:{{ .Values.images.tag }}
+          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-scanner:{{ .Values.images.tag }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
             - containerPort: {{ .Values.service.scannerPort }}

@@ -14,7 +14,11 @@ spec:
       labels:
         {{- include "skillhub.web.selectorLabels" . | nindent 8 }}
       annotations:
-        {{- toYaml .Values.web.podAnnotations | nindent 8 }}
+        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        {{- range $key, $val := .Values.web.podAnnotations }}
+        {{ $key }}: {{ $val }}
+        {{- end }}
     spec:
       {{- $secrets := .Values.web.imagePullSecrets | default .Values.global.imagePullSecrets }}
       {{- if $secrets }}
@@ -23,7 +27,7 @@ spec:
       {{- end }}
       containers:
         - name: web
-          image: {{ .Values.images.registry }}/skillhub-web:{{ .Values.images.tag }}
+          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-web:{{ .Values.images.tag }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           env:
             - name: SKILLHUB_API_UPSTREAM

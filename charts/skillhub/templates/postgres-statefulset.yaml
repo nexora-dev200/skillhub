@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/component: database
 spec:
   serviceName: {{ include "skillhub.fullname" . }}-postgres
-  replicas: {{ if eq .Values.database.architecture "cluster" }}3{{ else }}1{{ end }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "skillhub.selectorLabels" . | nindent 6 }}
@@ -49,21 +49,17 @@ spec:
           readinessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - skillhub
-                - -h
-                - localhost
+                - sh
+                - -c
+                - pg_isready -U "${POSTGRES_USER}" -h localhost
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
             exec:
               command:
-                - pg_isready
-                - -U
-                - skillhub
-                - -h
-                - localhost
+                - sh
+                - -c
+                - pg_isready -U "${POSTGRES_USER}" -h localhost
             initialDelaySeconds: 30
             periodSeconds: 15
   volumeClaimTemplates:
