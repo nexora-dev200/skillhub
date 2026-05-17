@@ -64,6 +64,9 @@ ingress:
 # 应用组件配置
 # ============================================================================
 server:
+  # 组件级镜像标签（留空时使用全局 images.tag）
+  image:
+    tag: ""
   resources:
     requests:
       cpu: 500m
@@ -111,6 +114,9 @@ server:
       periodSeconds: 15
 
 web:
+  # 组件级镜像标签（留空时使用全局 images.tag）
+  image:
+    tag: ""
   resources:
     requests:
       cpu: 100m
@@ -151,6 +157,9 @@ web:
 
 scanner:
   enabled: true
+  # 组件级镜像标签（留空时使用全局 images.tag）
+  image:
+    tag: ""
   resources:
     requests:
       cpu: 100m
