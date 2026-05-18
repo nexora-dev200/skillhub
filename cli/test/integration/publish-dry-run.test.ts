@@ -98,7 +98,7 @@ describe('publish --dry-run', () => {
       USERPROFILE: env.home
     })
 
-    expect(result.exitCode).toBe(0)
+    expect(result.exitCode).toBe(6)
     expect(result.stdout).toContain('Validation failed')
     expect(result.stdout).toContain('Missing required file: SKILL.md at root')
   })

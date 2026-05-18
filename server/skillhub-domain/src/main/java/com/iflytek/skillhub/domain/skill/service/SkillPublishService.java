@@ -186,7 +186,7 @@ public class SkillPublishService {
 
         SkillMetadata metadata;
         try {
-            metadata = skillMetadataParser.parse(new String(skillMd.content()));
+            metadata = skillMetadataParser.parse(new String(skillMd.content(), java.nio.charset.StandardCharsets.UTF_8));
         } catch (Exception e) {
             errors.add("Invalid SKILL.md: " + e.getMessage());
             return new DryRunResult(false, errors, warnings, null, null);
@@ -212,11 +212,21 @@ public class SkillPublishService {
         errors.addAll(prePublishValidation.errors());
         warnings.addAll(prePublishValidation.warnings());
 
-        // 6. Slug conflict check
+        // 6. Slug conflict, archived skill, and version-exists checks
         if (resolvedSlug != null && errors.isEmpty()) {
             List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), resolvedSlug);
             for (Skill existing : existingSkills) {
-                if (!existing.getOwnerId().equals(publisherId)) {
+                if (existing.getOwnerId().equals(publisherId)) {
+                    if (existing.getStatus() == SkillStatus.ARCHIVED) {
+                        errors.add("Cannot publish to archived skill: " + resolvedSlug);
+                    }
+                    if (resolvedVersion != null) {
+                        var existingVersion = skillVersionRepository.findBySkillIdAndVersion(existing.getId(), resolvedVersion);
+                        if (existingVersion.isPresent() && existingVersion.get().getStatus() == SkillVersionStatus.PUBLISHED) {
+                            errors.add("Version already published: " + resolvedVersion);
+                        }
+                    }
+                } else {
                     boolean hasPublished = !skillVersionRepository
                             .findBySkillIdAndStatus(existing.getId(), SkillVersionStatus.PUBLISHED)
                             .isEmpty();

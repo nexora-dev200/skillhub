@@ -61,6 +61,10 @@ export async function publishCommand(path: string, options: PublishCommandOption
     const result = await client.validatePublish(namespace, archiveBlob, archiveName)
 
     if (options.json) {
+      if (!result.valid) {
+        process.stdout.write(JSON.stringify(result) + '\n')
+        throw new CliError('validation failed', EXIT.validation)
+      }
       return JSON.stringify(result)
     }
 
@@ -87,6 +91,10 @@ export async function publishCommand(path: string, options: PublishCommandOption
       for (const warning of result.warnings) {
         lines.push(`  - ${warning}`)
       }
+    }
+    if (!result.valid) {
+      process.stdout.write(lines.join('\n') + '\n')
+      throw new CliError('validation failed', EXIT.validation)
     }
     return lines.join('\n')
   }
