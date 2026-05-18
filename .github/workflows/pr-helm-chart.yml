@@ -37,7 +37,7 @@ jobs:
           version: latest
 
       - name: Lint chart
-        run: helm lint
+        run: helm lint .
 
       - name: Validate chart metadata
         run: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Validate no empty resources
         run: |
-          RESOURCES=$(helm template test-release . ${{ matrix.scenario.args }} | grep -c '^kind:')
+          RESOURCES=$(helm template test-release . ${{ matrix.scenario.args }} 2>/dev/null | grep -c '^kind:' || true)
           echo "Rendered $RESOURCES resources for ${{ matrix.scenario.name }}"
           if [ "$RESOURCES" -eq 0 ]; then
             echo "ERROR: No resources rendered for ${{ matrix.scenario.name }}"
