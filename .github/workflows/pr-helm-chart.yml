@@ -67,25 +67,25 @@ jobs:
             args: ""
           - name: external-db-redis
             description: 外置 PostgreSQL + Redis
-            args: >
+            args: >-
               --set database.mode=external
               --set redis.mode=external
           - name: external-sentinel
             description: 外置 DB + Redis 哨兵模式
-            args: >
+            args: >-
               --set database.mode=external
               --set redis.mode=external
               --set redis.external.sentinel.enabled=true
               --set redis.external.sentinel.nodes="{10.0.0.1:26379,10.0.0.2:26379}"
           - name: ingress-tls-certmanager
             description: Ingress + TLS + cert-manager
-            args: >
+            args: >-
               --set ingress.enabled=true
               --set ingress.tls.enabled=true
               --set ingress.certManager.enabled=true
           - name: s3-storage
             description: S3 存储
-            args: >
+            args: >-
               --set storage.provider=s3
               --set storage.s3.bucket=test-bucket
               --set storage.s3.endpoint=s3.amazonaws.com
@@ -96,12 +96,9 @@ jobs:
           - name: scanner-disabled
             description: 禁用 Scanner
             args: --set scanner.enabled=false
-          - name: db-cluster
-            description: PostgreSQL cluster 模式
-            args: --set database.architecture=cluster
           - name: hpa-pdb
             description: HPA + PDB 开启
-            args: >
+            args: >-
               --set server.autoscaling.enabled=true
               --set web.autoscaling.enabled=true
               --set scanner.autoscaling.enabled=true

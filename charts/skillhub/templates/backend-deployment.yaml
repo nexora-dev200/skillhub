@@ -216,9 +216,11 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
 
+          {{- if eq .Values.storage.provider "local" }}
           volumeMounts:
             - name: skillhub-storage
               mountPath: /var/lib/skillhub/storage
+          {{- end }}
 
           resources:
             {{- toYaml .Values.server.resources | nindent 12 }}
@@ -230,10 +232,12 @@ spec:
           livenessProbe:
             {{- toYaml .Values.server.probes.liveness | nindent 12 }}
 
+      {{- if eq .Values.storage.provider "local" }}
       volumes:
         - name: skillhub-storage
           persistentVolumeClaim:
             claimName: {{ include "skillhub.fullname" . }}-storage-pvc
+      {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

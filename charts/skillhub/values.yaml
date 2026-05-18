@@ -201,14 +201,11 @@ scanner:
 # ============================================================================
 # 数据库配置（PostgreSQL）
 # ============================================================================
-# mode:      internal（内置）| external（外置）
-# architecture: standalone（单实例）| cluster（高可用集群）
-#            - standalone + internal: 部署单实例 PostgreSQL
-#            - standalone + external: 连接外置单节点 PostgreSQL
-#            - cluster 时建议使用 external 模式
+# mode: internal（内置单实例）| external（外置）
+#   内置模式部署单实例 PostgreSQL。
+#   如需高可用集群，请使用 external 模式连接外部集群。
 database:
   mode: internal
-  architecture: standalone
 
   internal:
     image: postgres:16-alpine
