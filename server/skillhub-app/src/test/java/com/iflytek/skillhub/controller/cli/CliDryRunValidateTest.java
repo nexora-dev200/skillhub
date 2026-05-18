@@ -37,7 +37,9 @@ class CliDryRunValidateTest {
         PlatformPrincipal principal = new PlatformPrincipal(
                 "user-1", "tester", "t@example.com", "", "api_token", Set.of("USER"));
         return new UsernamePasswordAuthenticationToken(
-                principal, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+                principal, null, List.of(
+                        new SimpleGrantedAuthority("ROLE_USER"),
+                        new SimpleGrantedAuthority("SCOPE_skill:publish")));
     }
 
     @Test
