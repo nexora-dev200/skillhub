@@ -131,6 +131,20 @@ describe('publish --dry-run', () => {
     expect(registry.received.validate!.namespace).toBe('myteam')
   })
 
+  test('--dry-run forwards --visibility to server', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({ token: 'sk_ok' })
+    await login(env, registry.url)
+
+    const dir = await makeTempDir(['SKILL.md', '---\nname: test\ndescription: test\n---\n'])
+    await runCli(['publish', dir, '--dry-run', '--visibility', 'private', '--registry', registry.url], {
+      HOME: env.home,
+      USERPROFILE: env.home
+    })
+
+    expect(registry.received.validate!.visibility).toBe('PRIVATE')
+  })
+
   test('--dry-run requires authentication', async () => {
     const env = await createTempHome()
     registry = await startFakeRegistry({ token: 'sk_ok' })

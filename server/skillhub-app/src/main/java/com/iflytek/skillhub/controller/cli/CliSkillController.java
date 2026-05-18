@@ -100,6 +100,7 @@ public class CliSkillController extends BaseApiController {
     public ApiResponse<CliDryRunResponse> validatePublish(
             @PathVariable String namespace,
             @RequestPart("file") MultipartFile file,
+            @RequestPart(value = "visibility", required = false) String visibility,
             @AuthenticationPrincipal PlatformPrincipal principal) throws IOException {
         List<PackageEntry> entries;
         try {
@@ -107,8 +108,14 @@ public class CliSkillController extends BaseApiController {
         } catch (IllegalArgumentException e) {
             throw new DomainBadRequestException("error.skill.publish.package.invalid", e.getMessage());
         }
+        SkillVisibility resolvedVisibility;
+        try {
+            resolvedVisibility = SkillVisibility.valueOf((visibility != null ? visibility : "PUBLIC").toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new DomainBadRequestException("error.skill.publish.visibility.invalid", visibility);
+        }
         var result = cliSkillAppService.validatePublish(
-                namespace, entries, principal.userId(), principal.platformRoles());
+                namespace, entries, principal.userId(), resolvedVisibility, principal.platformRoles());
         return ok("response.success.read", result);
     }
 

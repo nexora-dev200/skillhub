@@ -58,7 +58,7 @@ export async function publishCommand(path: string, options: PublishCommandOption
   const client = new SkillHubClient(registry, token)
 
   if (options.dryRun) {
-    const result = await client.validatePublish(namespace, archiveBlob, archiveName)
+    const result = await client.validatePublish(namespace, archiveBlob, toServerVisibility(visibility), archiveName)
 
     if (options.json) {
       if (!result.valid) {

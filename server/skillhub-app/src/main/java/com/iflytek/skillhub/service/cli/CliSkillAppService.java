@@ -120,9 +120,9 @@ public class CliSkillAppService {
         );
     }
 
-    public CliDryRunResponse validatePublish(String namespace, List<PackageEntry> entries, String publisherId, Set<String> platformRoles) {
+    public CliDryRunResponse validatePublish(String namespace, List<PackageEntry> entries, String publisherId, SkillVisibility visibility, Set<String> platformRoles) {
         SkillPublishService.DryRunResult result = skillPublishService.validateOnly(
-                namespace, entries, publisherId, platformRoles);
+                namespace, entries, publisherId, visibility, platformRoles);
         return new CliDryRunResponse(
                 result.valid(),
                 result.errors(),

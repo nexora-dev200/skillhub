@@ -3977,8 +3977,8 @@ export interface components {
             valid?: boolean;
             errors?: string[];
             warnings?: string[];
-            resolvedSlug?: string;
-            resolvedVersion?: string;
+            resolvedSlug?: string | null;
+            resolvedVersion?: string | null;
         };
         UpdateProfileRequest: {
             displayName?: string;
@@ -8340,6 +8340,7 @@ export interface operations {
                 "multipart/form-data": {
                     /** Format: binary */
                     file: string;
+                    visibility?: string;
                 };
             };
         };

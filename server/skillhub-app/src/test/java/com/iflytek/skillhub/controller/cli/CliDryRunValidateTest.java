@@ -1,6 +1,7 @@
 package com.iflytek.skillhub.controller.cli;
 
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
+import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.dto.cli.CliDryRunResponse;
 import com.iflytek.skillhub.service.cli.CliSkillAppService;
 import org.junit.jupiter.api.Test;
@@ -41,9 +42,10 @@ class CliDryRunValidateTest {
 
     @Test
     void validatePublish_returnsValidResult() throws Exception {
-        given(cliSkillAppService.validatePublish(eq("global"), any(), eq("user-1"), eq(Set.of("USER"))))
+        given(cliSkillAppService.validatePublish(
+                eq("global"), any(), eq("user-1"), eq(SkillVisibility.PUBLIC), eq(Set.of("USER"))))
                 .willReturn(new CliDryRunResponse(
-                        true, List.of(), List.of("Disallowed file extension: data.bin"),
+                        true, List.of(), List.of(),
                         "my-skill", "1.0.0"));
 
         MockMultipartFile file = new MockMultipartFile("file", "skill.zip",
@@ -55,13 +57,13 @@ class CliDryRunValidateTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.valid").value(true))
                 .andExpect(jsonPath("$.data.resolvedSlug").value("my-skill"))
-                .andExpect(jsonPath("$.data.resolvedVersion").value("1.0.0"))
-                .andExpect(jsonPath("$.data.warnings[0]").value("Disallowed file extension: data.bin"));
+                .andExpect(jsonPath("$.data.resolvedVersion").value("1.0.0"));
     }
 
     @Test
     void validatePublish_returnsInvalidResult() throws Exception {
-        given(cliSkillAppService.validatePublish(eq("global"), any(), eq("user-1"), eq(Set.of("USER"))))
+        given(cliSkillAppService.validatePublish(
+                eq("global"), any(), eq("user-1"), eq(SkillVisibility.PUBLIC), eq(Set.of("USER"))))
                 .willReturn(new CliDryRunResponse(
                         false, List.of("Missing required file: SKILL.md at root"), List.of(),
                         null, null));
@@ -76,6 +78,36 @@ class CliDryRunValidateTest {
                 .andExpect(jsonPath("$.data.valid").value(false))
                 .andExpect(jsonPath("$.data.errors[0]").value("Missing required file: SKILL.md at root"))
                 .andExpect(jsonPath("$.data.resolvedSlug").doesNotExist());
+    }
+
+    @Test
+    void validatePublish_acceptsCustomVisibility() throws Exception {
+        given(cliSkillAppService.validatePublish(
+                eq("global"), any(), eq("user-1"), eq(SkillVisibility.PRIVATE), eq(Set.of("USER"))))
+                .willReturn(new CliDryRunResponse(
+                        true, List.of(), List.of(), "my-skill", "1.0.0"));
+
+        MockMultipartFile file = new MockMultipartFile("file", "skill.zip",
+                "application/zip", new byte[]{0x50, 0x4B, 0x03, 0x04});
+
+        mockMvc.perform(multipart("/api/cli/v1/skills/global/publish/validate")
+                        .file(file)
+                        .file(new MockMultipartFile("visibility", "", "text/plain", "PRIVATE".getBytes()))
+                        .with(authentication(auth())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true));
+    }
+
+    @Test
+    void validatePublish_rejectsInvalidVisibility() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "skill.zip",
+                "application/zip", new byte[]{0x50, 0x4B, 0x03, 0x04});
+
+        mockMvc.perform(multipart("/api/cli/v1/skills/global/publish/validate")
+                        .file(file)
+                        .file(new MockMultipartFile("visibility", "", "text/plain", "BOGUS".getBytes()))
+                        .with(authentication(auth())))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

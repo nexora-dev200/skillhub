@@ -129,12 +129,18 @@ public class SkillPublishService {
 
     /**
      * Validates a package without persisting anything. Used by the --dry-run CLI flow.
+     *
+     * <p>Warnings make the result invalid because the CLI publish flow uses
+     * {@code confirmWarnings=false}, which causes real publish to reject any
+     * package with warnings. Treating warnings as making the dry-run invalid
+     * keeps the two flows in lockstep.
      */
     @Transactional(readOnly = true)
     public DryRunResult validateOnly(
             String namespaceSlug,
             List<PackageEntry> entries,
             String publisherId,
+            SkillVisibility visibility,
             Set<String> platformRoles) {
 
         List<String> errors = new ArrayList<>();
@@ -238,7 +244,10 @@ public class SkillPublishService {
             }
         }
 
-        return new DryRunResult(errors.isEmpty(), errors, warnings, resolvedSlug, resolvedVersion);
+        // Warnings make valid=false: real publish rejects them when confirmWarnings=false,
+        // which is the only mode the CLI uses today.
+        boolean valid = errors.isEmpty() && warnings.isEmpty();
+        return new DryRunResult(valid, errors, warnings, resolvedSlug, resolvedVersion);
     }
 
     /**

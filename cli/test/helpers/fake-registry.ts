@@ -94,6 +94,7 @@ export interface CapturedPublish {
 export interface CapturedValidate {
   namespace: string
   fileName: string
+  visibility: string
 }
 
 /** Last resolve GET: useful for verifying --version is forwarded as ?version=. */
@@ -358,11 +359,12 @@ export async function startFakeRegistry(options: FakeRegistryOptions = {}) {
 
         return req.formData().then(form => {
           const fileField = form.get('file')
+          const visibility = (form.get('visibility') as string | null) ?? 'PUBLIC'
           let fileName = 'skill.zip'
           if (fileField instanceof File) {
             fileName = fileField.name || fileName
           }
-          state.validate = { namespace, fileName }
+          state.validate = { namespace, fileName, visibility }
 
           const dryRunData = options.dryRunResponse ?? {
             valid: true,

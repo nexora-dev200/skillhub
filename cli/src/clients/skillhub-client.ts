@@ -121,9 +121,10 @@ export class SkillHubClient {
     return this.handleJsonResponse<PublishResponse>(response)
   }
 
-  async validatePublish(namespace: string, file: Blob, fileName = 'skill.zip'): Promise<DryRunResponse> {
+  async validatePublish(namespace: string, file: Blob, visibility: string, fileName = 'skill.zip'): Promise<DryRunResponse> {
     const formData = new FormData()
     formData.append('file', file, fileName)
+    formData.append('visibility', visibility)
     let response: Response
     try {
       response = await this.fetchImpl(`${this.registry}/api/cli/v1/skills/${namespace}/publish/validate`, {
