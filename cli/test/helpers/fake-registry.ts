@@ -91,6 +91,11 @@ export interface CapturedPublish {
   visibility: string
 }
 
+export interface CapturedValidate {
+  namespace: string
+  fileName: string
+}
+
 /** Last resolve GET: useful for verifying --version is forwarded as ?version=. */
 export interface CapturedResolve {
   namespace: string
@@ -116,6 +121,8 @@ interface FakeRegistryOptions {
   searchItems?: Array<{ namespace: string; slug: string; latestVersion: string; summary: string }>
   /** Skills available for resolve / download / delete / publish. */
   skills?: FakeSkill[]
+  /** Response to return for publish/validate (dry-run) requests. */
+  dryRunResponse?: { valid: boolean; errors: string[]; warnings: string[]; resolvedSlug: string | null; resolvedVersion: string | null }
   /**
    * Per-endpoint failure injection. When set for an endpoint, that endpoint
    * ignores all other logic and returns the specified failure (or throws for
@@ -128,6 +135,7 @@ interface FakeRegistryOptions {
     download?: FailureMode
     deleteRemote?: FailureMode
     publish?: FailureMode
+    validate?: FailureMode
   }
 }
 
@@ -167,7 +175,8 @@ export async function startFakeRegistry(options: FakeRegistryOptions = {}) {
     publish: CapturedPublish | null
     resolve: CapturedResolve | null
     delete: CapturedDelete | null
-  } = { publish: null, resolve: null, delete: null }
+    validate: CapturedValidate | null
+  } = { publish: null, resolve: null, delete: null, validate: null }
 
   // If any endpoint is configured with 'network' failure mode, we need a real
   // TCP-level failure. Start a connection-dropping server and return its URL
@@ -336,6 +345,33 @@ export async function startFakeRegistry(options: FakeRegistryOptions = {}) {
             namespace,
             slug
           }
+        })
+      }
+
+      // Validate (dry-run): POST /api/cli/v1/skills/:namespace/publish/validate
+      const validateMatch = path.match(/^\/api\/cli\/v1\/skills\/([^/]+)\/publish\/validate$/)
+      if (validateMatch && req.method === 'POST') {
+        if (options.failures?.validate) return failureResponse(options.failures.validate)
+        const authErr = checkAuth(req)
+        if (authErr) return authErr
+        const namespace = validateMatch[1]!
+
+        return req.formData().then(form => {
+          const fileField = form.get('file')
+          let fileName = 'skill.zip'
+          if (fileField instanceof File) {
+            fileName = fileField.name || fileName
+          }
+          state.validate = { namespace, fileName }
+
+          const dryRunData = options.dryRunResponse ?? {
+            valid: true,
+            errors: [],
+            warnings: [],
+            resolvedSlug: fileName.replace(/\.zip$/, ''),
+            resolvedVersion: '1.0.0'
+          }
+          return Response.json({ code: 0, data: dryRunData })
         })
       }
 

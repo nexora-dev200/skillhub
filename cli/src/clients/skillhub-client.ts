@@ -44,6 +44,14 @@ export interface PublishResponse {
   visibility: string
 }
 
+export interface DryRunResponse {
+  valid: boolean
+  errors: string[]
+  warnings: string[]
+  resolvedSlug: string | null
+  resolvedVersion: string | null
+}
+
 export class SkillHubClient {
   constructor(
     readonly registry: string,
@@ -111,6 +119,22 @@ export class SkillHubClient {
       throw new CliError('registry unreachable', EXIT.network, { registry: this.registry, next: 'check network or pass --registry' })
     }
     return this.handleJsonResponse<PublishResponse>(response)
+  }
+
+  async validatePublish(namespace: string, file: Blob, fileName = 'skill.zip'): Promise<DryRunResponse> {
+    const formData = new FormData()
+    formData.append('file', file, fileName)
+    let response: Response
+    try {
+      response = await this.fetchImpl(`${this.registry}/api/cli/v1/skills/${namespace}/publish/validate`, {
+        method: 'POST',
+        headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+        body: formData
+      })
+    } catch {
+      throw new CliError('registry unreachable', EXIT.network, { registry: this.registry, next: 'check network or pass --registry' })
+    }
+    return this.handleJsonResponse<DryRunResponse>(response)
   }
 
   private async getJson<T>(path: string): Promise<T> {

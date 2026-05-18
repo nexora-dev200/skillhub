@@ -119,6 +119,118 @@ public class SkillPublishService {
         this.clock = clock;
     }
 
+    public record DryRunResult(
+            boolean valid,
+            List<String> errors,
+            List<String> warnings,
+            String resolvedSlug,
+            String resolvedVersion
+    ) {}
+
+    /**
+     * Validates a package without persisting anything. Used by the --dry-run CLI flow.
+     */
+    @Transactional(readOnly = true)
+    public DryRunResult validateOnly(
+            String namespaceSlug,
+            List<PackageEntry> entries,
+            String publisherId,
+            Set<String> platformRoles) {
+
+        List<String> errors = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        String resolvedSlug = null;
+        String resolvedVersion = null;
+
+        // 1. Find namespace
+        var namespaceOpt = namespaceRepository.findBySlug(namespaceSlug);
+        if (namespaceOpt.isEmpty()) {
+            errors.add("Namespace not found: " + namespaceSlug);
+            return new DryRunResult(false, errors, warnings, null, null);
+        }
+        Namespace namespace = namespaceOpt.get();
+        if (namespace.getStatus() == NamespaceStatus.FROZEN) {
+            errors.add("Namespace is frozen: " + namespaceSlug);
+        }
+        if (namespace.getStatus() == NamespaceStatus.ARCHIVED) {
+            errors.add("Namespace is archived: " + namespaceSlug);
+        }
+
+        // 2. Check membership
+        boolean isSuperAdmin = platformRoles.contains("SUPER_ADMIN");
+        if (!isSuperAdmin) {
+            var member = namespaceMemberRepository.findByNamespaceIdAndUserId(namespace.getId(), publisherId);
+            if (member.isEmpty()) {
+                errors.add("Publisher is not a member of namespace: " + namespaceSlug);
+            }
+        }
+
+        // 3. Package validation
+        ValidationResult packageValidation = skillPackageValidator.validate(entries);
+        errors.addAll(packageValidation.errors());
+        warnings.addAll(packageValidation.warnings());
+
+        if (!packageValidation.passed()) {
+            return new DryRunResult(false, errors, warnings, null, null);
+        }
+
+        // 4. Parse SKILL.md
+        PackageEntry skillMd = entries.stream()
+                .filter(e -> e.path().equals("SKILL.md"))
+                .findFirst()
+                .orElse(null);
+        if (skillMd == null) {
+            errors.add("Missing required file: SKILL.md at root");
+            return new DryRunResult(false, errors, warnings, null, null);
+        }
+
+        SkillMetadata metadata;
+        try {
+            metadata = skillMetadataParser.parse(new String(skillMd.content()));
+        } catch (Exception e) {
+            errors.add("Invalid SKILL.md: " + e.getMessage());
+            return new DryRunResult(false, errors, warnings, null, null);
+        }
+
+        if (metadata.version() == null || metadata.version().isBlank()) {
+            resolvedVersion = AUTO_VERSION_FORMATTER.format(currentTime());
+        } else {
+            resolvedVersion = metadata.version();
+        }
+
+        try {
+            resolvedSlug = SlugValidator.slugify(metadata.name());
+        } catch (Exception e) {
+            errors.add("Invalid skill name for slug generation: " + e.getMessage());
+            return new DryRunResult(false, errors, warnings, resolvedSlug, resolvedVersion);
+        }
+
+        // 5. Pre-publish validation (credential scan)
+        PrePublishValidator.SkillPackageContext context = new PrePublishValidator.SkillPackageContext(
+                entries, metadata, publisherId, namespace.getId());
+        ValidationResult prePublishValidation = prePublishValidator.validate(context);
+        errors.addAll(prePublishValidation.errors());
+        warnings.addAll(prePublishValidation.warnings());
+
+        // 6. Slug conflict check
+        if (resolvedSlug != null && errors.isEmpty()) {
+            List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), resolvedSlug);
+            for (Skill existing : existingSkills) {
+                if (!existing.getOwnerId().equals(publisherId)) {
+                    boolean hasPublished = !skillVersionRepository
+                            .findBySkillIdAndStatus(existing.getId(), SkillVersionStatus.PUBLISHED)
+                            .isEmpty();
+                    if (hasPublished) {
+                        errors.add("Name conflict: slug \"" + resolvedSlug + "\" is already published by another user");
+                        break;
+                    }
+                }
+            }
+        }
+
+        return new DryRunResult(errors.isEmpty(), errors, warnings, resolvedSlug, resolvedVersion);
+    }
+
     /**
      * Publishes an extracted package into the target namespace.
      *
