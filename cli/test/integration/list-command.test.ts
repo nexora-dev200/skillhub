@@ -351,4 +351,112 @@ describe('list command', () => {
     expect(json.items).toHaveLength(1)
     expect(json.items[0].status).toBe('missing')
   })
+
+  // -------------------------------------------------------------------------
+  // P1: Combined filters — --agent + --registry should narrow precisely
+  // -------------------------------------------------------------------------
+  test('--agent codex --registry A shows only codex targets from registry A', async () => {
+    const { home } = await createTempHome()
+
+    const codexA = join(home, 'a', 'codex', 'pdf')
+    const claudeA = join(home, 'a', 'claude', 'pdf')
+    const codexB = join(home, 'b', 'codex', 'pdf')
+    for (const d of [codexA, claudeA, codexB]) await mkdir(d, { recursive: true })
+
+    await seedInventory(home, [
+      {
+        registry: FAKE_REGISTRY_A, namespace: 'global', slug: 'pdf', version: '1.0.0',
+        targets: [
+          { agent: 'codex', rootDir: join(home, 'a', 'codex'), installDir: codexA, installedAt: INSTALLED_AT },
+          { agent: 'claude-code', rootDir: join(home, 'a', 'claude'), installDir: claudeA, installedAt: INSTALLED_AT }
+        ]
+      },
+      {
+        registry: FAKE_REGISTRY_B, namespace: 'global', slug: 'pdf', version: '1.0.0',
+        targets: [
+          { agent: 'codex', rootDir: join(home, 'b', 'codex'), installDir: codexB, installedAt: INSTALLED_AT }
+        ]
+      }
+    ])
+
+    const result = await runCli(
+      ['list', '--agent', 'codex', '--registry', FAKE_REGISTRY_A, '--json'],
+      { HOME: home, USERPROFILE: home }
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as { items: Array<{ agent: string; installDir: string }> }
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0]?.agent).toBe('codex')
+    expect(json.items[0]?.installDir).toBe(codexA)
+  })
+
+  // -------------------------------------------------------------------------
+  // P1: --agent + --dir should compose AND, not OR
+  // -------------------------------------------------------------------------
+  test('--agent + --dir composes as AND: only items matching both surface', async () => {
+    const { home } = await createTempHome()
+
+    const codexHere = join(home, 'here', 'codex', 'pdf')
+    const codexElse = join(home, 'else', 'codex', 'pdf')
+    await mkdir(codexHere, { recursive: true })
+    await mkdir(codexElse, { recursive: true })
+
+    await seedInventory(home, [
+      {
+        registry: FAKE_REGISTRY_A, namespace: 'global', slug: 'pdf', version: '1.0.0',
+        targets: [
+          { agent: 'codex', rootDir: join(home, 'here', 'codex'), installDir: codexHere, installedAt: INSTALLED_AT }
+        ]
+      },
+      {
+        registry: FAKE_REGISTRY_A, namespace: 'global', slug: 'pdf-elsewhere', version: '1.0.0',
+        targets: [
+          { agent: 'codex', rootDir: join(home, 'else', 'codex'), installDir: codexElse, installedAt: INSTALLED_AT }
+        ]
+      }
+    ])
+
+    const result = await runCli(
+      ['list', '--registry', FAKE_REGISTRY_A, '--agent', 'codex', '--dir', join(home, 'here'), '--json'],
+      { HOME: home, USERPROFILE: home }
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as { items: Array<{ slug: string }> }
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0]?.slug).toBe('pdf')
+  })
+
+  // -------------------------------------------------------------------------
+  // P1: SKILLHUB_REGISTRY env scopes list to the env-specified registry
+  // (registry priority --registry > env > config > default also applies to
+  //  list, not just to network-touching commands).
+  // -------------------------------------------------------------------------
+  test('SKILLHUB_REGISTRY env scopes list to that registry, hiding the other', async () => {
+    const { home } = await createTempHome()
+    const dirA = join(home, 'a', 'codex', 'one')
+    const dirB = join(home, 'b', 'codex', 'two')
+    await mkdir(dirA, { recursive: true })
+    await mkdir(dirB, { recursive: true })
+
+    await seedInventory(home, [
+      {
+        registry: FAKE_REGISTRY_A, namespace: 'global', slug: 'one', version: '1.0.0',
+        targets: [{ agent: 'codex', rootDir: join(home, 'a', 'codex'), installDir: dirA, installedAt: INSTALLED_AT }]
+      },
+      {
+        registry: FAKE_REGISTRY_B, namespace: 'global', slug: 'two', version: '1.0.0',
+        targets: [{ agent: 'codex', rootDir: join(home, 'b', 'codex'), installDir: dirB, installedAt: INSTALLED_AT }]
+      }
+    ])
+
+    // No --registry flag — scope comes from SKILLHUB_REGISTRY env.
+    const result = await runCli(
+      ['list', '--json'],
+      { HOME: home, USERPROFILE: home, SKILLHUB_REGISTRY: FAKE_REGISTRY_B }
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as { items: Array<{ slug: string }> }
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0]?.slug).toBe('two')
+  })
 })
