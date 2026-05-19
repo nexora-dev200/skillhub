@@ -127,6 +127,10 @@ skillhub search pdf --json
 # 安装到自动探测的 Agent 目录
 skillhub install pdf-parser
 
+# 显式指定安装范围
+skillhub install pdf-parser --scope user
+skillhub install pdf-parser --scope project --agent codex
+
 # 指定 namespace（默认 global）
 skillhub install pdf-parser --namespace myspace
 
@@ -150,18 +154,21 @@ skillhub install pdf-parser --force
 
 CLI 按以下逻辑确定安装位置：
 
-1. 指定 `--dir`：安装到该目录，agent 标记为 `custom`
-2. 指定 `--agent`：安装到对应 Agent 的 skills 目录
-3. 未指定：自动扫描当前目录，探测已存在的 Agent 配置目录
-   - 探测到 1 个 Agent → 直接安装
-   - 探测到多个 Agent → 交互式选择（TTY 模式）或报错（非交互模式）
-   - 未探测到 → 回退到 `<cwd>/.agents/skills/`
+1. 指定 `--dir`：安装到该目录，agent 标记为 `custom`。`--dir` 与 `--scope`、`--agent` 互斥。
+2. 指定 `--scope user|project`：探测限定在该 scope 内。
+   - 同时指定 `--agent <profile>`：直接安装到该 profile 对应 scope 的 skills 目录。
+   - 未指定 `--agent`：只探测该 scope 下已存在的 skills 目录。
+   - 该 scope 下未探测到 → fallback：`--scope user` 回退到 `<home>/.agents/skills/`，`--scope project` 回退到 `<cwd>/.agents/skills/`。
+3. 指定 `--agent`（无 `--scope`）：安装到对应 Agent 的 skills 目录（沿用现有行为，不变）。
+4. 三者均未指定：
+   - **交互模式**（stdin 和 stdout 都是 TTY 且未传 `--json`）：先交互式询问 user 还是 project scope，再按 `--scope` 规则继续。
+   - **非交互模式**：自动扫描当前目录探测已存在的 Agent 配置目录。1 个 → 直接安装；多个 → 报错；未探测到 → 回退到 `<cwd>/.agents/skills/`。
 
-> `--dir` 和 `--agent` 不能同时使用。
+> `--dir` 不能与 `--scope` 或 `--agent` 同时使用。
 
 ### 安装路径
 
-每个 Agent 有项目级和用户级两个 skills 目录：
+每个 Agent 有项目级和用户级两个 skills 目录。`--scope user|project` 决定使用哪一个。
 
 | Agent | 项目级路径 | 用户级路径 |
 |-------|-----------|-----------|
@@ -169,9 +176,9 @@ CLI 按以下逻辑确定安装位置：
 | `codex` | `<project>/.codex/skills/` | `~/.codex/skills/` |
 | `cursor` | `<project>/.cursor/skills/` | `~/.cursor/skills/` |
 | `github-copilot` | `<project>/.github-copilot/skills/` | `~/.github-copilot/skills/` |
-| `gemini-cli` | `<project>/.gemini-cli/skills/` | `~/.gemini-cli/skills/` |
+| `gemini-cli` | `<project>/.gemini/skills/` | `~/.gemini/skills/` |
 | `windsurf` | `<project>/.windsurf/skills/` | `~/.windsurf/skills/` |
-| `kiro-cli` | `<project>/.kiro-cli/skills/` | `~/.kiro-cli/skills/` |
+| `kiro-cli` | `<project>/.kiro/skills/` | `~/.kiro/skills/` |
 | `roo` | `<project>/.roo/skills/` | `~/.roo/skills/` |
 | `trae` | `<project>/.trae/skills/` | `~/.trae/skills/` |
 | `trae-cn` | `<project>/.trae-cn/skills/` | `~/.trae-cn/skills/` |
@@ -179,8 +186,9 @@ CLI 按以下逻辑确定安装位置：
 | `openclaw` | `<project>/.openclaw/skills/` | `~/.openclaw/skills/` |
 | `opencode` | `<project>/.opencode/skills/` | `~/.opencode/skills/` |
 | `kilo` | `<project>/.kilo/skills/` | `~/.kilo/skills/` |
+| _fallback_ | `<project>/.agents/skills/` | `~/.agents/skills/` |
 
-对于不在列表中的 Agent，使用 `--dir` 指定安装路径。
+对于不在列表中的 Agent，使用 `--dir` 指定安装路径。当 `--scope user|project` 找不到匹配的 agent 目录时，CLI 会回退到上表的 `_fallback_` 行。
 
 ### 安装后的文件结构
 
@@ -466,10 +474,11 @@ skillhub install <slug> [options]
 ```
 
 选项：
+- `--scope <user|project>` — 安装范围（不传时：TTY 模式下交互式询问，非 TTY 模式沿用现有探测逻辑）
 - `--namespace <slug>` — namespace（默认 `global`）
 - `--version <v>` — 版本（默认最新版本）
 - `--agent <profile>` — Agent 配置（可重复）
-- `--dir <path>` — 自定义安装目录
+- `--dir <path>` — 自定义安装目录（与 `--scope`、`--agent` 互斥）
 - `--force` — 覆盖已存在的安装
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token

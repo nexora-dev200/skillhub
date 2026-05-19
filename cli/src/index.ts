@@ -233,6 +233,7 @@ cli
   .command('install <slug>', 'Install a skill locally')
   .option('--namespace <slug>', 'Namespace', { default: 'global' })
   .option('--version <v>', 'Version')
+  .option('--scope <scope>', 'Install scope: user or project')
   .option('--agent <profile>', 'Agent profile (repeatable)')
   .option('--dir <path>', 'Install directory')
   .option('--force', 'Overwrite existing')

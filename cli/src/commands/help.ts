@@ -33,8 +33,12 @@ export const commands = {
   },
   install: {
     summary: 'Install a skill locally',
-    usage: 'skillhub install <slug> [--namespace <slug>] [--version <v>] [--agent <profile>] [--dir <path>] [--force] [--json]',
-    examples: ['skillhub install pdf-parser', 'skillhub install pdf-parser --agent codex']
+    usage: 'skillhub install <slug> [--scope <user|project>] [--namespace <slug>] [--version <v>] [--agent <profile>] [--dir <path>] [--force] [--json]',
+    examples: [
+      'skillhub install pdf-parser',
+      'skillhub install pdf-parser --scope user',
+      'skillhub install pdf-parser --scope project --agent codex'
+    ]
   },
   list: {
     summary: 'List local installs',
