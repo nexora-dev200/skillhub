@@ -65,3 +65,37 @@ jobs:
 
       - name: Run backend unit tests
         run: make test-backend
+
+  docs-build:
+    name: Docs Build
+    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Detect docs changes
+        id: changed
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            docs:
+              - 'docs/skillhub/**'
+              - '.github/workflows/pr-tests.yml'
+
+      - name: Set up Node.js
+        if: steps.changed.outputs.docs == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/skillhub/package-lock.json
+
+      - name: Install docs dependencies
+        if: steps.changed.outputs.docs == 'true'
+        run: cd docs/skillhub && npm ci
+
+      - name: Build VitePress site
+        if: steps.changed.outputs.docs == 'true'
+        run: cd docs/skillhub && npm run build
