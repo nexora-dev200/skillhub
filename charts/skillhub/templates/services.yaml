@@ -1,58 +1,44 @@
+{{- /*
+SkillHub Service 资源
+- server/web: 使用组件自己的 service.type 配置（共享同一模板）
+- scanner: 固定 ClusterIP（仅供内部调用）
+*/}}
+
+{{- range $name := list "server" "web" }}
+{{- $component := index $.Values $name }}
+{{- if $component.service.enabled }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "skillhub.fullname" . }}-server
+  name: {{ include "skillhub.fullname" $ }}-{{ $name }}
   labels:
-    {{- include "skillhub.server.labels" . | nindent 4 }}
+    {{- include (printf "skillhub.%s.labels" $name) $ | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  {{- if eq .Values.service.type "LoadBalancer" }}
-  {{- if .Values.service.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
+  type: {{ $component.service.type }}
+  {{- if eq $component.service.type "LoadBalancer" }}
+  {{- if $component.service.loadBalancerIP }}
+  loadBalancerIP: {{ $component.service.loadBalancerIP }}
   {{- end }}
-  {{- if .Values.service.loadBalancerSourceRanges }}
+  {{- if $component.service.loadBalancerSourceRanges }}
   loadBalancerSourceRanges:
-    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
+    {{- toYaml $component.service.loadBalancerSourceRanges | nindent 4 }}
   {{- end }}
   {{- end }}
   ports:
     - name: http
-      port: {{ .Values.service.serverPort }}
+      port: {{ $component.service.port }}
       targetPort: http
-      {{- if and (eq .Values.service.type "NodePort") .Values.service.serverNodePort }}
-      nodePort: {{ .Values.service.serverNodePort }}
+      {{- if and (eq $component.service.type "NodePort") $component.service.nodePort }}
+      nodePort: {{ $component.service.nodePort }}
       {{- end }}
   selector:
-    {{- include "skillhub.server.selectorLabels" . | nindent 4 }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "skillhub.fullname" . }}-web
-  labels:
-    {{- include "skillhub.web.labels" . | nindent 4 }}
-spec:
-  type: {{ .Values.service.type }}
-  {{- if eq .Values.service.type "LoadBalancer" }}
-  {{- if .Values.service.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
-  {{- end }}
-  {{- if .Values.service.loadBalancerSourceRanges }}
-  loadBalancerSourceRanges:
-    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
-  {{- end }}
-  {{- end }}
-  ports:
-    - name: http
-      port: {{ .Values.service.webPort }}
-      targetPort: http
-      {{- if and (eq .Values.service.type "NodePort") .Values.service.webNodePort }}
-      nodePort: {{ .Values.service.webNodePort }}
-      {{- end }}
-  selector:
-    {{- include "skillhub.web.selectorLabels" . | nindent 4 }}
-{{- if .Values.scanner.enabled }}
+    {{- include (printf "skillhub.%s.selectorLabels" $name) $ | nindent 4 }}
+{{- end }}
+{{- end }}
+
+{{- /* Scanner Service（固定 ClusterIP） */}}
+{{- if and .Values.scanner.enabled .Values.scanner.service }}
 ---
 apiVersion: v1
 kind: Service
@@ -61,23 +47,11 @@ metadata:
   labels:
     {{- include "skillhub.scanner.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
-  {{- if eq .Values.service.type "LoadBalancer" }}
-  {{- if .Values.service.loadBalancerIP }}
-  loadBalancerIP: {{ .Values.service.loadBalancerIP }}
-  {{- end }}
-  {{- if .Values.service.loadBalancerSourceRanges }}
-  loadBalancerSourceRanges:
-    {{- toYaml .Values.service.loadBalancerSourceRanges | nindent 4 }}
-  {{- end }}
-  {{- end }}
+  type: ClusterIP
   ports:
     - name: http
-      port: {{ .Values.service.scannerPort }}
+      port: {{ .Values.scanner.service.port }}
       targetPort: http
-      {{- if and (eq .Values.service.type "NodePort") .Values.service.scannerNodePort }}
-      nodePort: {{ .Values.service.scannerNodePort }}
-      {{- end }}
   selector:
     {{- include "skillhub.scanner.selectorLabels" . | nindent 4 }}
 {{- end }}

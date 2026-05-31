@@ -29,6 +29,12 @@ jobs:
         with:
           version: latest
 
+      - name: Verify dependencies
+        run: helm dependency build .
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u ${{ github.actor }} --password-stdin
+
       - name: Parse version from tag
         id: ver
         run: |

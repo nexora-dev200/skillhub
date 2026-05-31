@@ -62,21 +62,28 @@ jobs:
       fail-fast: false
       matrix:
         scenario:
-          - name: internal-default
-            description: 内置 PostgreSQL + Redis
+          - name: bitnami-default
+            description: Bitnami 默认配置
             args: ""
           - name: external-db-redis
-            description: 外置 PostgreSQL + Redis
+            description: 外部 PostgreSQL + Redis
             args: >-
-              --set database.mode=external
-              --set redis.mode=external
-          - name: external-sentinel
-            description: 外置 DB + Redis 哨兵模式
+              --set postgresql.enabled=false
+              --set redis.enabled=false
+              --set externalDatabase.host=postgres.example.com
+              --set externalDatabase.password=secret
+              --set externalRedis.host=redis.example.com
+              --set externalRedis.password=secret
+          - name: postgresql-replication
+            description: PostgreSQL 主从 + Redis 主从
             args: >-
-              --set database.mode=external
-              --set redis.mode=external
-              --set redis.external.sentinel.enabled=true
-              --set redis.external.sentinel.nodes="{10.0.0.1:26379,10.0.0.2:26379}"
+              --set postgresql.architecture=replication
+              --set redis.architecture=replication
+          - name: redis-sentinel
+            description: Redis 哨兵模式
+            args: >-
+              --set redis.architecture=replication
+              --set redis.sentinel.enabled=true
           - name: ingress-tls-certmanager
             description: Ingress + TLS + cert-manager
             args: >-
@@ -86,18 +93,20 @@ jobs:
           - name: s3-storage
             description: S3 存储
             args: >-
-              --set storage.provider=s3
-              --set storage.s3.bucket=test-bucket
-              --set storage.s3.endpoint=s3.amazonaws.com
-              --set storage.s3.region=us-east-1
+              --set s3.enabled=true
+              --set s3.bucket=test-bucket
+              --set s3.endpoint=s3.amazonaws.com
+              --set s3.region=us-east-1
           - name: external-secret
-            description: 引用已有 Secret
-            args: --set existingSecret=my-custom-secret
+            description: 外部 Secret
+            args: >-
+              --set existingSecret=my-custom-secret
           - name: scanner-disabled
             description: 禁用 Scanner
-            args: --set scanner.enabled=false
+            args: >-
+              --set scanner.enabled=false
           - name: hpa-pdb
-            description: HPA + PDB 开启
+            description: HPA + PDB
             args: >-
               --set server.autoscaling.enabled=true
               --set web.autoscaling.enabled=true
@@ -118,26 +127,21 @@ jobs:
       - name: Render template - ${{ matrix.scenario.name }}
         run: |
           echo "## ${{ matrix.scenario.description }}"
-          helm template test-release . ${{ matrix.scenario.args }} > /dev/null
+          helm template test-release . ${{ matrix.scenario.args }} > /tmp/rendered.yaml
           echo "✅ Template rendered successfully"
 
-      - name: Validate no empty resources
+      - name: Validate resources
         run: |
-          RESOURCES=$(helm template test-release . ${{ matrix.scenario.args }} 2>/dev/null | grep -c '^kind:' || true)
+          RESOURCES=$(grep -c '^kind:' /tmp/rendered.yaml || true)
           echo "Rendered $RESOURCES resources for ${{ matrix.scenario.name }}"
           if [ "$RESOURCES" -eq 0 ]; then
             echo "ERROR: No resources rendered for ${{ matrix.scenario.name }}"
             exit 1
           fi
-
-      - name: Validate resource names are well-formed
-        run: |
-          helm template test-release . ${{ matrix.scenario.args }} | \
-            grep -E '^  name:' | \
-            while read -r line; do
-              if echo "$line" | grep -qP '\{\{'; then
-                echo "ERROR: Unrendered template in name: $line"
-                exit 1
-              fi
-            done
+          grep -E '^  name:' /tmp/rendered.yaml | while read -r line; do
+            if echo "$line" | grep -qP '\{\{'; then
+              echo "ERROR: Unrendered template in name: $line"
+              exit 1
+            fi
+          done
           echo "✅ All resource names properly rendered"

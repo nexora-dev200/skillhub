@@ -3,45 +3,15 @@
 # ============================================================================
 
 # ============================================================================
-# Global
-# ============================================================================
-global:
-  imageRegistry: ""
-  imagePullSecrets: []
-
-# ============================================================================
 # 镜像配置
 # ============================================================================
 images:
   registry: ghcr.io/iflytek
-  # 留空时自动使用 Chart.yaml 中的 appVersion（带 v 前缀）
   tag: ""
   pullPolicy: IfNotPresent
 
-# ============================================================================
-# 副本数
-# ============================================================================
-replicaCount: 1
-
 nameOverride: ""
 fullnameOverride: ""
-
-# ============================================================================
-# 服务配置
-# ============================================================================
-service:
-  # ClusterIP | NodePort | LoadBalancer
-  type: ClusterIP
-  serverPort: 8080
-  webPort: 80
-  scannerPort: 8000
-  # type: NodePort 时指定 nodePort（不指定则由集群分配）
-  serverNodePort: ""
-  webNodePort: ""
-  scannerNodePort: ""
-  # type: LoadBalancer 时可选固定 IP
-  loadBalancerIP: ""
-  loadBalancerSourceRanges: []
 
 # ============================================================================
 # Ingress 配置
@@ -61,12 +31,236 @@ ingress:
     issuerKind: ClusterIssuer
 
 # ============================================================================
-# 应用组件配置
+# S3 对象存储配置
+# ============================================================================
+s3:
+  enabled: false
+  bucket: skillhub-storage
+  endpoint: ""
+  region: us-east-1
+  accessKey: ""
+  secretKey: ""
+
+# ============================================================================
+# Session 配置
+# ============================================================================
+session:
+  cookieSecure: false
+
+# ============================================================================
+# Bootstrap 管理员
+# ============================================================================
+bootstrapAdmin:
+  enabled: true
+  userId: docker-admin
+  username: admin
+  displayName: "Platform Admin"
+  email: admin@example.com
+  password: ""
+
+# ============================================================================
+# Spring Profiles
+# ============================================================================
+springProfilesActive: docker
+
+# ============================================================================
+# Secret 配置
+# ============================================================================
+existingSecret: ""
+
+secrets:
+  springDatasourcePassword: ""
+  bootstrapAdminPassword: ""
+  oauth2GithubClientId: ""
+  oauth2GithubClientSecret: ""
+  scannerLlmApiKey: ""
+  scannerLlmModel: ""
+
+# ============================================================================
+# PostgreSQL 配置（Bitnami）
+# ============================================================================
+postgresql:
+  enabled: true
+
+  image:
+    registry: docker.io
+    repository: bitnami/postgresql
+    tag: latest
+    digest: ""
+
+  architecture: standalone
+
+  auth:
+    postgresPassword: ""
+    database: skillhub
+    username: skillhub
+    password: "skillhub_demo"
+
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    extraEnv:
+      - name: POSTGRES_MAX_CONNECTIONS
+        value: "500"
+    podAnnotations: {}
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+    livenessProbe:
+      enabled: true
+      initialDelaySeconds: 30
+      periodSeconds: 20
+    readinessProbe:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 10
+
+  readReplicas:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+externalDatabase:
+  host: postgres.example.com
+  port: 5432
+  database: skillhub
+  username: skillhub
+  password: ""
+  jdbcUrl: ""
+
+# ============================================================================
+# Redis 配置（Bitnami）
+# ============================================================================
+redis:
+  enabled: true
+
+  image:
+    registry: docker.io
+    repository: bitnami/redis
+    tag: latest
+    digest: ""
+
+  architecture: standalone
+
+  auth:
+    enabled: true
+    password: "skillhub_redis"
+    sentinelPassword: ""
+
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+    podAnnotations: {}
+    podSecurityContext:
+      enabled: true
+      fsGroup: 1001
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 1001
+
+  replica:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 512Mi
+
+  sentinel:
+    enabled: false
+    masterSet: mymaster
+    nodes: ""
+    service:
+      enabled: true
+      ports:
+        sentinel: 26379
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false
+
+externalRedis:
+  host: redis.example.com
+  port: 6379
+  password: ""
+  sentinel:
+    enabled: false
+    masterSet: mymaster
+    nodes: []
+
+# ============================================================================
+# Server 配置
 # ============================================================================
 server:
-  # 组件级镜像标签（留空时使用全局 images.tag）
+  enabled: true
+  replicaCount: 1
+
   image:
+    registry: ""
     tag: ""
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 8080
+    nodePort: ""
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+
+  storage:
+    # 访问模式：留空时自动判断（单副本 RWO，多副本 RWX），或手动指定
+    accessMode: ""
+    size: 10Gi
+    storageClassName: ""
+
   resources:
     requests:
       cpu: 500m
@@ -74,6 +268,7 @@ server:
     limits:
       cpu: 1000m
       memory: 1Gi
+
   javaOpts: ""
   extraEnv: []
   podAnnotations: {}
@@ -81,17 +276,7 @@ server:
   nodeSelector: {}
   tolerations: []
   affinity: {}
-  # HPA（自动扩缩容）
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 10
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 80
-  # PDB（自愿干扰预算，多副本时保证最少可用实例）
-  podDisruptionBudget:
-    enabled: false
-    minAvailable: 1
+
   probes:
     startup:
       httpGet:
@@ -113,10 +298,34 @@ server:
       initialDelaySeconds: 30
       periodSeconds: 15
 
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+# ============================================================================
+# Web 配置
+# ============================================================================
 web:
-  # 组件级镜像标签（留空时使用全局 images.tag）
+  replicaCount: 1
   image:
+    registry: ""
     tag: ""
+
+  service:
+    enabled: true
+    type: ClusterIP
+    port: 80
+    nodePort: ""
+    loadBalancerIP: ""
+    loadBalancerSourceRanges: []
+
   resources:
     requests:
       cpu: 100m
@@ -124,23 +333,14 @@ web:
     limits:
       cpu: 200m
       memory: 256Mi
+
   extraEnv: []
   podAnnotations: {}
   imagePullSecrets: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
-  # HPA（自动扩缩容）
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 80
-  # PDB（自愿干扰预算，多副本时保证最少可用实例）
-  podDisruptionBudget:
-    enabled: false
-    minAvailable: 1
+
   probes:
     readiness:
       httpGet:
@@ -155,11 +355,30 @@ web:
       initialDelaySeconds: 10
       periodSeconds: 15
 
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1
+
+# ============================================================================
+# Scanner 配置
+# ============================================================================
 scanner:
   enabled: true
-  # 组件级镜像标签（留空时使用全局 images.tag）
+  replicaCount: 1
   image:
+    registry: ""
     tag: ""
+
+  service:
+    port: 8000
+
   resources:
     requests:
       cpu: 100m
@@ -167,23 +386,14 @@ scanner:
     limits:
       cpu: 500m
       memory: 512Mi
+
   extraEnv: []
   podAnnotations: {}
   imagePullSecrets: []
   nodeSelector: {}
   tolerations: []
   affinity: {}
-  # HPA（自动扩缩容）
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 5
-    targetCPUUtilizationPercentage: 80
-    targetMemoryUtilizationPercentage: 80
-  # PDB（自愿干扰预算，多副本时保证最少可用实例）
-  podDisruptionBudget:
-    enabled: false
-    minAvailable: 1
+
   probes:
     readiness:
       httpGet:
@@ -198,122 +408,13 @@ scanner:
       initialDelaySeconds: 20
       periodSeconds: 15
 
-# ============================================================================
-# 数据库配置（PostgreSQL）
-# ============================================================================
-# mode: internal（内置单实例）| external（外置）
-#   内置模式部署单实例 PostgreSQL。
-#   如需高可用集群，请使用 external 模式连接外部集群。
-database:
-  mode: internal
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
 
-  internal:
-    image: postgres:16-alpine
-    registry: docker.io
-    storage: 10Gi
-    storageClassName: ""
-    resources:
-      requests:
-        cpu: 100m
-        memory: 256Mi
-      limits:
-        cpu: 500m
-        memory: 512Mi
-
-  external:
-    host: postgres.example.com
-    port: 5432
-    database: skillhub
-    username: skillhub
-    password: ""
-    parameters: ""
-    # 自定义 JDBC URL（非空时覆盖 host/port/database/parameters 的拼接结果）
-    # 用于连接外部 PostgreSQL 集群（如 Patroni、JDBC 多主机等）
-    jdbcUrl: ""
-
-# ============================================================================
-# Redis 配置
-# ============================================================================
-# mode: internal（内置单实例）| external（外置）
-# 注意: Redis Cluster 模式不支持
-redis:
-  mode: internal
-
-  internal:
-    image: redis:7-alpine
-    registry: docker.io
-    storage: 5Gi
-    storageClassName: ""
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-      limits:
-        cpu: 200m
-        memory: 256Mi
-
-  external:
-    host: redis.example.com
-    port: 6379
-    password: ""
-    sentinel:
-      enabled: false
-      masterSet: mymaster
-      nodes: []
-
-# ============================================================================
-# 存储配置
-# ============================================================================
-storage:
-  provider: local
-  local:
-    # 多副本 (replicaCount > 1) 时必须设为 ReadWriteMany，底层需支持 RWX（如 NFS/Longhorn）
-    accessMode: ReadWriteMany
-    storage: 10Gi
-    storageClassName: ""
-  s3:
-    bucket: skillhub-storage
-    endpoint: ""
-    region: ""
-    accessKey: ""
-    secretKey: ""
-
-# ============================================================================
-# Bootstrap 管理员
-# ============================================================================
-bootstrapAdmin:
-  enabled: true
-  userId: docker-admin
-  username: admin
-  displayName: "Platform Admin"
-  email: admin@example.com
-  password: ""
-
-# ============================================================================
-# Session 配置
-# ============================================================================
-session:
-  cookieSecure: false
-
-# ============================================================================
-# Spring Profiles
-# ============================================================================
-springProfilesActive: docker
-
-# ============================================================================
-# Secret 配置
-# ============================================================================
-# 使用已有 Secret（优先级高于下方 secrets.* 字段）
-# 设置后 chart 不会创建 Secret，而是直接引用该名称
-existingSecret: ""
-
-secrets:
-  springDatasourceUrl: ""
-  springDatasourceUsername: ""
-  springDatasourcePassword: ""
-  bootstrapAdminPassword: ""
-  oauth2GithubClientId: ""
-  oauth2GithubClientSecret: ""
-  scannerLlmApiKey: ""
-  scannerLlmModel: ""
-
+  podDisruptionBudget:
+    enabled: false
+    minAvailable: 1

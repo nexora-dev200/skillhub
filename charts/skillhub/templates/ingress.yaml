@@ -36,12 +36,12 @@ spec:
               service:
                 name: {{ include "skillhub.fullname" . }}-server
                 port:
-                  number: {{ .Values.service.serverPort }}
+                  number: {{ .Values.server.service.port }}
           - path: /
             pathType: Prefix
             backend:
               service:
                 name: {{ include "skillhub.fullname" . }}-web
                 port:
-                  number: {{ .Values.service.webPort }}
+                  number: {{ .Values.web.service.port }}
 {{- end }}

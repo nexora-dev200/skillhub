@@ -1,3 +1,6 @@
+{{- /*
+SkillHub 应用 ConfigMap
+*/}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,18 +9,25 @@ metadata:
     {{- include "skillhub.labels" . | nindent 4 }}
 data:
   # Redis 配置
-  redis-host: {{ include "skillhub.redisHost" . }}
-  redis-port: {{ include "skillhub.redisPort" . | quote }}
+  redis-host: {{ include "skillhub.redis.host" . }}
+  redis-port: {{ include "skillhub.redis.port" . | quote }}
 
   # 存储路径
   storage-base-path: /var/lib/skillhub/storage
 
   # 存储提供者: local | s3
-  skillhub-storage-provider: {{ .Values.storage.provider }}
+  skillhub-storage-provider: {{ if .Values.s3.enabled }}s3{{ else }}local{{ end }}
+
+  {{- if .Values.s3.enabled }}
+  # S3 配置
+  s3-bucket: {{ .Values.s3.bucket }}
+  s3-endpoint: {{ .Values.s3.endpoint }}
+  s3-region: {{ .Values.s3.region }}
+  {{- end }}
 
   # 技能扫描器
   skill-scanner-enabled: {{ .Values.scanner.enabled | quote }}
-  skill-scanner-url: http://{{ include "skillhub.fullname" . }}-scanner:8000
+  skill-scanner-url: http://{{ include "skillhub.fullname" . }}-scanner:{{ .Values.scanner.service.port }}
   skill-scanner-mode: upload
 
   # Bootstrap 管理员
@@ -29,6 +39,3 @@ data:
 
   # Session
   session-cookie-secure: {{ .Values.session.cookieSecure | quote }}
-
-  # Spring Profiles
-  spring-profiles-active: {{ .Values.springProfilesActive }}

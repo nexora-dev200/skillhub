@@ -1,3 +1,4 @@
+{{- if .Values.server.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,7 +6,9 @@ metadata:
   labels:
     {{- include "skillhub.server.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.server.autoscaling.enabled }}
+  replicas: {{ .Values.server.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "skillhub.server.selectorLabels" . | nindent 6 }}
@@ -14,29 +17,29 @@ spec:
       labels:
         {{- include "skillhub.server.selectorLabels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/config: {{ toYaml (dict "redisHost" (include "skillhub.redis.host" .) "redisPort" (include "skillhub.redis.port" .) "storage" .Values.server.storage "s3" .Values.s3 "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin "scannerEnabled" .Values.scanner.enabled "scannerPort" .Values.scanner.service.port) | sha256sum }}
         checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
         {{- range $key, $val := .Values.server.podAnnotations }}
         {{ $key }}: {{ $val }}
         {{- end }}
     spec:
-      {{- $secrets := .Values.server.imagePullSecrets | default .Values.global.imagePullSecrets }}
+      {{- $secrets := .Values.server.imagePullSecrets }}
       {{- if $secrets }}
       imagePullSecrets:
         {{- toYaml $secrets | nindent 8 }}
       {{- end }}
       initContainers:
         - name: wait-for-dependencies
-          image: busybox:latest
+          image: busybox:1.37
           env:
             - name: DB_HOST
-              value: {{ include "skillhub.jdbcHost" . }}
+              value: {{ include "skillhub.postgresql.serviceName" . }}
             - name: DB_PORT
-              value: {{ include "skillhub.jdbcPort" . | quote }}
+              value: {{ include "skillhub.postgresql.port" . | quote }}
             - name: REDIS_HOST
-              value: {{ include "skillhub.redisHost" . }}
+              value: {{ include "skillhub.redis.serviceName" . }}
             - name: REDIS_PORT
-              value: {{ include "skillhub.redisPort" . | quote }}
+              value: {{ include "skillhub.redis.port" . | quote }}
           command:
             - sh
             - -c
@@ -49,14 +52,20 @@ spec:
               echo "Redis is ready!"
       containers:
         - name: server
-          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-server:{{ .Values.server.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
+          image: {{ .Values.server.image.registry | default .Values.images.registry }}/skillhub-server:{{ .Values.server.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.serverPort }}
+            - containerPort: {{ .Values.server.service.port }}
               name: http
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: {{ .Values.springProfilesActive }}
+              {{- $profiles := .Values.springProfilesActive }}
+              {{- if and .Values.redis.enabled .Values.redis.sentinel.enabled }}
+              {{- $profiles = printf "%s,redis-sentinel" $profiles }}
+              {{- else if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
+              {{- $profiles = printf "%s,redis-sentinel" $profiles }}
+              {{- end }}
+              value: {{ $profiles }}
 
             # Database
             - name: SPRING_DATASOURCE_URL
@@ -76,6 +85,17 @@ spec:
                   key: spring-datasource-password
 
             # Redis
+            {{- if and .Values.redis.enabled .Values.redis.sentinel.enabled }}
+            - name: SPRING_DATA_REDIS_SENTINEL_MASTER
+              value: {{ .Values.redis.sentinel.masterSet | default "mymaster" | quote }}
+            - name: SPRING_DATA_REDIS_SENTINEL_NODES
+              value: {{ include "skillhub.redis.sentinel.nodes" . }}
+            {{- else if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
+            - name: SPRING_DATA_REDIS_SENTINEL_MASTER
+              value: {{ .Values.externalRedis.sentinel.masterSet | default "mymaster" | quote }}
+            - name: SPRING_DATA_REDIS_SENTINEL_NODES
+              value: {{ join "," .Values.externalRedis.sentinel.nodes }}
+            {{- else }}
             - name: SPRING_DATA_REDIS_HOST
               valueFrom:
                 configMapKeyRef:
@@ -86,21 +106,26 @@ spec:
                 configMapKeyRef:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: redis-port
+            {{- end }}
 
-            {{- if eq .Values.redis.mode "external" }}
+            {{- if or (and .Values.redis.enabled .Values.redis.sentinel.enabled) (and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled) }}
+            - name: SPRING_DATA_REDIS_SENTINEL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  {{- if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
+                  key: redis-sentinel-password
+                  {{- else }}
+                  key: redis-password
+                  {{- end }}
+                  optional: true
+            {{- else if or .Values.redis.enabled .Values.externalRedis.password }}
             - name: SPRING_DATA_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ include "skillhub.secretName" . }}
                   key: redis-password
                   optional: true
-            {{- end }}
-
-            {{- if .Values.redis.external.sentinel.enabled }}
-            - name: SPRING_DATA_REDIS_SENTINEL_MASTER
-              value: {{ .Values.redis.external.sentinel.masterSet }}
-            - name: SPRING_DATA_REDIS_SENTINEL_NODES
-              value: {{ join "," .Values.redis.external.sentinel.nodes }}
             {{- end }}
 
             # Storage
@@ -115,13 +140,22 @@ spec:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: skillhub-storage-provider
 
-            {{- if eq .Values.storage.provider "s3" }}
+            {{- if .Values.s3.enabled }}
             - name: SKILLHUB_S3_BUCKET
-              value: {{ .Values.storage.s3.bucket }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-bucket
             - name: SKILLHUB_S3_ENDPOINT
-              value: {{ .Values.storage.s3.endpoint }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-endpoint
             - name: SKILLHUB_S3_REGION
-              value: {{ .Values.storage.s3.region }}
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-region
             - name: SKILLHUB_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
@@ -216,7 +250,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
 
-          {{- if eq .Values.storage.provider "local" }}
+          {{- if and .Values.server.enabled (not .Values.s3.enabled) }}
           volumeMounts:
             - name: skillhub-storage
               mountPath: /var/lib/skillhub/storage
@@ -232,11 +266,11 @@ spec:
           livenessProbe:
             {{- toYaml .Values.server.probes.liveness | nindent 12 }}
 
-      {{- if eq .Values.storage.provider "local" }}
+      {{- if and .Values.server.enabled (not .Values.s3.enabled) }}
       volumes:
         - name: skillhub-storage
           persistentVolumeClaim:
-            claimName: {{ include "skillhub.fullname" . }}-storage-pvc
+            claimName: {{ include "skillhub.fullname" . }}-server-data
       {{- end }}
       {{- with .Values.server.nodeSelector }}
       nodeSelector:
@@ -250,3 +284,5 @@ spec:
       affinity:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+
+{{- end }}

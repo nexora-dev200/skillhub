@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "skillhub.web.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.web.autoscaling.enabled }}
+  replicas: {{ .Values.web.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "skillhub.web.selectorLabels" . | nindent 6 }}
@@ -14,29 +16,28 @@ spec:
       labels:
         {{- include "skillhub.web.selectorLabels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
-        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/config: {{ toYaml (dict "web" .Values.web) | sha256sum }}
         {{- range $key, $val := .Values.web.podAnnotations }}
         {{ $key }}: {{ $val }}
         {{- end }}
     spec:
-      {{- $secrets := .Values.web.imagePullSecrets | default .Values.global.imagePullSecrets }}
+      {{- $secrets := .Values.web.imagePullSecrets }}
       {{- if $secrets }}
       imagePullSecrets:
         {{- toYaml $secrets | nindent 8 }}
       {{- end }}
       containers:
         - name: web
-          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-web:{{ .Values.web.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
+          image: {{ .Values.web.image.registry | default .Values.images.registry }}/skillhub-web:{{ .Values.web.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           env:
             - name: SKILLHUB_API_UPSTREAM
-              value: http://{{ include "skillhub.fullname" . }}-server:{{ .Values.service.serverPort }}
+              value: http://{{ include "skillhub.fullname" . }}-server:{{ .Values.server.service.port }}
             {{- with .Values.web.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            - containerPort: {{ .Values.service.webPort }}
+            - containerPort: {{ .Values.web.service.port }}
               name: http
           resources:
             {{- toYaml .Values.web.resources | nindent 12 }}

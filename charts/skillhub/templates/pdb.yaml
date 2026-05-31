@@ -1,44 +1,17 @@
-{{- if .Values.server.podDisruptionBudget.enabled }}
+{{- range $name := list "server" "web" "scanner" }}
+{{- $component := index $.Values $name }}
+{{- if and (default true $component.enabled) $component.podDisruptionBudget.enabled }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "skillhub.fullname" . }}-server
+  name: {{ include "skillhub.fullname" $ }}-{{ $name }}
   labels:
-    {{- include "skillhub.server.labels" . | nindent 4 }}
+    {{- include (printf "skillhub.%s.labels" $name) $ | nindent 4 }}
 spec:
   selector:
     matchLabels:
-      {{- include "skillhub.server.selectorLabels" . | nindent 6 }}
-  minAvailable: {{ .Values.server.podDisruptionBudget.minAvailable }}
+      {{- include (printf "skillhub.%s.selectorLabels" $name) $ | nindent 6 }}
+  minAvailable: {{ $component.podDisruptionBudget.minAvailable }}
 {{- end }}
-
-{{- if .Values.web.podDisruptionBudget.enabled }}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ include "skillhub.fullname" . }}-web
-  labels:
-    {{- include "skillhub.web.labels" . | nindent 4 }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "skillhub.web.selectorLabels" . | nindent 6 }}
-  minAvailable: {{ .Values.web.podDisruptionBudget.minAvailable }}
-{{- end }}
-
-{{- if and .Values.scanner.enabled .Values.scanner.podDisruptionBudget.enabled }}
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: {{ include "skillhub.fullname" . }}-scanner
-  labels:
-    {{- include "skillhub.scanner.labels" . | nindent 4 }}
-spec:
-  selector:
-    matchLabels:
-      {{- include "skillhub.scanner.selectorLabels" . | nindent 6 }}
-  minAvailable: {{ .Values.scanner.podDisruptionBudget.minAvailable }}
 {{- end }}

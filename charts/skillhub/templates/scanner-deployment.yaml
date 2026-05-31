@@ -6,7 +6,9 @@ metadata:
   labels:
     {{- include "skillhub.scanner.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  {{- if not .Values.scanner.autoscaling.enabled }}
+  replicas: {{ .Values.scanner.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "skillhub.scanner.selectorLabels" . | nindent 6 }}
@@ -15,23 +17,22 @@ spec:
       labels:
         {{- include "skillhub.scanner.selectorLabels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ toYaml (dict "redis" .Values.redis "storage" .Values.storage "database" .Values.database "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
-        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/config: {{ toYaml (dict "scanner" .Values.scanner) | sha256sum }}
         {{- range $key, $val := .Values.scanner.podAnnotations }}
         {{ $key }}: {{ $val }}
         {{- end }}
     spec:
-      {{- $secrets := .Values.scanner.imagePullSecrets | default .Values.global.imagePullSecrets }}
+      {{- $secrets := .Values.scanner.imagePullSecrets }}
       {{- if $secrets }}
       imagePullSecrets:
         {{- toYaml $secrets | nindent 8 }}
       {{- end }}
       containers:
         - name: scanner
-          image: {{ .Values.global.imageRegistry | default .Values.images.registry }}/skillhub-scanner:{{ .Values.scanner.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
+          image: {{ .Values.scanner.image.registry | default .Values.images.registry }}/skillhub-scanner:{{ .Values.scanner.image.tag | default .Values.images.tag | default (printf "v%s" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.images.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.scannerPort }}
+            - containerPort: {{ .Values.scanner.service.port }}
               name: http
           env:
             - name: SKILL_SCANNER_LLM_API_KEY

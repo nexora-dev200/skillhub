@@ -70,25 +70,110 @@ app.kubernetes.io/component: scanner
 app.kubernetes.io/component: scanner
 {{- end }}
 
-{{- /* 镜像地址 */}}
-{{- define "skillhub.image" -}}
-{{- $registry := .registry | default .global.registry }}
-{{- printf "%s/%s:%s" $registry .name .tag }}
-{{- end }}
-
-{{- /* JDBC Host */}}
-{{- define "skillhub.jdbcHost" -}}
-{{- if eq .Values.database.mode "internal" -}}
-{{ include "skillhub.fullname" . }}-postgres
+{{- /* PostgreSQL Host */}}
+{{- define "skillhub.postgresql.host" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- $prefix := printf "%s-postgresql" (include "skillhub.fullname" .) -}}
+{{- if eq .Values.postgresql.architecture "replication" -}}
+{{- printf "%s-primary" $prefix -}}
 {{- else -}}
-{{ .Values.database.external.host }}
+{{- $prefix -}}
+{{- end -}}
+{{- else -}}
+{{- .Values.externalDatabase.host -}}
 {{- end -}}
 {{- end }}
 
-{{- /* JDBC Port */}}
-{{- define "skillhub.jdbcPort" -}}
-{{- if eq .Values.database.mode "internal" -}}5432{{- else -}}
-{{ .Values.database.external.port | default "5432" }}
+{{- /* PostgreSQL Port */}}
+{{- define "skillhub.postgresql.port" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- print "5432" -}}
+{{- else -}}
+{{- .Values.externalDatabase.port | default 5432 | int -}}
+{{- end -}}
+{{- end }}
+
+{{- /* PostgreSQL Database */}}
+{{- define "skillhub.postgresql.database" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.database -}}
+{{- else -}}
+{{- .Values.externalDatabase.database -}}
+{{- end -}}
+{{- end }}
+
+{{- /* PostgreSQL Username */}}
+{{- define "skillhub.postgresql.username" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- .Values.postgresql.auth.username -}}
+{{- else -}}
+{{- .Values.externalDatabase.username -}}
+{{- end -}}
+{{- end }}
+
+{{- /* PostgreSQL Secret Name */}}
+{{- define "skillhub.postgresql.secretName" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- printf "%s-postgresql" (include "skillhub.fullname" .) -}}
+{{- else -}}
+{{- include "skillhub.secretName" . -}}
+{{- end -}}
+{{- end }}
+
+{{- /* PostgreSQL JDBC URL */}}
+{{- define "skillhub.jdbcUrl" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- printf "jdbc:postgresql://%s:5432/%s" (include "skillhub.postgresql.host" .) .Values.postgresql.auth.database -}}
+{{- else -}}
+{{- if .Values.externalDatabase.jdbcUrl -}}
+{{- .Values.externalDatabase.jdbcUrl -}}
+{{- else -}}
+{{- printf "jdbc:postgresql://%s:%d/%s" .Values.externalDatabase.host (.Values.externalDatabase.port | default 5432 | int) .Values.externalDatabase.database -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{- /* Redis Sentinel 节点列表（Redisson 需要具体 pod FQDN，格式: {pod}.{headless-svc}.{ns}.svc.cluster.local） */}}
+{{- define "skillhub.redis.sentinel.nodes" -}}
+{{- $prefix := printf "%s-redis-node" (include "skillhub.fullname" .) -}}
+{{- $headless := printf "%s-redis-headless" (include "skillhub.fullname" .) -}}
+{{- $port := include "skillhub.redis.port" . -}}
+{{- $replicas := .Values.redis.replica.replicaCount | default 2 | int -}}
+{{- $first := true -}}{{- range $i := until $replicas -}}{{- if not $first -}},{{- end -}}{{ $prefix }}-{{ $i }}.{{ $headless }}.{{ $.Release.Namespace }}.svc.cluster.local:{{ $port }}{{- $first = false -}}{{- end -}}
+{{- end }}
+
+{{- /* Redis Host */}}
+{{- define "skillhub.redis.host" -}}
+{{- if .Values.redis.enabled -}}
+{{- if .Values.redis.sentinel.enabled -}}
+{{- printf "%s-redis" (include "skillhub.fullname" .) -}}
+{{- else -}}
+{{- printf "%s-redis-master" (include "skillhub.fullname" .) -}}
+{{- end -}}
+{{- else -}}
+{{- .Values.externalRedis.host -}}
+{{- end -}}
+{{- end }}
+
+{{- /* Redis Port */}}
+{{- define "skillhub.redis.port" -}}
+{{- if .Values.redis.enabled -}}
+{{- if .Values.redis.sentinel.enabled -}}
+{{- .Values.redis.sentinel.service.ports.sentinel | default 26379 -}}
+{{- else -}}
+{{- print "6379" -}}
+{{- end -}}
+{{- else -}}
+{{- .Values.externalRedis.port | default 6379 | int -}}
+{{- end -}}
+{{- end }}
+
+{{- /* Redis Password Secret Name */}}
+{{- define "skillhub.redis.secretName" -}}
+{{- if .Values.redis.enabled -}}
+{{- printf "%s-redis" (include "skillhub.fullname" .) -}}
+{{- else -}}
+{{- include "skillhub.secretName" . -}}
 {{- end -}}
 {{- end }}
 
@@ -97,31 +182,20 @@ app.kubernetes.io/component: scanner
 {{- .Values.existingSecret | default (printf "%s-secret" (include "skillhub.fullname" .)) }}
 {{- end }}
 
-{{- /* Redis Host */}}
-{{- define "skillhub.redisHost" -}}
-{{- if eq .Values.redis.mode "internal" -}}
-{{ include "skillhub.fullname" . }}-redis
+{{- /* PostgreSQL Service 名称（用于 server initContainer 等待） */}}
+{{- define "skillhub.postgresql.serviceName" -}}
+{{- if .Values.postgresql.enabled -}}
+{{- include "skillhub.postgresql.host" . -}}
 {{- else -}}
-{{ .Values.redis.external.host }}
+{{- .Values.externalDatabase.host -}}
 {{- end -}}
 {{- end }}
 
-{{- /* Redis Port */}}
-{{- define "skillhub.redisPort" -}}
-{{- if eq .Values.redis.mode "internal" -}}6379{{- else -}}
-{{ .Values.redis.external.port | default "6379" }}
+{{- /* Redis Service 名称（用于 server initContainer 等待） */}}
+{{- define "skillhub.redis.serviceName" -}}
+{{- if .Values.redis.enabled -}}
+{{- include "skillhub.redis.host" . -}}
+{{- else -}}
+{{- .Values.externalRedis.host -}}
 {{- end -}}
-{{- end }}
-
-{{- /* 数据库 JDBC URL */}}
-{{- define "skillhub.jdbcUrl" -}}
-{{- if eq .Values.database.mode "internal" -}}
-jdbc:postgresql://{{ include "skillhub.fullname" . }}-postgres:5432/skillhub
-{{- else -}}
-{{- if .Values.database.external.jdbcUrl -}}
-{{ .Values.database.external.jdbcUrl }}
-{{- else -}}
-jdbc:postgresql://{{ .Values.database.external.host }}:{{ .Values.database.external.port }}/{{ .Values.database.external.database }}{{ if .Values.database.external.parameters }}?{{ .Values.database.external.parameters }}{{ end }}
-{{- end }}
-{{- end }}
 {{- end }}
