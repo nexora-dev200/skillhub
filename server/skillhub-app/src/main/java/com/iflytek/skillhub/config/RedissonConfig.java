@@ -41,7 +41,8 @@ public class RedissonConfig {
     private static void configureSentinelServers(Config config, RedisProperties redisProperties) {
         SentinelServersConfig sentinelServersConfig = config.useSentinelServers()
                 .setMasterName(redisProperties.getSentinel().getMaster())
-                .setDatabase(redisProperties.getDatabase());
+                .setDatabase(redisProperties.getDatabase())
+                .setCheckSentinelsList(false);
         List<String> nodes = redisProperties.getSentinel().getNodes();
         nodes.stream()
                 .map(String::trim)
@@ -50,6 +51,9 @@ public class RedissonConfig {
                 .forEach(sentinelServersConfig::addSentinelAddress);
 
         applySharedSettings(sentinelServersConfig, redisProperties);
+        if (StringUtils.hasText(redisProperties.getSentinel().getPassword())) {
+            sentinelServersConfig.setSentinelPassword(redisProperties.getSentinel().getPassword());
+        }
     }
 
     private static boolean hasSentinelConfiguration(RedisProperties redisProperties) {
