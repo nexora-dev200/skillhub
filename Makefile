@@ -278,13 +278,13 @@ lint-cli: ## CLI 代码检查
 typecheck-cli: ## CLI 类型检查
 	cd cli && bun run typecheck
 
-publish-cli: ## 发布 CLI（patch 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli: ## 发布 CLI（patch 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh patch
 
-publish-cli-minor: ## 发布 CLI（minor 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli-minor: ## 发布 CLI（minor 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh minor
 
-publish-cli-major: ## 发布 CLI（major 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli-major: ## 发布 CLI（major 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh major
 
 db-reset: ## 重置数据库
