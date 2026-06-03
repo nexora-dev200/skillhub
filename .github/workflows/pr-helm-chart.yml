@@ -36,6 +36,9 @@ jobs:
         with:
           version: latest
 
+      - name: Build dependencies
+        run: helm dependency build .
+
       - name: Lint chart
         run: helm lint .
 
@@ -124,24 +127,26 @@ jobs:
         with:
           version: latest
 
+      - name: Build dependencies
+        run: helm dependency build .
+
       - name: Render template - ${{ matrix.scenario.name }}
         run: |
           echo "## ${{ matrix.scenario.description }}"
-          helm template test-release . ${{ matrix.scenario.args }} > /tmp/rendered.yaml
+          helm template test-release . ${{ matrix.scenario.args }} > rendered.yaml
           echo "✅ Template rendered successfully"
 
       - name: Validate resources
         run: |
-          RESOURCES=$(grep -c '^kind:' /tmp/rendered.yaml || true)
+          RESOURCES=$(grep -c '^kind:' rendered.yaml || true)
           echo "Rendered $RESOURCES resources for ${{ matrix.scenario.name }}"
           if [ "$RESOURCES" -eq 0 ]; then
             echo "ERROR: No resources rendered for ${{ matrix.scenario.name }}"
             exit 1
           fi
-          grep -E '^  name:' /tmp/rendered.yaml | while read -r line; do
-            if echo "$line" | grep -qP '\{\{'; then
-              echo "ERROR: Unrendered template in name: $line"
-              exit 1
-            fi
-          done
-          echo "✅ All resource names properly rendered"
+
+      - name: Schema validation (kubeconform)
+        uses: docker://ghcr.io/yannh/kubeconform:latest
+        with:
+          entrypoint: '/kubeconform'
+          args: "-strict -summary -output text charts/skillhub/rendered.yaml"

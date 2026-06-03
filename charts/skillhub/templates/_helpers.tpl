@@ -138,8 +138,8 @@ app.kubernetes.io/component: scanner
 {{- $prefix := printf "%s-redis-node" (include "skillhub.fullname" .) -}}
 {{- $headless := printf "%s-redis-headless" (include "skillhub.fullname" .) -}}
 {{- $port := include "skillhub.redis.port" . -}}
-{{- $replicas := .Values.redis.replica.replicaCount | default 2 | int -}}
-{{- $first := true -}}{{- range $i := until $replicas -}}{{- if not $first -}},{{- end -}}{{ $prefix }}-{{ $i }}.{{ $headless }}.{{ $.Release.Namespace }}.svc.cluster.local:{{ $port }}{{- $first = false -}}{{- end -}}
+{{- $replicas := .Values.redis.replica.replicaCount | default 3 | int -}}
+{{- $nodes := list -}}{{- range $i := until $replicas -}}{{- $nodes = append $nodes (printf "%s-%d.%s.%s.svc.cluster.local:%s" $prefix $i $headless $.Release.Namespace $port) -}}{{- end -}}{{- join "," $nodes -}}
 {{- end }}
 
 {{- /* Redis Host */}}

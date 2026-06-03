@@ -10,14 +10,6 @@ metadata:
     {{- if .Values.ingress.annotations }}
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
     {{- end }}
-    {{- if .Values.ingress.certManager.enabled }}
-    {{- if eq .Values.ingress.certManager.issuerKind "ClusterIssuer" }}
-    cert-manager.io/cluster-issuer: {{ .Values.ingress.certManager.issuerName }}
-    {{- else }}
-    cert-manager.io/issuer: {{ .Values.ingress.certManager.issuerName }}
-    {{- end }}
-    cert-manager.io/issuer-kind: {{ .Values.ingress.certManager.issuerKind }}
-    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   {{- if or .Values.ingress.tls.enabled .Values.ingress.certManager.enabled }}

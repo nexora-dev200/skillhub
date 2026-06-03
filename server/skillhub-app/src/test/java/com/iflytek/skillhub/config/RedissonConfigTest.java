@@ -136,6 +136,22 @@ class RedissonConfigTest {
         assertThat(sentinelConfig.isCheckSentinelsList()).isFalse();
     }
 
+    @Test
+    void createConfig_doesNotSetSentinelPasswordWhenEmpty() throws Exception {
+        RedisProperties properties = new RedisProperties();
+        RedisProperties.Sentinel sentinel = new RedisProperties.Sentinel();
+        sentinel.setMaster("mymaster");
+        sentinel.setNodes(List.of("redis-sentinel-1:26379"));
+        properties.setSentinel(sentinel);
+        properties.setPassword("master-secret");
+
+        Config config = RedissonConfig.createConfig(properties);
+        SentinelServersConfig sentinelConfig = sentinelConfig(config);
+
+        assertThat(sentinelConfig.getPassword()).isEqualTo("master-secret");
+        assertThat(sentinelConfig.getSentinelPassword()).isNull();
+    }
+
     private SentinelServersConfig sentinelConfig(Config config) throws Exception {
         Method method = Config.class.getDeclaredMethod("getSentinelServersConfig");
         method.setAccessible(true);

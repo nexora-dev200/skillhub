@@ -82,19 +82,13 @@ secrets:
 postgresql:
   enabled: true
 
-  image:
-    registry: docker.io
-    repository: bitnami/postgresql
-    tag: latest
-    digest: ""
-
   architecture: standalone
 
   auth:
     postgresPassword: ""
     database: skillhub
     username: skillhub
-    password: "skillhub_demo"
+    password: ""
 
   primary:
     persistence:
@@ -163,17 +157,11 @@ externalDatabase:
 redis:
   enabled: true
 
-  image:
-    registry: docker.io
-    repository: bitnami/redis
-    tag: latest
-    digest: ""
-
   architecture: standalone
 
   auth:
     enabled: true
-    password: "skillhub_redis"
+    password: ""
     sentinelPassword: ""
 
   master:
@@ -235,6 +223,7 @@ externalRedis:
     enabled: false
     masterSet: mymaster
     nodes: []
+    password: ""
 
 # ============================================================================
 # Server 配置

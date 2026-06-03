@@ -42,6 +42,8 @@ public class RedissonConfig {
         SentinelServersConfig sentinelServersConfig = config.useSentinelServers()
                 .setMasterName(redisProperties.getSentinel().getMaster())
                 .setDatabase(redisProperties.getDatabase())
+                // K8s headless DNS 场景下，客户端通过 pod FQDN 连接 sentinel，
+                // 与 sentinel 自身上报的地址格式不同，跳过地址一致性检查避免误报连接失败
                 .setCheckSentinelsList(false);
         List<String> nodes = redisProperties.getSentinel().getNodes();
         nodes.stream()

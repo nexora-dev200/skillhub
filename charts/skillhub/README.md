@@ -53,6 +53,30 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
   --set externalRedis.password=your-redis-password
 ```
 
+### 使用 existingSecret
+
+通过 `existingSecret` 引用已存在的 Secret 对象，避免在 values 中明文写入密码。该 Secret 必须包含以下 key：
+
+| Key | 必填 | 说明 |
+|-----|------|------|
+| `spring-datasource-url` | 是 | JDBC 连接 URL |
+| `spring-datasource-username` | 是 | 数据库用户名 |
+| `spring-datasource-password` | 是 | 数据库密码 |
+| `redis-password` | 是 | Redis 密码 |
+| `redis-sentinel-password` | 否 | Redis Sentinel 密码（sentinel 模式） |
+| `bootstrap-admin-password` | 是 | 初始管理员密码 |
+| `oauth2-github-client-id` | 否 | GitHub OAuth2 Client ID |
+| `oauth2-github-client-secret` | 否 | GitHub OAuth2 Client Secret |
+| `skill-scanner-llm-api-key` | 否 | Scanner LLM API Key |
+| `skill-scanner-llm-model` | 否 | Scanner LLM 模型名称 |
+| `s3-access-key` | 否 | S3 Access Key |
+| `s3-secret-key` | 否 | S3 Secret Key |
+
+```bash
+helm -n skillhub upgrade -i skillhub ./charts/skillhub \
+  --set existingSecret=my-custom-secret
+```
+
 ## 配置参考
 
 ### 副本数配置

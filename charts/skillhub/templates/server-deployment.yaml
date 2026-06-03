@@ -17,8 +17,8 @@ spec:
       labels:
         {{- include "skillhub.server.selectorLabels" . | nindent 8 }}
       annotations:
-        checksum/config: {{ toYaml (dict "redisHost" (include "skillhub.redis.host" .) "redisPort" (include "skillhub.redis.port" .) "storage" .Values.server.storage "s3" .Values.s3 "session" .Values.session "springProfilesActive" .Values.springProfilesActive "bootstrapAdmin" .Values.bootstrapAdmin "scannerEnabled" .Values.scanner.enabled "scannerPort" .Values.scanner.service.port) | sha256sum }}
-        checksum/secret: {{ toYaml (dict "secrets" .Values.secrets "bootstrapAdmin" .Values.bootstrapAdmin) | sha256sum }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
         {{- range $key, $val := .Values.server.podAnnotations }}
         {{ $key }}: {{ $val }}
         {{- end }}
