@@ -43,6 +43,7 @@ public class AuthMethodCatalog {
     public List<AuthProviderResponse> listOAuthProviders(String returnTo) {
         String sanitizedReturnTo = OAuthLoginRedirectSupport.sanitizeReturnTo(returnTo);
         return new ArrayList<>(oAuth2ClientProperties.getRegistration().entrySet().stream()
+            .filter(entry -> isValidOAuthProvider(entry.getValue()))
             .sorted(Comparator.comparing(entry -> entry.getKey()))
             .map(entry -> new AuthProviderResponse(
                 entry.getKey(),
@@ -52,6 +53,19 @@ public class AuthMethodCatalog {
                 buildAuthorizationUrl(entry.getKey(), sanitizedReturnTo)
             ))
             .toList());
+    }
+
+    /**
+     * Check if an OAuth provider has valid configuration (non-empty client-id that is not a placeholder).
+     */
+    private boolean isValidOAuthProvider(OAuth2ClientProperties.Registration registration) {
+        String clientId = registration.getClientId();
+        if (clientId == null || clientId.isBlank()) {
+            return false;
+        }
+        // Filter out placeholder values used in dev/test configs
+        String lowerClientId = clientId.toLowerCase();
+        return !lowerClientId.contains("placeholder") && !lowerClientId.contains("local-placeholder");
     }
 
     public List<AuthMethodResponse> listMethods(String returnTo) {
@@ -67,6 +81,7 @@ public class AuthMethodCatalog {
         ));
 
         oAuth2ClientProperties.getRegistration().entrySet().stream()
+            .filter(entry -> isValidOAuthProvider(entry.getValue()))
             .sorted(Comparator.comparing(entry -> entry.getKey()))
             .forEach(entry -> methods.add(new AuthMethodResponse(
                 "oauth-" + entry.getKey(),
