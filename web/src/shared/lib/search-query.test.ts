@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_SEARCH_QUERY_LENGTH, normalizeSearchQuery } from './search-query'
+import { MAX_SEARCH_QUERY_LENGTH, normalizeSearchQuery, parseNamespaceSearchInput } from './search-query'
 
 describe('normalizeSearchQuery', () => {
   it('trims whitespace around the query', () => {
@@ -11,5 +11,28 @@ describe('normalizeSearchQuery', () => {
 
     expect(normalizeSearchQuery(query)).toHaveLength(MAX_SEARCH_QUERY_LENGTH)
     expect(normalizeSearchQuery(query)).toBe('a'.repeat(MAX_SEARCH_QUERY_LENGTH))
+  })
+})
+
+describe('parseNamespaceSearchInput', () => {
+  it('extracts a leading namespace token and keeps the remaining query', () => {
+    expect(parseNamespaceSearchInput('@team-ai release notes')).toEqual({
+      namespace: 'team-ai',
+      query: 'release notes',
+    })
+  })
+
+  it('treats a bare namespace token as a namespace-only search', () => {
+    expect(parseNamespaceSearchInput('@product')).toEqual({
+      namespace: 'product',
+      query: '',
+    })
+  })
+
+  it('leaves ordinary search text unchanged', () => {
+    expect(parseNamespaceSearchInput('meeting assistant')).toEqual({
+      namespace: '',
+      query: 'meeting assistant',
+    })
   })
 })

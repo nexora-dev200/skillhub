@@ -340,6 +340,76 @@ class SkillDownloadServiceTest {
         verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
     }
 
+    @Test
+    void testDownloadNamespaceBundle_PackagesVisiblePublishedSkills() throws Exception {
+        Namespace namespace = new Namespace("team-ai", "Team AI", "owner-1");
+        setId(namespace, 2L);
+        namespace.setType(NamespaceType.TEAM);
+
+        Skill alpha = new Skill(2L, "alpha", "owner-1", SkillVisibility.PUBLIC);
+        setId(alpha, 11L);
+        alpha.setDisplayName("Alpha Skill");
+        alpha.setStatus(SkillStatus.ACTIVE);
+        alpha.setLatestVersionId(101L);
+
+        Skill beta = new Skill(2L, "beta", "owner-1", SkillVisibility.PUBLIC);
+        setId(beta, 12L);
+        beta.setDisplayName("Beta Skill");
+        beta.setStatus(SkillStatus.ACTIVE);
+        beta.setLatestVersionId(102L);
+
+        SkillVersion alphaVersion = new SkillVersion(11L, "1.0.0", "owner-1");
+        setId(alphaVersion, 101L);
+        alphaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        SkillVersion betaVersion = new SkillVersion(12L, "2.0.0", "owner-1");
+        setId(betaVersion, 102L);
+        betaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+
+        SkillFile alphaFile = new SkillFile(101L, "SKILL.md", 5L, "text/markdown", "hash-a", "skills/11/101/SKILL.md");
+        SkillFile betaFile = new SkillFile(102L, "README.md", 4L, "text/markdown", "hash-b", "skills/12/102/README.md");
+
+        when(namespaceRepository.findBySlug("team-ai")).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndStatus(2L, SkillStatus.ACTIVE)).thenReturn(List.of(alpha, beta));
+        when(visibilityChecker.canAccess(alpha, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(visibilityChecker.canAccess(beta, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(skillVersionRepository.findById(101L)).thenReturn(Optional.of(alphaVersion));
+        when(skillVersionRepository.findById(102L)).thenReturn(Optional.of(betaVersion));
+        when(objectStorageService.exists("packages/11/101/bundle.zip")).thenReturn(false);
+        when(objectStorageService.exists("packages/12/102/bundle.zip")).thenReturn(false);
+        when(skillFileRepository.findByVersionId(101L)).thenReturn(List.of(alphaFile));
+        when(skillFileRepository.findByVersionId(102L)).thenReturn(List.of(betaFile));
+        when(objectStorageService.exists("skills/11/101/SKILL.md")).thenReturn(true);
+        when(objectStorageService.exists("skills/12/102/README.md")).thenReturn(true);
+        when(objectStorageService.getObject("skills/11/101/SKILL.md")).thenReturn(new ByteArrayInputStream("alpha".getBytes()));
+        when(objectStorageService.getObject("skills/12/102/README.md")).thenReturn(new ByteArrayInputStream("beta".getBytes()));
+
+        SkillDownloadService.DownloadResult result = service.downloadNamespaceBundle(
+                "team-ai",
+                List.of(),
+                "user-1",
+                Map.of(2L, NamespaceRole.MEMBER));
+
+        assertEquals("team-ai-skills.zip", result.filename());
+        assertEquals("application/zip", result.contentType());
+        assertNull(result.presignedUrl());
+        assertTrue(result.contentLength() > 0);
+
+        try (ZipInputStream zipInputStream = new ZipInputStream(result.openContent())) {
+            var firstEntry = zipInputStream.getNextEntry();
+            assertNotNull(firstEntry);
+            assertEquals("team-ai/alpha-1.0.0.zip", firstEntry.getName());
+            var secondEntry = zipInputStream.getNextEntry();
+            assertNotNull(secondEntry);
+            assertEquals("team-ai/beta-2.0.0.zip", secondEntry.getName());
+        }
+
+        verify(skillRepository).incrementDownloadCount(11L);
+        verify(skillRepository).incrementDownloadCount(12L);
+        verify(skillVersionStatsRepository).incrementDownloadCount(101L, 11L);
+        verify(skillVersionStatsRepository).incrementDownloadCount(102L, 12L);
+        verify(eventPublisher, times(2)).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
     private void setId(Object entity, Long id) throws Exception {
         Field idField = entity.getClass().getDeclaredField("id");
         idField.setAccessible(true);

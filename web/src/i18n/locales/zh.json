@@ -189,6 +189,7 @@
     "noStarredResults": "未找到已收藏技能",
     "noStarredResultsFor": "已收藏技能中没有与 \"{{q}}\" 相关的结果",
     "noStarredSkills": "你还没有收藏任何技能",
+    "namespaceFilter": "@{{namespace}}",
     "enterKeyword": "请输入搜索关键词",
     "results": "找到 {{count}} 个技能",
     "resultCount": "找到 <1>{{count}}</1> 个结果",
@@ -765,7 +766,11 @@
     "notFound": "命名空间不存在",
     "skillList": "技能列表",
     "emptyTitle": "暂无技能",
-    "emptyDescription": "该命名空间下还没有发布任何技能"
+    "emptyDescription": "该命名空间下还没有发布任何技能",
+    "downloadAll": "下载全部",
+    "downloadSelected": "下载选中",
+    "copyInstallManifest": "复制安装清单",
+    "selectSkill": "选择 {{name}}"
   },
   "skillDetail": {
     "back": "返回上一页",
