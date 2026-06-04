@@ -241,7 +241,7 @@ test.describe('Namespace Search and Download', () => {
     )).toBe(true)
   })
 
-  test('copies the namespace install manifest and gates selected download until a skill is checked', async ({ page, context }) => {
+  test('copies the current page install manifest and gates selected download until a skill is checked', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'])
     await mockCommonApi(page, { authenticated: true })
     await mockSearchApi(page)
@@ -249,13 +249,13 @@ test.describe('Namespace Search and Download', () => {
 
     await page.goto(`/space/${namespaceSlug}`)
 
-    const selectedDownloadButton = page.getByRole('button', { name: 'Download selected' })
+    const selectedDownloadButton = page.getByRole('button', { name: 'Download selected on this page' })
     await expect(selectedDownloadButton).toBeDisabled()
 
     await page.getByLabel('Select Roadmap Agent').check()
     await expect(selectedDownloadButton).toBeEnabled()
 
-    await page.getByRole('button', { name: 'Copy install list' }).click()
+    await page.getByRole('button', { name: 'Copy current page install list' }).click()
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText())
 
     expect(clipboardText).toContain(`skillhub install ${namespaceSlug}--roadmap-agent`)
@@ -270,10 +270,14 @@ test.describe('Namespace Search and Download', () => {
     await page.goto(`/space/${namespaceSlug}`)
     await page.getByLabel('Select Roadmap Agent').check()
 
+    await page.getByRole('button', { name: 'Download selected on this page' }).click()
+    await expect(page.getByRole('dialog', { name: 'Confirm namespace download' })).toBeVisible()
+    await expect(page.getByText('This will request 1 skill package from @product-managers.')).toBeVisible()
+
     const [request, response] = await Promise.all([
       page.waitForRequest((request) => request.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
       page.waitForResponse((response) => response.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
-      page.getByRole('button', { name: 'Download selected' }).click(),
+      page.getByRole('button', { name: 'Download', exact: true }).click(),
     ])
 
     const downloadUrl = new URL(request.url())
@@ -288,10 +292,14 @@ test.describe('Namespace Search and Download', () => {
 
     await page.goto(`/space/${namespaceSlug}`)
 
+    await page.getByRole('button', { name: 'Download all' }).click()
+    await expect(page.getByRole('dialog', { name: 'Confirm namespace download' })).toBeVisible()
+    await expect(page.getByText('This will request 2 skill packages from @product-managers.')).toBeVisible()
+
     const [request, response] = await Promise.all([
       page.waitForRequest((request) => request.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
       page.waitForResponse((response) => response.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
-      page.getByRole('button', { name: 'Download all' }).click(),
+      page.getByRole('button', { name: 'Download', exact: true }).click(),
     ])
 
     const downloadUrl = new URL(request.url())

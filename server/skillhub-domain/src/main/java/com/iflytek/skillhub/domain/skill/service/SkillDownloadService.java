@@ -224,7 +224,9 @@ public class SkillDownloadService {
             Skill skill,
             String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
-        assertCanDownload(namespace, skill, currentUserId, userNsRoles);
+        if (!canIncludeInNamespaceBundle(namespace, skill, currentUserId, userNsRoles)) {
+            return java.util.Optional.empty();
+        }
         if (skill.getLatestVersionId() == null) {
             return java.util.Optional.empty();
         }
@@ -234,6 +236,17 @@ public class SkillDownloadService {
             return java.util.Optional.empty();
         }
         return java.util.Optional.of(new NamespaceBundleEntry(skill, version, buildDownloadResult(skill, version)));
+    }
+
+    private boolean canIncludeInNamespaceBundle(
+            Namespace namespace,
+            Skill skill,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles) {
+        if (currentUserId == null && !isAnonymousDownloadAllowed(namespace, skill)) {
+            return false;
+        }
+        return visibilityChecker.canAccess(skill, currentUserId, userNsRoles);
     }
 
     private byte[] createNamespaceBundle(String namespaceSlug, List<NamespaceBundleEntry> entries) {

@@ -8,6 +8,7 @@ import { buildInstallTarget } from '@/features/skill/install-command'
 import { SkeletonList } from '@/shared/components/skeleton-loader'
 import { EmptyState } from '@/shared/components/empty-state'
 import { Pagination } from '@/shared/components/pagination'
+import { ConfirmDialog } from '@/shared/components/confirm-dialog'
 import { useSearchSkills } from '@/shared/hooks/use-skill-queries'
 import { useNamespaceDetail } from '@/shared/hooks/use-namespace-queries'
 import { Button } from '@/shared/ui/button'
@@ -23,12 +24,18 @@ export function NamespacePage() {
   const { namespace } = useParams({ from: '/space/$namespace' })
   const [page, setPage] = useState(0)
   const [selectedSkillSlugs, setSelectedSkillSlugs] = useState<string[]>([])
+  const [pendingDownloadSlugs, setPendingDownloadSlugs] = useState<string[] | null>(null)
 
   // Reset page when namespace changes
   useEffect(() => {
     setPage(0)
     setSelectedSkillSlugs([])
+    setPendingDownloadSlugs(null)
   }, [namespace])
+
+  useEffect(() => {
+    setSelectedSkillSlugs([])
+  }, [page])
 
   const { data: namespaceData, isLoading: isLoadingNamespace } = useNamespaceDetail(namespace)
   const { data: skillsData, isLoading: isLoadingSkills } = useSearchSkills({
@@ -42,6 +49,9 @@ export function NamespacePage() {
   const selectedSlugSet = useMemo(() => new Set(selectedSkillSlugs), [selectedSkillSlugs])
   const hasSkills = visibleSkills.length > 0
   const selectedDownloadSlugs = selectedSkillSlugs.filter((slug) => visibleSkills.some((skill) => skill.slug === slug))
+  const pendingDownloadCount = pendingDownloadSlugs
+    ? pendingDownloadSlugs.length || skillsData?.total || visibleSkills.length
+    : 0
 
   const handleSkillClick = (slug: string) => {
     navigate({ to: `/space/${namespace}/${encodeURIComponent(slug)}` })
@@ -64,11 +74,18 @@ export function NamespacePage() {
   }
 
   const handleDownloadAll = () => {
-    window.location.assign(buildNamespaceDownloadUrl([]))
+    setPendingDownloadSlugs([])
   }
 
   const handleDownloadSelected = () => {
-    window.location.assign(buildNamespaceDownloadUrl(selectedDownloadSlugs))
+    setPendingDownloadSlugs(selectedDownloadSlugs)
+  }
+
+  const confirmDownload = () => {
+    if (!pendingDownloadSlugs) {
+      return
+    }
+    window.location.assign(buildNamespaceDownloadUrl(pendingDownloadSlugs))
   }
 
   const handleCopyInstallManifest = async () => {
@@ -150,6 +167,21 @@ export function NamespacePage() {
           />
         )}
       </div>
+      <ConfirmDialog
+        open={pendingDownloadSlugs !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDownloadSlugs(null)
+          }
+        }}
+        title={t('namespace.downloadConfirmTitle')}
+        description={t('namespace.downloadConfirmDescription', {
+          count: pendingDownloadCount,
+          namespace,
+        })}
+        confirmText={t('namespace.downloadConfirmAction')}
+        onConfirm={confirmDownload}
+      />
     </div>
   )
 }

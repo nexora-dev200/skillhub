@@ -768,8 +768,12 @@
     "emptyTitle": "No skills",
     "emptyDescription": "No skills have been published in this namespace yet",
     "downloadAll": "Download all",
-    "downloadSelected": "Download selected",
-    "copyInstallManifest": "Copy install list",
+    "downloadSelected": "Download selected on this page",
+    "copyInstallManifest": "Copy current page install list",
+    "downloadConfirmTitle": "Confirm namespace download",
+    "downloadConfirmDescription_one": "This will request {{count}} skill package from @{{namespace}}.",
+    "downloadConfirmDescription_other": "This will request {{count}} skill packages from @{{namespace}}.",
+    "downloadConfirmAction": "Download",
     "selectSkill": "Select {{name}}"
   },
   "skillDetail": {
