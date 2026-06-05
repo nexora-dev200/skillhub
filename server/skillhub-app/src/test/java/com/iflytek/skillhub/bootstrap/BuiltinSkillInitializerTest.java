@@ -1,0 +1,347 @@
+package com.iflytek.skillhub.bootstrap;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import com.iflytek.skillhub.bootstrap.BuiltinSkillManifestLoader.ManifestItem;
+import com.iflytek.skillhub.controller.support.SkillPackageArchiveExtractor;
+import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceMember;
+import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.skill.Skill;
+import com.iflytek.skillhub.domain.skill.SkillFile;
+import com.iflytek.skillhub.domain.skill.SkillFileRepository;
+import com.iflytek.skillhub.domain.skill.SkillRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
+import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
+import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
+import com.iflytek.skillhub.domain.skill.SkillVisibility;
+import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
+import com.iflytek.skillhub.domain.skill.service.SkillPublishService;
+import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
+import com.iflytek.skillhub.domain.user.UserAccount;
+import com.iflytek.skillhub.domain.user.UserAccountRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+@ExtendWith(MockitoExtension.class)
+class BuiltinSkillInitializerTest {
+
+    private static final String GLOBAL = "global";
+    private static final String PUBLISHER = "builtin-skill-publisher";
+    private static final ManifestItem ITEM = new ManifestItem(
+            "agentguard",
+            "1.0.0",
+            "https://bjcdn.openstorage.cn/skills/agentguard.zip"
+    );
+
+    @Mock private BuiltinSkillManifestLoader manifestLoader;
+    @Mock private BuiltinSkillRemotePackageDownloader downloader;
+    @Mock private BuiltinSkillPackageExtractor extractor;
+    @Mock private NamespaceRepository namespaceRepository;
+    @Mock private NamespaceMemberRepository namespaceMemberRepository;
+    @Mock private UserAccountRepository userAccountRepository;
+    @Mock private SkillRepository skillRepository;
+    @Mock private SkillVersionRepository skillVersionRepository;
+    @Mock private SkillFileRepository skillFileRepository;
+    @Mock private SkillPublishService skillPublishService;
+
+    private BuiltinSkillProperties properties;
+    private BuiltinSkillInitializer initializer;
+    private Namespace globalNamespace;
+
+    @BeforeEach
+    void setUp() {
+        properties = new BuiltinSkillProperties();
+        initializer = new BuiltinSkillInitializer(
+                properties,
+                manifestLoader,
+                downloader,
+                extractor,
+                new SkillMetadataParser(),
+                namespaceRepository,
+                namespaceMemberRepository,
+                userAccountRepository,
+                skillRepository,
+                skillVersionRepository,
+                skillFileRepository,
+                skillPublishService
+        );
+        globalNamespace = new Namespace(GLOBAL, "Global", "system");
+        ReflectionTestUtils.setField(globalNamespace, "id", 1L);
+    }
+
+    @Test
+    void skipsWhenDisabled() {
+        properties.setEnabled(false);
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(manifestLoader, never()).load();
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsAllItemsWhenGlobalNamespaceDoesNotExist() {
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.empty());
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(manifestLoader, never()).load();
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsExistingSkillOwnedByAnotherUser() throws Exception {
+        Skill otherSkill = skill(100L, "agentguard", "someone-else");
+        givenExtractedPackage();
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(otherSkill));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsPublishedSameVersionWhenFingerprintMatches() throws Exception {
+        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
+        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        givenExtractedPackage(entries);
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
+        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
+        when(skillFileRepository.findByVersionId(200L)).thenReturn(skillFilesFor(entries, 200L));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsPublishedSameVersionWhenFingerprintDiffers() throws Exception {
+        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
+        givenExtractedPackage();
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
+        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
+        when(skillFileRepository.findByVersionId(200L)).thenReturn(List.of(
+                new SkillFile(200L, "SKILL.md", 7L, "text/markdown", sha256("changed"), "storage-key")
+        ));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsExistingSameVersionWhenNotPublished() throws Exception {
+        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        SkillVersion uploaded = version(200L, 100L, "1.0.0", SkillVersionStatus.UPLOADED);
+        givenExtractedPackage();
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
+        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(uploaded));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsWhenManifestSlugDoesNotMatchPackageMetadata() throws Exception {
+        givenExtractedPackage(packageEntries("other-skill", "1.0.0", "same"));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsWhenManifestVersionDoesNotMatchPackageMetadata() throws Exception {
+        givenExtractedPackage(packageEntries("agentguard", "1.0.1", "same"));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void publishesNewVersionToGlobalAsPublicWithSystemPublisher() throws Exception {
+        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        givenExtractedPackage(entries);
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of());
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        ArgumentCaptor<List<PackageEntry>> entriesCaptor = ArgumentCaptor.captor();
+        verify(skillPublishService).publishFromEntries(
+                eq(GLOBAL),
+                entriesCaptor.capture(),
+                eq(PUBLISHER),
+                eq(SkillVisibility.PUBLIC),
+                eq(Set.of("SUPER_ADMIN")),
+                eq(false)
+        );
+        assertThat(entriesCaptor.getValue()).isEqualTo(entries);
+    }
+
+    @Test
+    void createsSystemPublisherAndGlobalMembershipBeforePublishing() throws Exception {
+        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        givenExtractedPackage(entries);
+        when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.empty());
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER)).thenReturn(Optional.empty());
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of());
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
+        verify(userAccountRepository).save(userCaptor.capture());
+        assertThat(userCaptor.getValue().getId()).isEqualTo(PUBLISHER);
+
+        ArgumentCaptor<NamespaceMember> memberCaptor = ArgumentCaptor.forClass(NamespaceMember.class);
+        verify(namespaceMemberRepository).save(memberCaptor.capture());
+        assertThat(memberCaptor.getValue().getNamespaceId()).isEqualTo(1L);
+        assertThat(memberCaptor.getValue().getUserId()).isEqualTo(PUBLISHER);
+        assertThat(memberCaptor.getValue().getRole()).isEqualTo(NamespaceRole.OWNER);
+    }
+
+    @Test
+    void treatsConcurrentDuplicatePublishedVersionAsCompleted() throws Exception {
+        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
+        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        givenExtractedPackage(entries);
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard"))
+                .thenReturn(List.of())
+                .thenReturn(List.of(builtinSkill));
+        when(skillPublishService.publishFromEntries(
+                eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false)))
+                .thenThrow(new DomainBadRequestException("error.skill.version.exists", "1.0.0"));
+        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
+        when(skillFileRepository.findByVersionId(200L)).thenReturn(skillFilesFor(entries, 200L));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillPublishService).publishFromEntries(
+                eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false));
+    }
+
+    @Test
+    void doesNotTreatConcurrentDuplicateWithDifferentFingerprintAsCompleted() throws Exception {
+        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
+        givenExtractedPackage(packageEntries("agentguard", "1.0.0", "new-content"));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard"))
+                .thenReturn(List.of())
+                .thenReturn(List.of(builtinSkill));
+        when(skillPublishService.publishFromEntries(
+                eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false)))
+                .thenThrow(new DomainBadRequestException("error.skill.version.exists", "1.0.0"));
+        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
+        when(skillFileRepository.findByVersionId(200L)).thenReturn(List.of(
+                new SkillFile(200L, "SKILL.md", 7L, "text/markdown", sha256("old-content"), "storage-key")
+        ));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(skillFileRepository).findByVersionId(200L);
+        verify(skillPublishService).publishFromEntries(
+                eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false));
+    }
+
+    private void givenExtractedPackage() throws Exception {
+        givenExtractedPackage(packageEntries("agentguard", "1.0.0", "same"));
+    }
+
+    private void givenExtractedPackage(List<PackageEntry> entries) throws Exception {
+        byte[] bytes = "zip".getBytes(StandardCharsets.UTF_8);
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
+        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        lenient().when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.of(systemPublisher()));
+        lenient().when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER))
+                .thenReturn(Optional.of(new NamespaceMember(1L, PUBLISHER, NamespaceRole.OWNER)));
+        when(downloader.download(URI.create(ITEM.url()))).thenReturn(Optional.of(bytes));
+        when(extractor.extract(bytes)).thenReturn(new SkillPackageArchiveExtractor.ExtractionResult(entries, List.of()));
+    }
+
+    private static UserAccount systemPublisher() {
+        return new UserAccount(PUBLISHER, "Built-in Skill Publisher", null, null);
+    }
+
+    private static Skill skill(Long id, String slug, String ownerId) {
+        Skill skill = new Skill(1L, slug, ownerId, SkillVisibility.PUBLIC);
+        ReflectionTestUtils.setField(skill, "id", id);
+        return skill;
+    }
+
+    private static SkillVersion version(Long id, Long skillId, String version, SkillVersionStatus status) {
+        SkillVersion skillVersion = new SkillVersion(skillId, version, PUBLISHER);
+        ReflectionTestUtils.setField(skillVersion, "id", id);
+        skillVersion.setStatus(status);
+        return skillVersion;
+    }
+
+    private static List<PackageEntry> packageEntries(String name, String version, String readme) {
+        byte[] skillMd = ("""
+                ---
+                name: %s
+                description: Built-in guardrails
+                version: %s
+                ---
+                # %s
+                """).formatted(name, version, name).getBytes(StandardCharsets.UTF_8);
+        byte[] readmeBytes = readme.getBytes(StandardCharsets.UTF_8);
+        return List.of(
+                new PackageEntry("SKILL.md", skillMd, skillMd.length, "text/markdown"),
+                new PackageEntry("README.md", readmeBytes, readmeBytes.length, "text/markdown")
+        );
+    }
+
+    private static List<SkillFile> skillFilesFor(List<PackageEntry> entries, Long versionId) {
+        return entries.stream()
+                .map(entry -> new SkillFile(
+                        versionId,
+                        entry.path(),
+                        entry.size(),
+                        entry.contentType(),
+                        sha256(entry.content()),
+                        "storage-key/" + entry.path()
+                ))
+                .toList();
+    }
+
+    private static String sha256(String content) {
+        return sha256(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String sha256(byte[] content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(content));
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+}
