@@ -807,6 +807,8 @@
     "namespaceLabel": "Namespace",
     "loginToRate": "Login to star and rate",
     "install": "Install",
+    "installMethodClawhub": "ClawHub CLI",
+    "installMethodSkillhub": "SkillHub CLI",
     "download": "Download",
     "labelsSectionTitle": "Labels",
     "labelsSectionDescription": "Attach or remove recommended labels that help users filter and discover this skill.",
