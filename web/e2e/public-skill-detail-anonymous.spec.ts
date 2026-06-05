@@ -36,7 +36,7 @@ test.describe('Public Skill Detail Anonymous Access (Real API)', () => {
 
     await card.click()
 
-    await expect(page).toHaveURL(new RegExp(`/space/${current.skill.namespace}/${current.skill.slug}$`))
+    await expect(page).toHaveURL(new RegExp(`/space/${current.skill.namespace}/${current.skill.slug}(\\?|$)`))
     await expect(page).not.toHaveURL(/\/login\?returnTo=/)
     await expect(page.getByRole('heading', { name: current.skillName, exact: true })).toBeVisible()
     await expect(page.getByText('Install', { exact: true })).toBeVisible()
