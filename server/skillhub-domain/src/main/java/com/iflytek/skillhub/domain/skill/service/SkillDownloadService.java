@@ -37,6 +37,8 @@ import java.util.zip.ZipOutputStream;
 @Service
 public class SkillDownloadService {
     private static final Logger log = LoggerFactory.getLogger(SkillDownloadService.class);
+    private static final int MAX_NAMESPACE_BUNDLE_SKILL_COUNT = 20;
+    private static final long MAX_NAMESPACE_BUNDLE_TOTAL_BYTES = 100L * 1024 * 1024;
 
     private final NamespaceRepository namespaceRepository;
     private final SkillRepository skillRepository;
@@ -182,16 +184,54 @@ public class SkillDownloadService {
                         .map(slug -> slug.trim().replaceFirst("^@", ""))
                         .toList());
 
-        List<NamespaceBundleEntry> entries = skillRepository.findByNamespaceIdAndStatus(namespace.getId(), SkillStatus.ACTIVE)
+        if (currentUserId == null && selected.isEmpty()) {
+            throw new DomainBadRequestException("error.namespace.skills.download.selectionRequired");
+        }
+
+        List<NamespaceBundleCandidate> candidates = skillRepository.findByNamespaceIdAndStatus(namespace.getId(), SkillStatus.ACTIVE)
                 .stream()
                 .filter(skill -> selected.isEmpty() || selected.contains(skill.getSlug()))
                 .sorted(Comparator.comparing(Skill::getSlug))
-                .map(skill -> toNamespaceBundleEntry(namespace, skill, currentUserId, userNsRoles))
+                .map(skill -> toNamespaceBundleCandidate(namespace, skill, currentUserId, userNsRoles))
                 .flatMap(java.util.Optional::stream)
                 .toList();
 
-        if (entries.isEmpty()) {
+        if (candidates.isEmpty()) {
             throw new DomainBadRequestException("error.namespace.skills.download.empty", namespaceSlug);
+        }
+
+        if (candidates.size() > MAX_NAMESPACE_BUNDLE_SKILL_COUNT) {
+            throw new DomainBadRequestException(
+                    "error.namespace.skills.download.tooMany",
+                    MAX_NAMESPACE_BUNDLE_SKILL_COUNT
+            );
+        }
+
+        long estimatedBundleBytes = candidates.stream()
+                .mapToLong(this::estimateNamespaceBundleEntryBytes)
+                .sum();
+        if (estimatedBundleBytes > MAX_NAMESPACE_BUNDLE_TOTAL_BYTES) {
+            throw new DomainBadRequestException(
+                    "error.namespace.skills.download.tooLarge",
+                    MAX_NAMESPACE_BUNDLE_TOTAL_BYTES
+            );
+        }
+
+        List<NamespaceBundleEntry> entries = candidates.stream()
+                .map(candidate -> new NamespaceBundleEntry(
+                        candidate.skill(),
+                        candidate.version(),
+                        buildDownloadResult(candidate.skill(), candidate.version())))
+                .toList();
+
+        long totalBundleBytes = entries.stream()
+                .mapToLong(entry -> entry.downloadResult().contentLength())
+                .sum();
+        if (totalBundleBytes > MAX_NAMESPACE_BUNDLE_TOTAL_BYTES) {
+            throw new DomainBadRequestException(
+                    "error.namespace.skills.download.tooLarge",
+                    MAX_NAMESPACE_BUNDLE_TOTAL_BYTES
+            );
         }
 
         byte[] bundle = createNamespaceBundle(namespace.getSlug(), entries);
@@ -207,6 +247,23 @@ public class SkillDownloadService {
         );
     }
 
+    private long estimateNamespaceBundleEntryBytes(NamespaceBundleCandidate candidate) {
+        String storageKey = buildBundleStorageKey(candidate.skill(), candidate.version());
+        if (objectStorageService.exists(storageKey)) {
+            return objectStorageService.getMetadata(storageKey).size();
+        }
+
+        List<SkillFile> files = skillFileRepository.findByVersionId(candidate.version().getId()).stream()
+                .filter(file -> objectStorageService.exists(file.getStorageKey()))
+                .toList();
+        if (files.isEmpty()) {
+            throw new DomainBadRequestException("error.skill.bundle.notFound");
+        }
+        return files.stream()
+                .mapToLong(file -> file.getFileSize() != null ? file.getFileSize() : 0L)
+                .sum();
+    }
+
     private DownloadResult downloadVersion(Skill skill, SkillVersion version) {
         assertPublishedAccessible(skill);
         assertDownloadableVersion(skill, version);
@@ -219,7 +276,7 @@ public class SkillDownloadService {
         return result;
     }
 
-    private java.util.Optional<NamespaceBundleEntry> toNamespaceBundleEntry(
+    private java.util.Optional<NamespaceBundleCandidate> toNamespaceBundleCandidate(
             Namespace namespace,
             Skill skill,
             String currentUserId,
@@ -235,7 +292,7 @@ public class SkillDownloadService {
         if (version.getStatus() != SkillVersionStatus.PUBLISHED) {
             return java.util.Optional.empty();
         }
-        return java.util.Optional.of(new NamespaceBundleEntry(skill, version, buildDownloadResult(skill, version)));
+        return java.util.Optional.of(new NamespaceBundleCandidate(skill, version));
     }
 
     private boolean canIncludeInNamespaceBundle(
@@ -276,9 +333,12 @@ public class SkillDownloadService {
     private record NamespaceBundleEntry(Skill skill, SkillVersion version, DownloadResult downloadResult) {
     }
 
+    private record NamespaceBundleCandidate(Skill skill, SkillVersion version) {
+    }
+
     private DownloadResult buildDownloadResult(Skill skill, SkillVersion version) {
 
-        String storageKey = String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
+        String storageKey = buildBundleStorageKey(skill, version);
 
         DownloadResult result;
         if (objectStorageService.exists(storageKey)) {
@@ -303,6 +363,10 @@ public class SkillDownloadService {
             result = buildBundleFromFiles(skill, version);
         }
         return result;
+    }
+
+    private String buildBundleStorageKey(Skill skill, SkillVersion version) {
+        return String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
     }
 
     private DownloadResult buildBundleFromFiles(Skill skill, SkillVersion version) {

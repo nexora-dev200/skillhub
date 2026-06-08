@@ -22,6 +22,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -480,6 +481,157 @@ class SkillDownloadServiceTest {
         verify(skillVersionStatsRepository, never()).incrementDownloadCount(102L, 12L);
         verify(skillVersionStatsRepository, never()).incrementDownloadCount(103L, 13L);
         verify(eventPublisher, times(1)).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
+    @Test
+    void testDownloadNamespaceBundle_RejectsAnonymousAllSkillsRequest() throws Exception {
+        Namespace namespace = new Namespace("global", "Global", "owner-1");
+        setId(namespace, 1L);
+        namespace.setType(NamespaceType.GLOBAL);
+
+        when(namespaceRepository.findBySlug("global")).thenReturn(Optional.of(namespace));
+
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () ->
+                service.downloadNamespaceBundle("global", List.of(), null, Map.of()));
+
+        assertEquals("error.namespace.skills.download.selectionRequired", ex.getMessage());
+        verifyNoInteractions(objectStorageService);
+        verify(skillRepository, never()).incrementDownloadCount(anyLong());
+        verify(skillVersionStatsRepository, never()).incrementDownloadCount(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
+    @Test
+    void testDownloadNamespaceBundle_RejectsTooManyEligibleSkills() throws Exception {
+        Namespace namespace = new Namespace("team-ai", "Team AI", "owner-1");
+        setId(namespace, 2L);
+        namespace.setType(NamespaceType.TEAM);
+
+        List<Skill> skills = new ArrayList<>();
+        for (int i = 1; i <= 21; i++) {
+            Skill skill = new Skill(2L, "skill-" + i, "owner-1", SkillVisibility.PUBLIC);
+            setId(skill, (long) i);
+            skill.setStatus(SkillStatus.ACTIVE);
+            skill.setLatestVersionId(100L + i);
+            skills.add(skill);
+
+            SkillVersion version = new SkillVersion((long) i, "1.0.0", "owner-1");
+            setId(version, 100L + i);
+            version.setStatus(SkillVersionStatus.PUBLISHED);
+            when(visibilityChecker.canAccess(skill, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+            when(skillVersionRepository.findById(100L + i)).thenReturn(Optional.of(version));
+        }
+
+        when(namespaceRepository.findBySlug("team-ai")).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndStatus(2L, SkillStatus.ACTIVE)).thenReturn(skills);
+
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () ->
+                service.downloadNamespaceBundle("team-ai", List.of(), "user-1", Map.of(2L, NamespaceRole.MEMBER)));
+
+        assertEquals("error.namespace.skills.download.tooMany", ex.getMessage());
+        verifyNoInteractions(objectStorageService);
+        verify(skillRepository, never()).incrementDownloadCount(anyLong());
+        verify(skillVersionStatsRepository, never()).incrementDownloadCount(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
+    @Test
+    void testDownloadNamespaceBundle_RejectsOversizedAggregateBundle() throws Exception {
+        Namespace namespace = new Namespace("team-ai", "Team AI", "owner-1");
+        setId(namespace, 2L);
+        namespace.setType(NamespaceType.TEAM);
+
+        Skill alpha = new Skill(2L, "alpha", "owner-1", SkillVisibility.PUBLIC);
+        setId(alpha, 11L);
+        alpha.setDisplayName("Alpha Skill");
+        alpha.setStatus(SkillStatus.ACTIVE);
+        alpha.setLatestVersionId(101L);
+
+        Skill beta = new Skill(2L, "beta", "owner-1", SkillVisibility.PUBLIC);
+        setId(beta, 12L);
+        beta.setDisplayName("Beta Skill");
+        beta.setStatus(SkillStatus.ACTIVE);
+        beta.setLatestVersionId(102L);
+
+        SkillVersion alphaVersion = new SkillVersion(11L, "1.0.0", "owner-1");
+        setId(alphaVersion, 101L);
+        alphaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        SkillVersion betaVersion = new SkillVersion(12L, "1.0.0", "owner-1");
+        setId(betaVersion, 102L);
+        betaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+
+        when(namespaceRepository.findBySlug("team-ai")).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndStatus(2L, SkillStatus.ACTIVE)).thenReturn(List.of(alpha, beta));
+        when(visibilityChecker.canAccess(alpha, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(visibilityChecker.canAccess(beta, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(skillVersionRepository.findById(101L)).thenReturn(Optional.of(alphaVersion));
+        when(skillVersionRepository.findById(102L)).thenReturn(Optional.of(betaVersion));
+        when(objectStorageService.exists("packages/11/101/bundle.zip")).thenReturn(true);
+        when(objectStorageService.exists("packages/12/102/bundle.zip")).thenReturn(true);
+        when(objectStorageService.getMetadata("packages/11/101/bundle.zip"))
+                .thenReturn(new ObjectMetadata(60L * 1024 * 1024, "application/zip", Instant.now()));
+        when(objectStorageService.getMetadata("packages/12/102/bundle.zip"))
+                .thenReturn(new ObjectMetadata(60L * 1024 * 1024, "application/zip", Instant.now()));
+
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () ->
+                service.downloadNamespaceBundle("team-ai", List.of(), "user-1", Map.of(2L, NamespaceRole.MEMBER)));
+
+        assertEquals("error.namespace.skills.download.tooLarge", ex.getMessage());
+        verify(objectStorageService, never()).getObject(anyString());
+        verify(skillRepository, never()).incrementDownloadCount(anyLong());
+        verify(skillVersionStatsRepository, never()).incrementDownloadCount(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
+    }
+
+    @Test
+    void testDownloadNamespaceBundle_RejectsOversizedFallbackBundleBeforeReadingFiles() throws Exception {
+        Namespace namespace = new Namespace("team-ai", "Team AI", "owner-1");
+        setId(namespace, 2L);
+        namespace.setType(NamespaceType.TEAM);
+
+        Skill alpha = new Skill(2L, "alpha", "owner-1", SkillVisibility.PUBLIC);
+        setId(alpha, 11L);
+        alpha.setDisplayName("Alpha Skill");
+        alpha.setStatus(SkillStatus.ACTIVE);
+        alpha.setLatestVersionId(101L);
+
+        Skill beta = new Skill(2L, "beta", "owner-1", SkillVisibility.PUBLIC);
+        setId(beta, 12L);
+        beta.setDisplayName("Beta Skill");
+        beta.setStatus(SkillStatus.ACTIVE);
+        beta.setLatestVersionId(102L);
+
+        SkillVersion alphaVersion = new SkillVersion(11L, "1.0.0", "owner-1");
+        setId(alphaVersion, 101L);
+        alphaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        SkillVersion betaVersion = new SkillVersion(12L, "1.0.0", "owner-1");
+        setId(betaVersion, 102L);
+        betaVersion.setStatus(SkillVersionStatus.PUBLISHED);
+
+        SkillFile alphaFile = new SkillFile(101L, "SKILL.md", 60L * 1024 * 1024, "text/markdown", "hash-a", "skills/11/101/SKILL.md");
+        SkillFile betaFile = new SkillFile(102L, "README.md", 60L * 1024 * 1024, "text/markdown", "hash-b", "skills/12/102/README.md");
+
+        when(namespaceRepository.findBySlug("team-ai")).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndStatus(2L, SkillStatus.ACTIVE)).thenReturn(List.of(alpha, beta));
+        when(visibilityChecker.canAccess(alpha, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(visibilityChecker.canAccess(beta, "user-1", Map.of(2L, NamespaceRole.MEMBER))).thenReturn(true);
+        when(skillVersionRepository.findById(101L)).thenReturn(Optional.of(alphaVersion));
+        when(skillVersionRepository.findById(102L)).thenReturn(Optional.of(betaVersion));
+        when(objectStorageService.exists("packages/11/101/bundle.zip")).thenReturn(false);
+        when(objectStorageService.exists("packages/12/102/bundle.zip")).thenReturn(false);
+        when(skillFileRepository.findByVersionId(101L)).thenReturn(List.of(alphaFile));
+        when(skillFileRepository.findByVersionId(102L)).thenReturn(List.of(betaFile));
+        when(objectStorageService.exists("skills/11/101/SKILL.md")).thenReturn(true);
+        when(objectStorageService.exists("skills/12/102/README.md")).thenReturn(true);
+
+        DomainBadRequestException ex = assertThrows(DomainBadRequestException.class, () ->
+                service.downloadNamespaceBundle("team-ai", List.of(), "user-1", Map.of(2L, NamespaceRole.MEMBER)));
+
+        assertEquals("error.namespace.skills.download.tooLarge", ex.getMessage());
+        verify(objectStorageService, never()).getObject(anyString());
+        verify(skillRepository, never()).incrementDownloadCount(anyLong());
+        verify(skillVersionStatsRepository, never()).incrementDownloadCount(anyLong(), anyLong());
+        verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
     }
 
     private void setId(Object entity, Long id) throws Exception {
