@@ -24,10 +24,10 @@ class BuiltinSkillPackageExtractorTest {
         byte[] zip = zip(
                 entry("SKILL.md", """
                         ---
-                        name: agentguard
+                        name: skillhub-hello
                         version: 1.0.0
                         ---
-                        # AgentGuard
+                        # SkillHub Hello
                         """),
                 entry("README.md", "# Readme")
         );
@@ -50,12 +50,12 @@ class BuiltinSkillPackageExtractorTest {
 
     @Test
     void rejectsZipWithOnlyNestedSkillMd() throws Exception {
-        byte[] zip = zip(entry("agentguard/SKILL.md", """
+        byte[] zip = zip(entry("skillhub-hello/SKILL.md", """
                 ---
-                name: agentguard
+                name: skillhub-hello
                 version: 1.0.0
                 ---
-                # AgentGuard
+                # SkillHub Hello
                 """));
 
         assertThatThrownBy(() -> extractor.extract(zip))

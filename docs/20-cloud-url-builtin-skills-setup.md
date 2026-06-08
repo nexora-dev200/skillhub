@@ -15,7 +15,7 @@
 流程：
 
 ```text
-维护 manifest -> 构建/部署 SkillHub 镜像 -> 应用启动 -> 读取 manifest -> 下载云存储 zip 包 -> 校验包内容 -> 发布到 @global -> 对所有用户公开可见
+维护 manifest -> 构建/部署 SkillHub 镜像 -> 应用 ready -> 后台读取 manifest -> 下载云存储 zip 包 -> 校验包内容 -> 发布到 @global -> 对所有用户公开可见
 ```
 
 核心文件：
@@ -133,7 +133,7 @@ skillhub-hello-1.0.0.zip
 
 ## 5. 启动同步流程
 
-应用启动时同步器只执行一次。
+应用 ready 后同步器会在后台执行一次，不阻塞应用 ready。
 
 详细流程：
 
@@ -175,6 +175,7 @@ skillhub-hello-1.0.0.zip
 | `@global/{slug}` 已存在，但 owner 不是 `builtin-skill-publisher` | 下载前跳过并记录 warning |
 
 这意味着内置同步不会接管用户或管理员已经创建的同 slug Skill。
+同版本已存在时，同步器不会重新下载远端 zip，也不会验证远端对象内容是否发生漂移。
 
 如果多实例同时启动，可能出现多个实例同时尝试发布同一个内置版本。同步器会在发布失败后重新查询目标版本；如果发现同版本已经以相同内容发布成功，则视为并发场景下的正常跳过。
 
@@ -202,7 +203,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=true
 SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 ```
 
-禁用后，应用启动时不会读取 manifest，也不会下载或发布任何内置 Skill。
+禁用后，应用 ready 后不会读取 manifest，也不会下载或发布任何内置 Skill。
 
 ## 8. 维护流程
 
@@ -250,7 +251,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 | slug is already owned by another user | 说明 `@global/{slug}` 已被非内置发布者占用，内置同步不会覆盖 |
 | published fingerprint differs | 并发发布异常后发现同一内置版本已存在但内容不同，需要人工确认是否发生了版本冲突 |
 
-如果某个 manifest item 失败，后续 item 仍会继续处理，应用启动也会继续。
+如果某个 manifest item 失败，后续 item 仍会继续处理，应用可用状态不受影响。
 
 ## 10. 验收检查
 

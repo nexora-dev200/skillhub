@@ -17,8 +17,8 @@ class BuiltinSkillManifestLoaderTest {
         BuiltinSkillManifestLoader loader = loaderWith("""
                 {
                   "skills": [
-                    {"slug": "agentguard", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/agentguard.zip"},
-                    {"slug": "agentguard", "version": "1.1.0", "url": "https://cdn.bjcdn.openstorage.cn/agentguard.zip"}
+                    {"slug": "skillhub-hello", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/skillhub-hello.zip"},
+                    {"slug": "skillhub-hello", "version": "1.1.0", "url": "https://cdn.bjcdn.openstorage.cn/skillhub-hello.zip"}
                   ]
                 }
                 """);
@@ -69,8 +69,8 @@ class BuiltinSkillManifestLoaderTest {
         BuiltinSkillManifestLoader loader = loaderWith("""
                 {
                   "skills": [
-                    {"slug": "agentguard", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/first.zip"},
-                    {"slug": "agentguard", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/second.zip"},
+                    {"slug": "skillhub-hello", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/first.zip"},
+                    {"slug": "skillhub-hello", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/second.zip"},
                     {"slug": "InvalidUppercase", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/invalid.zip"},
                     {"slug": "", "version": "1.0.0", "url": "https://bjcdn.openstorage.cn/blank.zip"},
                     {"slug": "missing-version", "url": "https://bjcdn.openstorage.cn/missing-version.zip"},

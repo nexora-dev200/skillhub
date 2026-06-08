@@ -25,8 +25,9 @@ import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.domain.user.UserAccountRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -42,7 +43,7 @@ import java.util.Set;
  * Best-effort startup synchronizer for remotely hosted built-in skill packages.
  */
 @Component
-public class BuiltinSkillInitializer implements ApplicationRunner {
+public class BuiltinSkillInitializer {
 
     static final String GLOBAL_NAMESPACE = "global";
     static final String SYSTEM_PUBLISHER_ID = "builtin-skill-publisher";
@@ -90,8 +91,13 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
         this.skillPublishService = skillPublishService;
     }
 
-    @Override
-    public void run(ApplicationArguments args) {
+    @EventListener(ApplicationReadyEvent.class)
+    @Async("skillhubEventExecutor")
+    public void synchronizeAfterApplicationReady() {
+        synchronize();
+    }
+
+    void synchronize() {
         if (!properties.isEnabled()) {
             log.info("Built-in skill startup synchronization is disabled");
             return;
@@ -170,7 +176,12 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
             return;
         }
 
-        Optional<byte[]> packageBytes = downloader.download(URI.create(item.url()));
+        Optional<URI> packageUri = parsePackageUri(item);
+        if (packageUri.isEmpty()) {
+            return;
+        }
+
+        Optional<byte[]> packageBytes = downloader.download(packageUri.get());
         if (packageBytes.isEmpty()) {
             log.warn("Skipping built-in skill slug={} version={} because package download failed",
                     item.slug(), item.version());
@@ -223,6 +234,16 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
             }
             log.error("Failed to publish built-in skill slug={} version={}: {}",
                     item.slug(), item.version(), exception.getMessage(), exception);
+        }
+    }
+
+    private Optional<URI> parsePackageUri(ManifestItem item) {
+        try {
+            return Optional.of(URI.create(item.url()));
+        } catch (IllegalArgumentException exception) {
+            log.warn("Skipping built-in skill slug={} version={} because URL is not allowed: {}",
+                    item.slug(), item.version(), exception.getMessage());
+            return Optional.empty();
         }
     }
 

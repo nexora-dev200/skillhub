@@ -35,18 +35,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.lang.reflect.Method;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, OutputCaptureExtension.class})
 class BuiltinSkillInitializerTest {
 
     private static final String GLOBAL = "global";
@@ -97,7 +103,7 @@ class BuiltinSkillInitializerTest {
     void skipsWhenDisabled() {
         properties.setEnabled(false);
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(manifestLoader, never()).load();
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
@@ -107,10 +113,24 @@ class BuiltinSkillInitializerTest {
     void skipsAllItemsWhenGlobalNamespaceDoesNotExist() {
         when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.empty());
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(manifestLoader, never()).load();
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void synchronizesAfterApplicationReadyWithoutBlockingApplicationRunner() throws Exception {
+        assertThat(ApplicationRunner.class.isAssignableFrom(BuiltinSkillInitializer.class)).isFalse();
+
+        Method method = BuiltinSkillInitializer.class.getDeclaredMethod("synchronizeAfterApplicationReady");
+        EventListener eventListener = method.getAnnotation(EventListener.class);
+        Async async = method.getAnnotation(Async.class);
+
+        assertThat(eventListener).isNotNull();
+        assertThat(eventListener.value()).containsExactly(ApplicationReadyEvent.class);
+        assertThat(async).isNotNull();
+        assertThat(async.value()).isEqualTo("skillhubEventExecutor");
     }
 
     @Test
@@ -120,7 +140,7 @@ class BuiltinSkillInitializerTest {
         when(userAccountRepository.findById(PUBLISHER))
                 .thenReturn(Optional.of(new UserAccount(PUBLISHER, "Human User", "human@example.com", null)));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(namespaceMemberRepository, never()).save(any());
         verify(downloader, never()).download(any());
@@ -139,7 +159,7 @@ class BuiltinSkillInitializerTest {
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(builtinSkill));
         when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
@@ -157,7 +177,7 @@ class BuiltinSkillInitializerTest {
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(builtinSkill));
         when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(uploaded));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
@@ -169,17 +189,34 @@ class BuiltinSkillInitializerTest {
         givenManifestAndSystemPublisher();
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(otherSkill));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
 
     @Test
+    void skipsMalformedUrlWithoutSynchronizationFailureLog(CapturedOutput output) {
+        ManifestItem malformed = new ManifestItem(
+                "skillhub-hello",
+                "1.0.0",
+                "https://bjcdn.openstorage.cn/skills/%zz.zip"
+        );
+        givenManifestAndSystemPublisher(List.of(malformed));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of());
+
+        runInitializer();
+
+        verify(downloader, never()).download(any());
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+        assertThat(output).doesNotContain("Failed to synchronize built-in skill slug=skillhub-hello");
+    }
+
+    @Test
     void skipsWhenManifestSlugDoesNotMatchPackageMetadata() throws Exception {
         givenExtractedPackage(packageEntries("other-skill", "1.0.0", "same"));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
@@ -188,7 +225,7 @@ class BuiltinSkillInitializerTest {
     void skipsWhenManifestVersionDoesNotMatchPackageMetadata() throws Exception {
         givenExtractedPackage(packageEntries("skillhub-hello", "1.0.1", "same"));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
@@ -199,7 +236,7 @@ class BuiltinSkillInitializerTest {
         givenExtractedPackage(entries);
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of());
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         ArgumentCaptor<List<PackageEntry>> entriesCaptor = ArgumentCaptor.captor();
         verify(skillPublishService).publishFromEntries(
@@ -221,7 +258,7 @@ class BuiltinSkillInitializerTest {
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER)).thenReturn(Optional.empty());
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of());
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
         verify(userAccountRepository).save(userCaptor.capture());
@@ -251,14 +288,14 @@ class BuiltinSkillInitializerTest {
         when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
         when(skillFileRepository.findByVersionId(200L)).thenReturn(skillFilesFor(entries, 200L));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(skillPublishService).publishFromEntries(
                 eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false));
     }
 
     @Test
-    void doesNotTreatConcurrentDuplicateWithDifferentFingerprintAsCompleted() throws Exception {
+    void doesNotTreatConcurrentDuplicateWithDifferentFingerprintAsCompleted(CapturedOutput output) throws Exception {
         Skill builtinSkill = skill(100L, "skillhub-hello", PUBLISHER);
         SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
         givenExtractedPackage(packageEntries("skillhub-hello", "1.0.0", "new-content"));
@@ -274,11 +311,13 @@ class BuiltinSkillInitializerTest {
                 new SkillFile(200L, "SKILL.md", 7L, "text/markdown", sha256("old-content"), "storage-key")
         ));
 
-        initializer.run(new DefaultApplicationArguments(new String[0]));
+        runInitializer();
 
         verify(skillFileRepository).findByVersionId(200L);
         verify(skillPublishService).publishFromEntries(
                 eq(GLOBAL), any(), eq(PUBLISHER), eq(SkillVisibility.PUBLIC), eq(Set.of("SUPER_ADMIN")), eq(false));
+        assertThat(output).contains("Failed to publish built-in skill slug=skillhub-hello version=1.0.0");
+        assertThat(output).doesNotContain("was published concurrently, skipping");
     }
 
     private void givenExtractedPackage() throws Exception {
@@ -297,11 +336,19 @@ class BuiltinSkillInitializerTest {
     }
 
     private void givenManifestAndSystemPublisher() {
+        givenManifestAndSystemPublisher(List.of(ITEM));
+    }
+
+    private void givenManifestAndSystemPublisher(List<ManifestItem> items) {
         when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
-        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        when(manifestLoader.load()).thenReturn(items);
         when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.of(systemPublisher()));
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER))
                 .thenReturn(Optional.of(new NamespaceMember(1L, PUBLISHER, NamespaceRole.OWNER)));
+    }
+
+    private void runInitializer() {
+        initializer.synchronize();
     }
 
     private static UserAccount systemPublisher() {

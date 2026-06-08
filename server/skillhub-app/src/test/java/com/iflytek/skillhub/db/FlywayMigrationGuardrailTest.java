@@ -72,6 +72,14 @@ class FlywayMigrationGuardrailTest {
         assertThat(invalidFiles).isEmpty();
     }
 
+    @Test
+    void systemAccountMigration_mustNotPromoteUsersWithApiTokens() throws IOException {
+        String migration = Files.readString(migrationPath("V43__user_account_system_account.sql"));
+
+        assertThat(migration).contains("FROM api_token");
+        assertThat(migration).contains("api_token.user_id = user_account.id");
+    }
+
     private List<Path> migrationFiles() throws IOException {
         Path root = repoRoot()
                 .resolve("server")
@@ -91,5 +99,13 @@ class FlywayMigrationGuardrailTest {
 
     private String relativeToRepo(Path file) {
         return repoRoot().relativize(file).toString();
+    }
+
+    private Path migrationPath(String fileName) {
+        return repoRoot()
+                .resolve("server")
+                .resolve("skillhub-app")
+                .resolve("src/main/resources/db/migration")
+                .resolve(fileName);
     }
 }

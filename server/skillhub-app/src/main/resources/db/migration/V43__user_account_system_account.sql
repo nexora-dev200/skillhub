@@ -16,4 +16,9 @@ WHERE id = 'builtin-skill-publisher'
       SELECT 1
       FROM identity_binding
       WHERE identity_binding.user_id = user_account.id
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM api_token
+      WHERE api_token.user_id = user_account.id
   );
