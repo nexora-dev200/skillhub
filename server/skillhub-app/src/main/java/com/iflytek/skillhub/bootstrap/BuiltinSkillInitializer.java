@@ -111,7 +111,9 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
         }
 
         try {
-            ensureSystemPublisher(namespace.get());
+            if (!ensureSystemPublisher(namespace.get())) {
+                return;
+            }
         } catch (RuntimeException exception) {
             log.error("Failed to initialize built-in skill system publisher, skipping synchronization: {}",
                     exception.getMessage(), exception);
@@ -133,14 +135,25 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
         }
     }
 
-    private void ensureSystemPublisher(Namespace namespace) {
-        userAccountRepository.findById(SYSTEM_PUBLISHER_ID)
-                .orElseGet(() -> userAccountRepository.save(new UserAccount(
-                        SYSTEM_PUBLISHER_ID,
-                        "Built-in Skill Publisher",
-                        null,
-                        null
-                )));
+    private boolean ensureSystemPublisher(Namespace namespace) {
+        Optional<UserAccount> existingPublisher = userAccountRepository.findById(SYSTEM_PUBLISHER_ID);
+        UserAccount publisher;
+        if (existingPublisher.isPresent()) {
+            publisher = existingPublisher.get();
+        } else {
+            publisher = UserAccount.systemAccount(
+                    SYSTEM_PUBLISHER_ID,
+                    "Built-in Skill Publisher",
+                    null,
+                    null
+            );
+            userAccountRepository.save(publisher);
+        }
+        if (!publisher.isSystemAccount()) {
+            log.error("Built-in skill publisher account id '{}' already exists but is not a system account; "
+                    + "skipping built-in skill synchronization", SYSTEM_PUBLISHER_ID);
+            return false;
+        }
 
         if (namespaceMemberRepository.findByNamespaceIdAndUserId(namespace.getId(), SYSTEM_PUBLISHER_ID).isEmpty()) {
             namespaceMemberRepository.save(new NamespaceMember(
@@ -149,9 +162,14 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
                     NamespaceRole.OWNER
             ));
         }
+        return true;
     }
 
     private void syncItem(Namespace namespace, ManifestItem item) throws Exception {
+        if (shouldSkipBeforeDownload(namespace.getId(), item)) {
+            return;
+        }
+
         Optional<byte[]> packageBytes = downloader.download(URI.create(item.url()));
         if (packageBytes.isEmpty()) {
             log.warn("Skipping built-in skill slug={} version={} because package download failed",
@@ -215,6 +233,40 @@ public class BuiltinSkillInitializer implements ApplicationRunner {
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Built-in skill package must contain " + SkillPackagePolicy.SKILL_MD_PATH));
         return metadataParser.parse(new String(skillMd.content(), StandardCharsets.UTF_8));
+    }
+
+    private boolean shouldSkipBeforeDownload(Long namespaceId, ManifestItem item) {
+        List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespaceId, item.slug());
+        boolean hasNonBuiltinOwner = existingSkills.stream()
+                .anyMatch(skill -> !SYSTEM_PUBLISHER_ID.equals(skill.getOwnerId()));
+        if (hasNonBuiltinOwner) {
+            log.warn("Skipping built-in skill slug={} before download because the slug is already owned by another user",
+                    item.slug());
+            return true;
+        }
+
+        Optional<Skill> builtinSkill = existingSkills.stream()
+                .filter(skill -> SYSTEM_PUBLISHER_ID.equals(skill.getOwnerId()))
+                .findFirst();
+        if (builtinSkill.isEmpty()) {
+            return false;
+        }
+
+        Optional<SkillVersion> existingVersion = skillVersionRepository
+                .findBySkillIdAndVersion(builtinSkill.get().getId(), item.version());
+        if (existingVersion.isEmpty()) {
+            return false;
+        }
+
+        SkillVersion version = existingVersion.get();
+        if (version.getStatus() == SkillVersionStatus.PUBLISHED) {
+            log.info("Skipping built-in skill slug={} version={} before download because it is already published",
+                    item.slug(), item.version());
+        } else {
+            log.info("Skipping built-in skill slug={} version={} before download because existing version status is {}",
+                    item.slug(), item.version(), version.getStatus());
+        }
+        return true;
     }
 
     private boolean shouldSkipExisting(Long namespaceId, ManifestItem item, List<PackageEntry> entries) {

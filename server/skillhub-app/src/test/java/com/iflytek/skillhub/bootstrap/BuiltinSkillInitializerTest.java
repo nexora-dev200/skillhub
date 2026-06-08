@@ -52,9 +52,9 @@ class BuiltinSkillInitializerTest {
     private static final String GLOBAL = "global";
     private static final String PUBLISHER = "builtin-skill-publisher";
     private static final ManifestItem ITEM = new ManifestItem(
-            "agentguard",
+            "skillhub-hello",
             "1.0.0",
-            "https://bjcdn.openstorage.cn/skills/agentguard.zip"
+            "https://bjcdn.openstorage.cn/skills/skillhub-hello.zip"
     );
 
     @Mock private BuiltinSkillManifestLoader manifestLoader;
@@ -114,57 +114,64 @@ class BuiltinSkillInitializerTest {
     }
 
     @Test
-    void skipsExistingSkillOwnedByAnotherUser() throws Exception {
-        Skill otherSkill = skill(100L, "agentguard", "someone-else");
-        givenExtractedPackage();
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(otherSkill));
+    void skipsSynchronizationWhenPublisherIdIsOccupiedByNonSystemAccount() {
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
+        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        when(userAccountRepository.findById(PUBLISHER))
+                .thenReturn(Optional.of(new UserAccount(PUBLISHER, "Human User", "human@example.com", null)));
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
+        verify(namespaceMemberRepository, never()).save(any());
+        verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
 
     @Test
-    void skipsPublishedSameVersionWhenFingerprintMatches() throws Exception {
-        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+    void skipsPublishedSameVersionBeforeDownloadingPackage() {
+        Skill builtinSkill = skill(100L, "skillhub-hello", PUBLISHER);
         SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
-        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
-        givenExtractedPackage(entries);
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
+        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.of(systemPublisher()));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER))
+                .thenReturn(Optional.of(new NamespaceMember(1L, PUBLISHER, NamespaceRole.OWNER)));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(builtinSkill));
         when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
-        when(skillFileRepository.findByVersionId(200L)).thenReturn(skillFilesFor(entries, 200L));
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
+        verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
 
     @Test
-    void skipsPublishedSameVersionWhenFingerprintDiffers() throws Exception {
-        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
-        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
-        givenExtractedPackage();
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
-        when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(published));
-        when(skillFileRepository.findByVersionId(200L)).thenReturn(List.of(
-                new SkillFile(200L, "SKILL.md", 7L, "text/markdown", sha256("changed"), "storage-key")
-        ));
-
-        initializer.run(new DefaultApplicationArguments(new String[0]));
-
-        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
-    }
-
-    @Test
-    void skipsExistingSameVersionWhenNotPublished() throws Exception {
-        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+    void skipsExistingSameVersionWhenNotPublishedBeforeDownloadingPackage() {
+        Skill builtinSkill = skill(100L, "skillhub-hello", PUBLISHER);
         SkillVersion uploaded = version(200L, 100L, "1.0.0", SkillVersionStatus.UPLOADED);
-        givenExtractedPackage();
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of(builtinSkill));
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
+        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.of(systemPublisher()));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER))
+                .thenReturn(Optional.of(new NamespaceMember(1L, PUBLISHER, NamespaceRole.OWNER)));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(builtinSkill));
         when(skillVersionRepository.findBySkillIdAndVersion(100L, "1.0.0")).thenReturn(Optional.of(uploaded));
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
+        verify(downloader, never()).download(any());
+        verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void skipsExistingSkillOwnedByAnotherUserBeforeDownloadingPackage() throws Exception {
+        Skill otherSkill = skill(100L, "skillhub-hello", "someone-else");
+        givenManifestAndSystemPublisher();
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(otherSkill));
+
+        initializer.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
     }
 
@@ -179,7 +186,7 @@ class BuiltinSkillInitializerTest {
 
     @Test
     void skipsWhenManifestVersionDoesNotMatchPackageMetadata() throws Exception {
-        givenExtractedPackage(packageEntries("agentguard", "1.0.1", "same"));
+        givenExtractedPackage(packageEntries("skillhub-hello", "1.0.1", "same"));
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
@@ -188,9 +195,9 @@ class BuiltinSkillInitializerTest {
 
     @Test
     void publishesNewVersionToGlobalAsPublicWithSystemPublisher() throws Exception {
-        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        List<PackageEntry> entries = packageEntries("skillhub-hello", "1.0.0", "same");
         givenExtractedPackage(entries);
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of());
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of());
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
@@ -208,17 +215,18 @@ class BuiltinSkillInitializerTest {
 
     @Test
     void createsSystemPublisherAndGlobalMembershipBeforePublishing() throws Exception {
-        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        List<PackageEntry> entries = packageEntries("skillhub-hello", "1.0.0", "same");
         givenExtractedPackage(entries);
         when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.empty());
         when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER)).thenReturn(Optional.empty());
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard")).thenReturn(List.of());
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of());
 
         initializer.run(new DefaultApplicationArguments(new String[0]));
 
         ArgumentCaptor<UserAccount> userCaptor = ArgumentCaptor.forClass(UserAccount.class);
         verify(userAccountRepository).save(userCaptor.capture());
         assertThat(userCaptor.getValue().getId()).isEqualTo(PUBLISHER);
+        assertThat(userCaptor.getValue().isSystemAccount()).isTrue();
 
         ArgumentCaptor<NamespaceMember> memberCaptor = ArgumentCaptor.forClass(NamespaceMember.class);
         verify(namespaceMemberRepository).save(memberCaptor.capture());
@@ -229,11 +237,12 @@ class BuiltinSkillInitializerTest {
 
     @Test
     void treatsConcurrentDuplicatePublishedVersionAsCompleted() throws Exception {
-        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        Skill builtinSkill = skill(100L, "skillhub-hello", PUBLISHER);
         SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
-        List<PackageEntry> entries = packageEntries("agentguard", "1.0.0", "same");
+        List<PackageEntry> entries = packageEntries("skillhub-hello", "1.0.0", "same");
         givenExtractedPackage(entries);
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard"))
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello"))
+                .thenReturn(List.of())
                 .thenReturn(List.of())
                 .thenReturn(List.of(builtinSkill));
         when(skillPublishService.publishFromEntries(
@@ -250,10 +259,11 @@ class BuiltinSkillInitializerTest {
 
     @Test
     void doesNotTreatConcurrentDuplicateWithDifferentFingerprintAsCompleted() throws Exception {
-        Skill builtinSkill = skill(100L, "agentguard", PUBLISHER);
+        Skill builtinSkill = skill(100L, "skillhub-hello", PUBLISHER);
         SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
-        givenExtractedPackage(packageEntries("agentguard", "1.0.0", "new-content"));
-        when(skillRepository.findByNamespaceIdAndSlug(1L, "agentguard"))
+        givenExtractedPackage(packageEntries("skillhub-hello", "1.0.0", "new-content"));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello"))
+                .thenReturn(List.of())
                 .thenReturn(List.of())
                 .thenReturn(List.of(builtinSkill));
         when(skillPublishService.publishFromEntries(
@@ -272,7 +282,7 @@ class BuiltinSkillInitializerTest {
     }
 
     private void givenExtractedPackage() throws Exception {
-        givenExtractedPackage(packageEntries("agentguard", "1.0.0", "same"));
+        givenExtractedPackage(packageEntries("skillhub-hello", "1.0.0", "same"));
     }
 
     private void givenExtractedPackage(List<PackageEntry> entries) throws Exception {
@@ -286,8 +296,16 @@ class BuiltinSkillInitializerTest {
         when(extractor.extract(bytes)).thenReturn(new SkillPackageArchiveExtractor.ExtractionResult(entries, List.of()));
     }
 
+    private void givenManifestAndSystemPublisher() {
+        when(namespaceRepository.findBySlug(GLOBAL)).thenReturn(Optional.of(globalNamespace));
+        when(manifestLoader.load()).thenReturn(List.of(ITEM));
+        when(userAccountRepository.findById(PUBLISHER)).thenReturn(Optional.of(systemPublisher()));
+        when(namespaceMemberRepository.findByNamespaceIdAndUserId(1L, PUBLISHER))
+                .thenReturn(Optional.of(new NamespaceMember(1L, PUBLISHER, NamespaceRole.OWNER)));
+    }
+
     private static UserAccount systemPublisher() {
-        return new UserAccount(PUBLISHER, "Built-in Skill Publisher", null, null);
+        return UserAccount.systemAccount(PUBLISHER, "Built-in Skill Publisher", null, null);
     }
 
     private static Skill skill(Long id, String slug, String ownerId) {

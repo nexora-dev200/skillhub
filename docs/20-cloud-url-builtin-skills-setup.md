@@ -140,14 +140,17 @@ skillhub-hello-1.0.0.zip
 1. 检查 `skillhub.builtin-skills.enabled` 是否开启。
 2. 读取 `classpath:builtin-skills/manifest.json`。
 3. 查询 `@global` 命名空间是否存在；如果不存在，跳过同步。
-4. 确保系统发布者 `builtin-skill-publisher` 存在，并且是 `@global` 的 `OWNER`。
-5. 按 manifest 顺序处理每一个 item。
-6. 下载对应 zip 包。
-7. 解包并校验根目录 `SKILL.md`。
-8. 校验 manifest 中的 `slug`、`version` 与包内元数据一致。
-9. 检查是否已存在同名 Skill 或同版本。
-10. 需要发布时调用现有 `SkillPublishService.publishFromEntries(...)`。
-11. 发布完成后，该 Skill 位于 `@global/{slug}`，可见性为 `PUBLIC`。
+4. 确保系统发布者 `builtin-skill-publisher` 存在，并且该账号带有系统账号标记。
+5. 如果该用户 ID 已被非系统账号占用，直接跳过本次内置 Skill 同步，不授予 `@global` 权限。
+6. 确保系统发布者是 `@global` 的 `OWNER`。
+7. 按 manifest 顺序处理每一个 item。
+8. 下载前先检查 `@global/{slug}` 和目标版本是否已经存在；如果已经确定应跳过，则不发起远程下载。
+9. 只有需要发布新 Skill 或新版本时，才下载对应 zip 包。
+10. 解包并校验根目录 `SKILL.md`。
+11. 校验 manifest 中的 `slug`、`version` 与包内元数据一致。
+12. 发布前再次检查是否已存在同名 Skill 或同版本，处理并发启动场景。
+13. 需要发布时调用现有 `SkillPublishService.publishFromEntries(...)`。
+14. 发布完成后，该 Skill 位于 `@global/{slug}`，可见性为 `PUBLIC`。
 
 同步逻辑不会直接写数据库 seed 数据。它复用现有发布服务，因此会保留现有的包校验、对象存储写入、版本记录、latest version 更新、事件和搜索索引同步。
 
@@ -167,10 +170,9 @@ skillhub-hello-1.0.0.zip
 |---|---|
 | `@global/{slug}` 不存在 | 发布 manifest 中的 Skill |
 | `@global/{slug}` 已存在，owner 是 `builtin-skill-publisher`，但目标版本不存在 | 发布新版本 |
-| 同版本已存在且已发布，内容一致 | 跳过 |
-| 同版本已存在且已发布，但内容不一致 | 跳过并记录 warning |
-| 同版本已存在但不是 `PUBLISHED` | 跳过并记录日志 |
-| `@global/{slug}` 已存在，但 owner 不是 `builtin-skill-publisher` | 跳过并记录 warning |
+| 同版本已存在且已发布 | 下载前跳过 |
+| 同版本已存在但不是 `PUBLISHED` | 下载前跳过并记录日志 |
+| `@global/{slug}` 已存在，但 owner 不是 `builtin-skill-publisher` | 下载前跳过并记录 warning |
 
 这意味着内置同步不会接管用户或管理员已经创建的同 slug Skill。
 
@@ -238,6 +240,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 | 日志含义 | 处理建议 |
 |---|---|
 | manifest not found | 确认 `builtin-skills/manifest.json` 是否被打进 classpath |
+| publisher account id already exists but is not a system account | `builtin-skill-publisher` 已被普通账号占用；需要人工处理账号冲突后再启用内置同步 |
 | slug, version, and url are required | 检查 manifest item 是否缺字段或字段不是字符串 |
 | slug is invalid | 检查 slug 是否符合 SkillHub slug 规则 |
 | URL is not allowed | 检查 URL 是否为 HTTPS、host 是否为 `bjcdn.openstorage.cn` 或其子域名 |
@@ -245,7 +248,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 | package must contain SKILL.md | 检查 zip 根目录是否存在 `SKILL.md` |
 | manifest version does not match package version | 检查 manifest `version` 和 `SKILL.md version` 是否一致 |
 | slug is already owned by another user | 说明 `@global/{slug}` 已被非内置发布者占用，内置同步不会覆盖 |
-| published fingerprint differs | 同一内置版本已存在但内容不同，需要人工确认是否错误覆盖了远程包 |
+| published fingerprint differs | 并发发布异常后发现同一内置版本已存在但内容不同，需要人工确认是否发生了版本冲突 |
 
 如果某个 manifest item 失败，后续 item 仍会继续处理，应用启动也会继续。
 
