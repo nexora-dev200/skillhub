@@ -319,7 +319,7 @@ class SkillDownloadServiceTest {
     }
 
     @Test
-    void testDownloadVersion_RejectsAnonymousForTeamNamespacePublicSkill() throws Exception {
+    void testDownloadVersion_RejectsAnonymousWhenVisibilityCheckerDeniesAccess() throws Exception {
         Namespace namespace = new Namespace("team-ai", "Team AI", "owner-1");
         setId(namespace, 2L);
         namespace.setType(NamespaceType.TEAM);
@@ -331,11 +331,12 @@ class SkillDownloadServiceTest {
 
         when(namespaceRepository.findBySlug("team-ai")).thenReturn(Optional.of(namespace));
         when(skillRepository.findByNamespaceIdAndSlug(2L, "demo-skill")).thenReturn(List.of(skill));
+        when(visibilityChecker.canAccess(skill, null, Map.of())).thenReturn(false);
 
         assertThrows(DomainForbiddenException.class, () ->
                 service.downloadVersion("team-ai", "demo-skill", "1.0.0", null, Map.of()));
 
-        verify(visibilityChecker, never()).canAccess(any(), any(), anyMap());
+        verify(visibilityChecker).canAccess(skill, null, Map.of());
         verify(skillRepository, never()).incrementDownloadCount(anyLong());
         verify(skillVersionStatsRepository, never()).incrementDownloadCount(anyLong(), anyLong());
         verify(eventPublisher, never()).publishEvent(any(SkillDownloadedEvent.class));
