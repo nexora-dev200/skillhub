@@ -90,6 +90,18 @@ class FlywayMigrationGuardrailTest {
         assertThat(migration).contains("namespace_member.user_id = user_account.id");
     }
 
+    @Test
+    void systemAccountMigration_mustPromoteLegacyBuiltinPublisherSafely() throws IOException {
+        String migration = Files.readString(migrationPath("V43__user_account_system_account.sql"));
+
+        assertThat(migration).contains("SkillHub Built-in Publisher");
+        assertThat(migration).contains("builtin-skill-publisher@example.invalid");
+        assertThat(migration).contains("legacy_namespace.slug = 'global'");
+        assertThat(migration).contains("legacy_member.role = 'OWNER'");
+        assertThat(migration).contains("bad_member.user_id = user_account.id");
+        assertThat(migration).contains("bad_namespace.slug <> 'global'");
+    }
+
     private List<Path> migrationFiles() throws IOException {
         Path root = repoRoot()
                 .resolve("server")

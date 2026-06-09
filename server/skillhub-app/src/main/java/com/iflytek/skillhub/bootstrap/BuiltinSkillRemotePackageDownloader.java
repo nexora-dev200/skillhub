@@ -16,6 +16,12 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 @Component
@@ -30,6 +36,7 @@ public class BuiltinSkillRemotePackageDownloader {
 
     private final long maxPackageSize;
     private final HttpClient httpClient;
+    private final Duration requestTimeout;
 
     @Autowired
     public BuiltinSkillRemotePackageDownloader(SkillPublishProperties properties) {
@@ -38,13 +45,22 @@ public class BuiltinSkillRemotePackageDownloader {
                 HttpClient.newBuilder()
                         .connectTimeout(CONNECT_TIMEOUT)
                         .followRedirects(HttpClient.Redirect.NEVER)
-                        .build()
+                        .build(),
+                REQUEST_TIMEOUT
         );
     }
 
     BuiltinSkillRemotePackageDownloader(SkillPublishProperties properties, HttpClient httpClient) {
+        this(properties, httpClient, REQUEST_TIMEOUT);
+    }
+
+    BuiltinSkillRemotePackageDownloader(
+            SkillPublishProperties properties,
+            HttpClient httpClient,
+            Duration requestTimeout) {
         this.maxPackageSize = properties.getMaxPackageSize();
         this.httpClient = httpClient;
+        this.requestTimeout = requestTimeout;
     }
 
     public Optional<byte[]> download(URI uri) {
@@ -54,19 +70,19 @@ public class BuiltinSkillRemotePackageDownloader {
         }
 
         HttpRequest request = HttpRequest.newBuilder(uri)
-                .timeout(REQUEST_TIMEOUT)
+                .timeout(requestTimeout)
                 .GET()
                 .build();
         try {
             HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-            if (response.statusCode() != 200) {
-                log.warn("Failed to download built-in skill package from {}: HTTP {}",
-                        safeUrl(uri),
-                        response.statusCode());
-                return Optional.empty();
-            }
             try (InputStream body = response.body()) {
-                return readBounded(body);
+                if (response.statusCode() != 200) {
+                    log.warn("Failed to download built-in skill package from {}: HTTP {}",
+                            safeUrl(uri),
+                            response.statusCode());
+                    return Optional.empty();
+                }
+                return readBoundedWithTimeout(body, uri);
             }
         } catch (IOException ex) {
             log.warn("Failed to download built-in skill package from {}: {}", safeUrl(uri), ex.getMessage());
@@ -123,6 +139,46 @@ public class BuiltinSkillRemotePackageDownloader {
             outputStream.write(buffer, 0, read);
         }
         return Optional.of(outputStream.toByteArray());
+    }
+
+    private Optional<byte[]> readBoundedWithTimeout(InputStream inputStream, URI uri) throws IOException {
+        ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        Future<Optional<byte[]>> future = executor.submit(() -> readBounded(inputStream));
+        try {
+            return future.get(Math.max(1, requestTimeout.toMillis()), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException ex) {
+            closeQuietly(inputStream);
+            future.cancel(true);
+            log.warn("Timed out while downloading built-in skill package body from {} after {}",
+                    safeUrl(uri),
+                    requestTimeout);
+            return Optional.empty();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            closeQuietly(inputStream);
+            future.cancel(true);
+            log.warn("Interrupted while reading built-in skill package body from {}", safeUrl(uri));
+            return Optional.empty();
+        } catch (ExecutionException ex) {
+            Throwable cause = ex.getCause();
+            if (cause instanceof IOException ioException) {
+                throw ioException;
+            }
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("Failed to read built-in skill package body", cause);
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private static void closeQuietly(InputStream inputStream) {
+        try {
+            inputStream.close();
+        } catch (IOException ignored) {
+            // Best-effort cleanup after timeout/interruption.
+        }
     }
 
     private static boolean isDisallowedHostLiteral(String host) {

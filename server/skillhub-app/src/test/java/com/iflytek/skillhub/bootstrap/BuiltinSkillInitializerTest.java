@@ -184,15 +184,42 @@ class BuiltinSkillInitializerTest {
     }
 
     @Test
-    void skipsExistingSkillOwnedByAnotherUserBeforeDownloadingPackage() throws Exception {
+    void skipsPublishedSkillOwnedByAnotherUserBeforeDownloadingPackage() throws Exception {
         Skill otherSkill = skill(100L, "skillhub-hello", "someone-else");
+        SkillVersion published = version(200L, 100L, "1.0.0", SkillVersionStatus.PUBLISHED);
         givenManifestAndSystemPublisher();
         when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello")).thenReturn(List.of(otherSkill));
+        when(skillVersionRepository.findBySkillIdAndStatus(100L, SkillVersionStatus.PUBLISHED))
+                .thenReturn(List.of(published));
 
         runInitializer();
 
         verify(downloader, never()).download(any());
         verify(skillPublishService, never()).publishFromEntries(any(), any(), any(), any(), any(), eq(false));
+    }
+
+    @Test
+    void publishesWhenOnlyUnpublishedSkillOwnedByAnotherUserExists() throws Exception {
+        Skill otherSkill = skill(100L, "skillhub-hello", "someone-else");
+        List<PackageEntry> entries = packageEntries("skillhub-hello", "1.0.0", "same");
+        givenExtractedPackage(entries);
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "skillhub-hello"))
+                .thenReturn(List.of(otherSkill))
+                .thenReturn(List.of(otherSkill));
+        lenient().when(skillVersionRepository.findBySkillIdAndStatus(100L, SkillVersionStatus.PUBLISHED))
+                .thenReturn(List.of());
+
+        runInitializer();
+
+        verify(downloader).download(URI.create(ITEM.url()));
+        verify(skillPublishService).publishFromEntries(
+                eq(GLOBAL),
+                eq(entries),
+                eq(PUBLISHER),
+                eq(SkillVisibility.PUBLIC),
+                eq(Set.of("SUPER_ADMIN")),
+                eq(false)
+        );
     }
 
     @Test

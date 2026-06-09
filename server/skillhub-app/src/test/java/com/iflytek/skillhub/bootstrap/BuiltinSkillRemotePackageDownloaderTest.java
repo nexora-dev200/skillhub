@@ -10,6 +10,7 @@ import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSession;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.Authenticator;
 import java.net.CookieHandler;
 import java.net.ProxySelector;
@@ -22,6 +23,11 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class BuiltinSkillRemotePackageDownloaderTest {
 
@@ -82,6 +88,21 @@ class BuiltinSkillRemotePackageDownloaderTest {
     }
 
     @Test
+    void closesNonSuccessResponseBody() {
+        CloseAwareInputStream body = new CloseAwareInputStream(new byte[] {1});
+        FakeHttpClient client = new FakeHttpClient(500, body);
+        BuiltinSkillRemotePackageDownloader downloader = new BuiltinSkillRemotePackageDownloader(
+                new SkillPublishProperties(),
+                client
+        );
+
+        Optional<byte[]> bytes = downloader.download(URI.create("https://bjcdn.openstorage.cn/package.zip"));
+
+        assertThat(bytes).isEmpty();
+        assertThat(body.closed()).isTrue();
+    }
+
+    @Test
     void rejectedUrlDoesNotSendHttpRequest() {
         FakeHttpClient client = new FakeHttpClient(200, new byte[] {1});
         BuiltinSkillRemotePackageDownloader downloader = new BuiltinSkillRemotePackageDownloader(
@@ -105,14 +126,40 @@ class BuiltinSkillRemotePackageDownloaderTest {
         assertThat(downloader.download(URI.create("https://bjcdn.openstorage.cn/package.zip"))).isEmpty();
     }
 
+    @Test
+    void returnsEmptyWhenResponseBodyStopsBeforeCompletion() throws Exception {
+        BlockingInputStream body = new BlockingInputStream();
+        FakeHttpClient client = new FakeHttpClient(200, body);
+        BuiltinSkillRemotePackageDownloader downloader = new BuiltinSkillRemotePackageDownloader(
+                new SkillPublishProperties(),
+                client,
+                Duration.ofMillis(50)
+        );
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<Optional<byte[]>> result = executor.submit(
+                () -> downloader.download(URI.create("https://bjcdn.openstorage.cn/package.zip")));
+
+        try {
+            assertThat(result.get(1, TimeUnit.SECONDS)).isEmpty();
+            assertThat(body.closed()).isTrue();
+        } finally {
+            body.close();
+            executor.shutdownNow();
+        }
+    }
+
     static class FakeHttpClient extends HttpClient {
 
         private final int statusCode;
-        private final byte[] body;
+        private final InputStream body;
         private HttpRequest lastRequest;
         private int sendCalls;
 
         FakeHttpClient(int statusCode, byte[] body) {
+            this(statusCode, new ByteArrayInputStream(body));
+        }
+
+        FakeHttpClient(int statusCode, InputStream body) {
             this.statusCode = statusCode;
             this.body = body;
         }
@@ -168,7 +215,7 @@ class BuiltinSkillRemotePackageDownloaderTest {
             lastRequest = request;
             sendCalls++;
             @SuppressWarnings("unchecked")
-            T responseBody = (T) new ByteArrayInputStream(body);
+            T responseBody = (T) body;
             return new FakeResponse<>(request, statusCode, responseBody);
         }
 
@@ -187,6 +234,61 @@ class BuiltinSkillRemotePackageDownloaderTest {
                 HttpResponse.PushPromiseHandler<T> pushPromiseHandler
         ) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    static final class CloseAwareInputStream extends ByteArrayInputStream {
+
+        private boolean closed;
+
+        private CloseAwareInputStream(byte[] bytes) {
+            super(bytes);
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
+
+        boolean closed() {
+            return closed;
+        }
+    }
+
+    static final class BlockingInputStream extends InputStream {
+
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        @Override
+        public int read() {
+            waitUntilClosed();
+            return -1;
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) {
+            waitUntilClosed();
+            return -1;
+        }
+
+        @Override
+        public void close() {
+            closed.set(true);
+        }
+
+        boolean closed() {
+            return closed.get();
+        }
+
+        private void waitUntilClosed() {
+            while (!closed.get()) {
+                try {
+                    Thread.sleep(10);
+                } catch (InterruptedException ignored) {
+                    Thread.currentThread().interrupt();
+                }
+            }
         }
     }
 
