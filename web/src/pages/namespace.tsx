@@ -14,6 +14,8 @@ import { useNamespaceDetail } from '@/shared/hooks/use-namespace-queries'
 import { Button } from '@/shared/ui/button'
 
 const PAGE_SIZE = 20
+const NAMESPACE_BUNDLE_MAX_SKILLS = 20
+const NAMESPACE_BUNDLE_MAX_SIZE = '100 MB'
 
 /**
  * Public namespace page showing namespace metadata and the skills currently discoverable inside it.
@@ -175,10 +177,22 @@ export function NamespacePage() {
           }
         }}
         title={t('namespace.downloadConfirmTitle')}
-        description={t('namespace.downloadConfirmDescription', {
-          count: pendingDownloadCount,
-          namespace,
-        })}
+        description={(
+          <span className="block space-y-2">
+            <span className="block">
+              {t('namespace.downloadConfirmDescription', {
+                count: pendingDownloadCount,
+                namespace,
+              })}
+            </span>
+            <span className="block">
+              {t('namespace.downloadConfirmLimitHint', {
+                maxSkills: NAMESPACE_BUNDLE_MAX_SKILLS,
+                maxSize: NAMESPACE_BUNDLE_MAX_SIZE,
+              })}
+            </span>
+          </span>
+        )}
         confirmText={t('namespace.downloadConfirmAction')}
         onConfirm={confirmDownload}
       />

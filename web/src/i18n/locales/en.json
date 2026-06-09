@@ -771,8 +771,9 @@
     "downloadSelected": "Download selected on this page",
     "copyInstallManifest": "Copy current page install list",
     "downloadConfirmTitle": "Confirm namespace download",
-    "downloadConfirmDescription_one": "This will request {{count}} skill package from @{{namespace}}.",
-    "downloadConfirmDescription_other": "This will request {{count}} skill packages from @{{namespace}}.",
+    "downloadConfirmDescription_one": "This will request up to {{count}} skill package from @{{namespace}}.",
+    "downloadConfirmDescription_other": "This will request up to {{count}} skill packages from @{{namespace}}.",
+    "downloadConfirmLimitHint": "Unavailable skills may be skipped. Synchronous downloads are limited to {{maxSkills}} skills and {{maxSize}}.",
     "downloadConfirmAction": "Download",
     "selectSkill": "Select {{name}}"
   },

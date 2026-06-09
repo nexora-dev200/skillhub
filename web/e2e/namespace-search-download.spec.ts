@@ -272,7 +272,8 @@ test.describe('Namespace Search and Download', () => {
 
     await page.getByRole('button', { name: 'Download selected on this page' }).click()
     await expect(page.getByRole('dialog', { name: 'Confirm namespace download' })).toBeVisible()
-    await expect(page.getByText('This will request 1 skill package from @product-managers.')).toBeVisible()
+    await expect(page.getByText('This will request up to 1 skill package from @product-managers.')).toBeVisible()
+    await expect(page.getByText('Unavailable skills may be skipped. Synchronous downloads are limited to 20 skills and 100 MB.')).toBeVisible()
 
     const [request, response] = await Promise.all([
       page.waitForRequest((request) => request.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
@@ -294,7 +295,8 @@ test.describe('Namespace Search and Download', () => {
 
     await page.getByRole('button', { name: 'Download all' }).click()
     await expect(page.getByRole('dialog', { name: 'Confirm namespace download' })).toBeVisible()
-    await expect(page.getByText('This will request 2 skill packages from @product-managers.')).toBeVisible()
+    await expect(page.getByText('This will request up to 2 skill packages from @product-managers.')).toBeVisible()
+    await expect(page.getByText('Unavailable skills may be skipped. Synchronous downloads are limited to 20 skills and 100 MB.')).toBeVisible()
 
     const [request, response] = await Promise.all([
       page.waitForRequest((request) => request.url().includes(`/api/web/namespaces/${namespaceSlug}/skills/download`)),
