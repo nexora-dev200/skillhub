@@ -21,6 +21,10 @@ public class BuiltinSkillPackageExtractor {
     public SkillPackageArchiveExtractor.ExtractionResult extract(byte[] zipBytes) throws IOException {
         SkillPackageArchiveExtractor.ExtractionResult result =
                 archiveExtractor.extractWithWarnings(new ByteArrayMultipartFile(zipBytes));
+        if (!result.warnings().isEmpty()) {
+            throw new IllegalArgumentException("Built-in skill package has warnings: "
+                    + String.join("; ", result.warnings()));
+        }
         boolean hasSkillMd = result.entries().stream()
                 .anyMatch(entry -> SkillPackagePolicy.SKILL_MD_PATH.equals(entry.path()));
         if (!hasSkillMd) {

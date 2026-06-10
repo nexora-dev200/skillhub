@@ -258,8 +258,8 @@ public class BuiltinSkillInitializer {
 
     private boolean shouldSkipBeforeDownload(Long namespaceId, ManifestItem item) {
         List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespaceId, item.slug());
-        if (hasPublishedOtherOwnerConflict(existingSkills)) {
-            log.warn("Skipping built-in skill slug={} before download because the slug is already published by another user",
+        if (hasOtherOwnerConflict(existingSkills)) {
+            log.warn("Skipping built-in skill slug={} before download because the slug already belongs to another user",
                     item.slug());
             return true;
         }
@@ -290,8 +290,8 @@ public class BuiltinSkillInitializer {
 
     private boolean shouldSkipExisting(Long namespaceId, ManifestItem item, List<PackageEntry> entries) {
         List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespaceId, item.slug());
-        if (hasPublishedOtherOwnerConflict(existingSkills)) {
-            log.warn("Skipping built-in skill slug={} because the slug is already published by another user",
+        if (hasOtherOwnerConflict(existingSkills)) {
+            log.warn("Skipping built-in skill slug={} because the slug already belongs to another user",
                     item.slug());
             return true;
         }
@@ -360,12 +360,9 @@ public class BuiltinSkillInitializer {
         return false;
     }
 
-    private boolean hasPublishedOtherOwnerConflict(List<Skill> existingSkills) {
+    private boolean hasOtherOwnerConflict(List<Skill> existingSkills) {
         return existingSkills.stream()
-                .filter(skill -> !SYSTEM_PUBLISHER_ID.equals(skill.getOwnerId()))
-                .anyMatch(skill -> !skillVersionRepository
-                        .findBySkillIdAndStatus(skill.getId(), SkillVersionStatus.PUBLISHED)
-                        .isEmpty());
+                .anyMatch(skill -> !SYSTEM_PUBLISHER_ID.equals(skill.getOwnerId()));
     }
 
     private String computeFingerprint(SkillVersion version) {

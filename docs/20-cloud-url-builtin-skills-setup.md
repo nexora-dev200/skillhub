@@ -173,9 +173,9 @@ skillhub-hello-1.0.0.zip
 | `@global/{slug}` 已存在，owner 是 `builtin-skill-publisher`，但目标版本不存在 | 发布新版本 |
 | 同版本已存在且已发布 | 下载前跳过 |
 | 同版本已存在但不是 `PUBLISHED` | 下载前跳过并记录日志 |
-| `@global/{slug}` 已被其他 owner 发布 | 下载前跳过并记录 warning |
+| `@global/{slug}` 已被其他 owner 创建或发布 | 下载前跳过并记录 warning |
 
-这意味着内置同步不会接管用户或管理员已经发布的同 slug Skill；仅有待审或未发布版本不会阻断内置同步。
+这意味着内置同步不会接管用户或管理员已经创建的同 slug Skill；即使该 Skill 仍处于待审、未发布或已拒绝状态，也会跳过对应 manifest item。
 同版本已存在时，同步器不会重新下载远端 zip，也不会验证远端对象内容是否发生漂移。
 
 如果多实例同时启动，可能出现多个实例同时尝试发布同一个内置版本。同步器会在发布失败后重新查询目标版本；如果发现同版本已经以相同内容发布成功，则视为并发场景下的正常跳过。
@@ -249,7 +249,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 | package download failed | 检查云存储对象是否存在、是否返回 HTTP 200、是否超时 |
 | package must contain SKILL.md | 检查 zip 是否存在唯一可识别的 `SKILL.md` 入口 |
 | manifest version does not match package version | 检查 manifest `version` 和 `SKILL.md version` 是否一致 |
-| slug is already published by another user | 说明 `@global/{slug}` 已被非内置发布者发布，内置同步不会覆盖 |
+| slug already belongs to another user | 说明 `@global/{slug}` 已被非内置发布者创建或发布，内置同步不会覆盖 |
 | published fingerprint differs | 并发发布异常后发现同一内置版本已存在但内容不同，需要人工确认是否发生了版本冲突 |
 
 如果某个 manifest item 失败，后续 item 仍会继续处理，应用可用状态不受影响。
