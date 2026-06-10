@@ -168,16 +168,20 @@ public class SkillDownloadService {
 
         // Only increment download count for PUBLISHED versions
         if (version.getStatus() == SkillVersionStatus.PUBLISHED) {
-            skillRepository.incrementDownloadCount(skill.getId());
-            skillVersionStatsRepository.incrementDownloadCount(version.getId(), skill.getId());
-            eventPublisher.publishEvent(new SkillDownloadedEvent(skill.getId(), version.getId()));
+            recordPublishedDownload(skill, version);
         }
         return result;
     }
 
+    private void recordPublishedDownload(Skill skill, SkillVersion version) {
+        skillRepository.incrementDownloadCount(skill.getId());
+        skillVersionStatsRepository.incrementDownloadCount(version.getId(), skill.getId());
+        eventPublisher.publishEvent(new SkillDownloadedEvent(skill.getId(), version.getId()));
+    }
+
     private DownloadResult buildDownloadResult(Skill skill, SkillVersion version) {
 
-        String storageKey = String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
+        String storageKey = buildBundleStorageKey(skill, version);
 
         DownloadResult result;
         if (objectStorageService.exists(storageKey)) {
@@ -202,6 +206,10 @@ public class SkillDownloadService {
             result = buildBundleFromFiles(skill, version);
         }
         return result;
+    }
+
+    private String buildBundleStorageKey(Skill skill, SkillVersion version) {
+        return String.format("packages/%d/%d/bundle.zip", skill.getId(), version.getId());
     }
 
     private DownloadResult buildBundleFromFiles(Skill skill, SkillVersion version) {
