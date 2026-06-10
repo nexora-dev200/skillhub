@@ -8,8 +8,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 @Component
 public class BuiltinSkillPackageExtractor {
@@ -21,28 +19,14 @@ public class BuiltinSkillPackageExtractor {
     }
 
     public SkillPackageArchiveExtractor.ExtractionResult extract(byte[] zipBytes) throws IOException {
-        assertRootSkillMd(zipBytes);
         SkillPackageArchiveExtractor.ExtractionResult result =
                 archiveExtractor.extractWithWarnings(new ByteArrayMultipartFile(zipBytes));
-        boolean hasRootSkillMd = result.entries().stream()
+        boolean hasSkillMd = result.entries().stream()
                 .anyMatch(entry -> SkillPackagePolicy.SKILL_MD_PATH.equals(entry.path()));
-        if (!hasRootSkillMd) {
-            throw new IllegalArgumentException("Built-in skill package must contain root " + SkillPackagePolicy.SKILL_MD_PATH);
+        if (!hasSkillMd) {
+            throw new IllegalArgumentException("Built-in skill package must contain " + SkillPackagePolicy.SKILL_MD_PATH);
         }
         return result;
-    }
-
-    private void assertRootSkillMd(byte[] zipBytes) throws IOException {
-        try (ZipInputStream zipInputStream = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
-            ZipEntry entry;
-            while ((entry = zipInputStream.getNextEntry()) != null) {
-                if (!entry.isDirectory() && SkillPackagePolicy.SKILL_MD_PATH.equals(entry.getName())) {
-                    return;
-                }
-                zipInputStream.closeEntry();
-            }
-        }
-        throw new IllegalArgumentException("Built-in skill package must contain root " + SkillPackagePolicy.SKILL_MD_PATH);
     }
 
     private record ByteArrayMultipartFile(byte[] bytes) implements MultipartFile {

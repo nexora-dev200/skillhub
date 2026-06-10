@@ -49,18 +49,20 @@ class BuiltinSkillPackageExtractorTest {
     }
 
     @Test
-    void rejectsZipWithOnlyNestedSkillMd() throws Exception {
+    void acceptsZipWithSingleTopLevelSkillDirectory() throws Exception {
         byte[] zip = zip(entry("skillhub-hello/SKILL.md", """
                 ---
                 name: skillhub-hello
                 version: 1.0.0
                 ---
                 # SkillHub Hello
-                """));
+                """), entry("skillhub-hello/README.md", "# Readme"));
 
-        assertThatThrownBy(() -> extractor.extract(zip))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining(SkillPackagePolicy.SKILL_MD_PATH);
+        SkillPackageArchiveExtractor.ExtractionResult result = extractor.extract(zip);
+
+        assertThat(result.entries())
+                .extracting(entry -> entry.path())
+                .containsExactly("SKILL.md", "README.md");
     }
 
     private static ZipSource entry(String path, String content) {

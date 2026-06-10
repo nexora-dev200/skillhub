@@ -83,7 +83,7 @@ manifest 文件格式如下：
 
 manifest 中的 `url` 必须指向 zip 包。zip 包需要满足 SkillHub Skill 包协议：
 
-- zip 根目录必须包含 `SKILL.md`。
+- zip 可以在根目录直接包含 `SKILL.md`，也可以包含一个单独的顶层 Skill 目录，并在该目录下包含 `SKILL.md`。
 - `SKILL.md` frontmatter 中必须包含合法的 `name`、`description`、`version` 等元数据。
 - `SKILL.md` 中的 `name` 经过 slug 归一化后，必须等于 manifest 中的 `slug`。
 - `SKILL.md` 中的 `version` 必须等于 manifest 中的 `version`。
@@ -99,15 +99,16 @@ skillhub-hello-1.0.0.zip
     └── check.js
 ```
 
-不推荐的结构：
+同样支持标准单目录 Skill 包：
 
 ```text
 skillhub-hello-1.0.0.zip
 └── skillhub-hello/
-    └── SKILL.md
+    ├── SKILL.md
+    └── README.md
 ```
 
-原因是内置 Skill 同步要求根目录存在 `SKILL.md`，不会把嵌套目录中的 `SKILL.md` 当作入口。
+如果 zip 中存在多个顶层目录，或在多个目录中同时出现 `SKILL.md`，同步器会跳过该项并记录错误，避免误选入口。
 
 ## 4. URL 安全限制
 
@@ -146,7 +147,7 @@ skillhub-hello-1.0.0.zip
 7. 按 manifest 顺序处理每一个 item。
 8. 下载前先检查 `@global/{slug}` 和目标版本是否已经存在；如果已经确定应跳过，则不发起远程下载。
 9. 只有需要发布新 Skill 或新版本时，才下载对应 zip 包。
-10. 解包并校验根目录 `SKILL.md`。
+10. 解包并校验 Skill 入口 `SKILL.md`。
 11. 校验 manifest 中的 `slug`、`version` 与包内元数据一致。
 12. 发布前再次检查是否已存在同名 Skill 或同版本，处理并发启动场景。
 13. 需要发布时调用现有 `SkillPublishService.publishFromEntries(...)`。
@@ -209,7 +210,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 
 新增一个内置 Skill 的推荐步骤：
 
-1. 准备 Skill 包，并确认 zip 根目录包含 `SKILL.md`。
+1. 准备 Skill 包，并确认 zip 根目录直接包含 `SKILL.md`，或只有一个顶层 Skill 目录且该目录包含 `SKILL.md`。
 2. 检查 `SKILL.md` 中的 `name` 和 `version`。
 3. 上传 zip 到 `bjcdn.openstorage.cn` 或其子域名下的官方云存储路径。
 4. 在 `server/skillhub-app/src/main/resources/builtin-skills/manifest.json` 中新增一项。
@@ -246,7 +247,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 | slug is invalid | 检查 slug 是否符合 SkillHub slug 规则 |
 | URL is not allowed | 检查 URL 是否为 HTTPS、host 是否为 `bjcdn.openstorage.cn` 或其子域名 |
 | package download failed | 检查云存储对象是否存在、是否返回 HTTP 200、是否超时 |
-| package must contain SKILL.md | 检查 zip 根目录是否存在 `SKILL.md` |
+| package must contain SKILL.md | 检查 zip 是否存在唯一可识别的 `SKILL.md` 入口 |
 | manifest version does not match package version | 检查 manifest `version` 和 `SKILL.md version` 是否一致 |
 | slug is already published by another user | 说明 `@global/{slug}` 已被非内置发布者发布，内置同步不会覆盖 |
 | published fingerprint differs | 并发发布异常后发现同一内置版本已存在但内容不同，需要人工确认是否发生了版本冲突 |
@@ -260,7 +261,7 @@ SKILLHUB_BUILTIN_SKILLS_ENABLED=false
 - manifest JSON 格式合法。
 - 每个 item 都包含 `slug`、`version`、`url`。
 - URL 使用 `https://bjcdn.openstorage.cn/...` 或可信子域名。
-- zip 根目录包含 `SKILL.md`。
+- zip 根目录直接包含 `SKILL.md`，或只有一个顶层 Skill 目录且该目录包含 `SKILL.md`。
 - `SKILL.md name` 归一化后的 slug 与 manifest `slug` 一致。
 - `SKILL.md version` 与 manifest `version` 一致。
 - 启动日志没有该 item 的 warning 或 error。
