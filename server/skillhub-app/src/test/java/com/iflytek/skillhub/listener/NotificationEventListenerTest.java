@@ -145,6 +145,32 @@ class NotificationEventListenerTest {
     }
 
     @Test
+    void onPromotionApproved_shouldDispatchToSubmitterWhenReviewerIsSubmitter() throws Exception {
+        Skill skill = mockSkill(1L);
+        when(skillRepository.findById(1L)).thenReturn(Optional.of(skill));
+        mockNamespace();
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        listener.onPromotionApproved(new PromotionApprovedEvent(200L, 1L, "self-admin", "self-admin"));
+
+        verify(dispatcher).dispatch(eq("self-admin"), eq(NotificationCategory.PROMOTION),
+                eq("PROMOTION_APPROVED"), anyString(), anyString(), eq("SKILL"), eq(1L));
+    }
+
+    @Test
+    void onPromotionRejected_shouldDispatchToSubmitterWhenReviewerIsSubmitter() throws Exception {
+        Skill skill = mockSkill(1L);
+        when(skillRepository.findById(1L)).thenReturn(Optional.of(skill));
+        mockNamespace();
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        listener.onPromotionRejected(new PromotionRejectedEvent(200L, 1L, "self-admin", "self-admin", "not ready"));
+
+        verify(dispatcher).dispatch(eq("self-admin"), eq(NotificationCategory.PROMOTION),
+                eq("PROMOTION_REJECTED"), anyString(), anyString(), eq("SKILL"), eq(1L));
+    }
+
+    @Test
     void onReportResolved_shouldDispatchToReporter() throws Exception {
         Skill skill = mockSkill(1L);
         when(skillRepository.findById(1L)).thenReturn(Optional.of(skill));
