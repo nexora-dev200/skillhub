@@ -306,7 +306,7 @@ public class SkillDownloadService {
 
     /**
      * Asserts that the version can be downloaded.
-     * - PUBLISHED: anyone with skill access can download
+     * - PUBLISHED: must be installable before public download
      * - UPLOADED/PENDING_REVIEW: only skill owner or namespace admin can download
      */
     private void assertDownloadableVersion(Skill skill,
@@ -315,7 +315,9 @@ public class SkillDownloadService {
                                            Map<Long, NamespaceRole> userNsRoles) {
         switch (version.getStatus()) {
             case PUBLISHED -> {
-                // Anyone with skill access can download published versions
+                if (!SkillInstallability.isInstallableVersion(version)) {
+                    throw new DomainBadRequestException("error.skill.version.notDownloadable", version.getVersion());
+                }
             }
             case UPLOADED, PENDING_REVIEW -> {
                 if (!canManageSkillDraft(skill, currentUserId, userNsRoles)) {
