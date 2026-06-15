@@ -831,6 +831,31 @@ class SkillQueryServiceTest {
     }
 
     @Test
+    void testResolveVersion_ShouldRejectAnonymousPrivateAndNamespaceOnlyWhenRolesAreMissing() throws Exception {
+        Namespace namespace = new Namespace("global", "Global", "owner-1");
+        setId(namespace, 1L);
+
+        Skill privateSkill = new Skill(1L, "private", "owner-1", SkillVisibility.PRIVATE);
+        setId(privateSkill, 11L);
+        privateSkill.setStatus(SkillStatus.ACTIVE);
+        privateSkill.setLatestVersionId(101L);
+
+        Skill namespaceOnlySkill = new Skill(1L, "team-only", "owner-1", SkillVisibility.NAMESPACE_ONLY);
+        setId(namespaceOnlySkill, 12L);
+        namespaceOnlySkill.setStatus(SkillStatus.ACTIVE);
+        namespaceOnlySkill.setLatestVersionId(102L);
+
+        when(namespaceRepository.findBySlug("global")).thenReturn(Optional.of(namespace));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "private")).thenReturn(List.of(privateSkill));
+        when(skillRepository.findByNamespaceIdAndSlug(1L, "team-only")).thenReturn(List.of(namespaceOnlySkill));
+
+        assertThrows(DomainForbiddenException.class, () ->
+                service.resolveVersion("global", "private", null, null, null, null, null));
+        assertThrows(DomainForbiddenException.class, () ->
+                service.resolveVersion("global", "team-only", null, null, null, null, null));
+    }
+
+    @Test
     void testGetSkillDetail_ShouldFlagLifecyclePermissionForOwner() throws Exception {
         String namespaceSlug = "test-ns";
         String skillSlug = "test-skill";
