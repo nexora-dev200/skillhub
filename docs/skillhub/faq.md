@@ -122,7 +122,7 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --version v0.2.0
 ```
 
-> **注意**：升级前建议先备份数据库和对象存储。数据库迁移由 Flyway 自动执行。
+> **注意**：升级前建议先备份数据库和对象存储。数据库迁移由 Flyway 自动执行。升级不会清空数据库，已录入的技能包不会丢失。
 
 ## Q: 为什么管理员（admin）和普通用户都无法创建命名空间？
 
@@ -136,11 +136,62 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 
 A: 使用 OpenClaw CLI 命令行工具时，可以通过 `<namespace>--<skill-name>` 的格式来指定命名空间进行操作（例如搜索、安装）。如果在网页端搜索遇到问题，也可以尝试通过先导出技能、再导入到目标命名空间的方式来完成跨空间操作。
 
+## Q: 推荐的部署方式是什么？可以自己拉镜像手动部署吗？
+
+A: 推荐使用官方一键部署脚本，不建议自己拉取镜像手动部署（手动部署容易出现登录后跳回登录页等初始化问题）：
+
+```bash
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
+```
+
+脚本会执行一系列初始化操作，生成的运行时配置默认位于 `/tmp/skillhub-runtime/`（包含 `.env.release` 和 docker-compose 文件）。
+
+## Q: 部署后输入正确的账号密码，却又跳回登录页？
+
+A: 该现象多见于「手动部署」场景（接口异常或初始化未完成导致）。建议：
+
+1. 改用上面的一键脚本部署。
+2. 必要时清空 PostgreSQL 数据卷后重建再登录。
+3. 若前置了反向代理，检查代理配置是否正确转发。
+
+## Q: 如何修改 admin 密码？修改配置后不生效？
+
+A: 环境变量在容器启动时读取，修改后必须重启容器才会生效。
+
+1. 修改运行时目录下的 `/tmp/skillhub-runtime/.env.release`（参考仓库 [.env.release.example](https://github.com/iflytek/skillhub/blob/main/.env.release.example)）。
+2. 重启相关容器。
+3. 若此前密码已写入数据库导致仍不生效，可能需要清理对应数据后重新初始化。
+
+## Q: 修改 / 找回密码必须使用邮箱验证码吗？
+
+A: 是的，默认通过邮箱验证码修改或找回密码，因此需要先配置 SMTP。配置方法参考 [docs/19-smtp-password-reset-email-setup.md](https://github.com/iflytek/skillhub/blob/main/docs/19-smtp-password-reset-email-setup.md)。管理员也可在 `.env.release` 中进行重置。
+
+## Q: skill 可以起中文名吗？
+
+A: skill name 一般使用英文，目前不支持中文名（在 OpenClaw 中使用中文 skill 名会报错）。
+
+## Q: 未审核的 skill 可以下载吗？
+
+A: 只要拥有可查看的权限，一般都可以下载。
+
+## Q: 如何隐藏或删除登录页的 GitHub / GitLab SSO 登录方式？
+
+A: 修改 `application.yml`，注释或删除 `spring.security.oauth2.client.registration` 下的 `github` 和 `gitlab` 两块，并删除对应的 `provider` 段。Spring Boot 启动时便不会创建这两个注册，登录页也不会再显示对应入口。
+
+## Q: SkillHub 的安全扫描（Skill Scanner）是讯飞自研的吗？使用什么协议？
+
+A: SkillHub 内置安全扫描能力。其中扫描接入、任务编排、审计落库和部署集成由讯飞团队实现；底层扫描服务使用 Cisco 的 [cisco-ai-skill-scanner](https://github.com/cisco-ai-defense/skill-scanner)（Apache License 2.0，版权归 Cisco）。
+
+## Q: SkillHub 使用的 cisco-ai-skill-scanner 是哪个版本？
+
+A: `scanner/Dockerfile` 中直接执行 `pip install cisco-ai-skill-scanner`，未锁定版本，因此构建镜像时会拉取 PyPI 上的最新版本。如需固定版本，可在二次开发时自行锁定。
+
 ## Q: 遇到问题怎么办？
 
 A: 可以通过以下方式获取帮助：
 
 - **GitHub Issues**: https://github.com/iflytek/skillhub/issues
+- **在线文档**: https://www.astron-skillhub.org/
 - **文档**: 参考项目 README.md
 - **社区讨论**: https://github.com/iflytek/skillhub/discussions
 

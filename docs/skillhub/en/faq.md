@@ -122,7 +122,7 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --version v0.2.0
 ```
 
-> **Note**: It is recommended to back up the database and object storage before upgrading. Database migrations are handled automatically by Flyway.
+> **Note**: It is recommended to back up the database and object storage before upgrading. Database migrations are handled automatically by Flyway. Upgrading does not wipe the database, so already-registered skill packages will not be lost.
 
 ## Q: Why can't administrators (admin) and regular users create namespaces?
 
@@ -136,11 +136,62 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 
 A: When using the OpenClaw CLI, you can specify the namespace using the `<namespace>--<skill-name>` format for operations like search or installation. If you encounter issues finding it on the web interface, you can also manage it by exporting the skill package and importing it into your target namespace.
 
+## Q: What is the recommended deployment method? Can I pull the images and deploy manually?
+
+A: We recommend the official one-line deployment script. Pulling images and deploying manually is not recommended (manual deployment is prone to initialization issues such as being redirected back to the login page after logging in):
+
+```bash
+curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
+```
+
+The script performs a series of initialization steps. The generated runtime configuration is located at `/tmp/skillhub-runtime/` by default (containing `.env.release` and the docker-compose file).
+
+## Q: After deployment, I enter the correct username and password but get redirected back to the login page?
+
+A: This is most commonly seen with **manual deployment** (caused by API errors or incomplete initialization). Suggestions:
+
+1. Switch to the one-line script above for deployment.
+2. If necessary, clear and recreate the PostgreSQL data volume, then log in again.
+3. If a reverse proxy is in front, verify that it forwards requests correctly.
+
+## Q: How do I change the admin password? Why don't my config changes take effect?
+
+A: Environment variables are read at container startup, so you must restart the containers after changing them.
+
+1. Edit `/tmp/skillhub-runtime/.env.release` in the runtime directory (refer to [.env.release.example](https://github.com/iflytek/skillhub/blob/main/.env.release.example)).
+2. Restart the relevant containers.
+3. If the password was already persisted to the database and the change still doesn't take effect, you may need to clear the corresponding data and re-initialize.
+
+## Q: Is an email verification code required to change / reset a password?
+
+A: Yes. By default, passwords are changed or reset via an email verification code, so SMTP must be configured first. See [docs/19-smtp-password-reset-email-setup.md](https://github.com/iflytek/skillhub/blob/main/docs/19-smtp-password-reset-email-setup.md). Administrators can also reset it via `.env.release`.
+
+## Q: Can a skill have a Chinese name?
+
+A: Skill names are generally in English; Chinese names are not currently supported (using a Chinese skill name in OpenClaw will cause an error).
+
+## Q: Can unreviewed skills be downloaded?
+
+A: As long as you have permission to view it, it can generally be downloaded.
+
+## Q: How do I hide or remove the GitHub / GitLab SSO login options on the login page?
+
+A: Edit `application.yml` and comment out or delete the `github` and `gitlab` blocks under `spring.security.oauth2.client.registration`, along with their corresponding `provider` sections. Spring Boot then won't create these registrations at startup, and the login page won't show those entries.
+
+## Q: Is SkillHub's security scanning (Skill Scanner) developed in-house by iFLYTEK? What license does it use?
+
+A: SkillHub has built-in security scanning. The scanner integration, task orchestration, audit persistence, and deployment integration are implemented by the iFLYTEK team; the underlying scanning service uses Cisco's [cisco-ai-skill-scanner](https://github.com/cisco-ai-defense/skill-scanner) (Apache License 2.0, copyright Cisco).
+
+## Q: Which version of cisco-ai-skill-scanner does SkillHub use?
+
+A: `scanner/Dockerfile` runs `pip install cisco-ai-skill-scanner` directly without pinning a version, so the latest version on PyPI is pulled when the image is built. To pin a version, do so yourself when customizing the build.
+
 ## Q: What should I do if I encounter issues?
 
 A: You can get help through the following channels:
 
 - **GitHub Issues**: https://github.com/iflytek/skillhub/issues
+- **Online Docs**: https://www.astron-skillhub.org/
 - **Documentation**: Refer to the project README.md
 - **Community Discussions**: https://github.com/iflytek/skillhub/discussions
 
