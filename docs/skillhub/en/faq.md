@@ -191,7 +191,7 @@ A: `scanner/Dockerfile` runs `pip install cisco-ai-skill-scanner` directly witho
 A: You can get help through the following channels:
 
 - **GitHub Issues**: https://github.com/iflytek/skillhub/issues
-- **Online Docs**: https://www.astron-skillhub.org/
+- **Online Docs**: https://iflytek.github.io/skillhub/
 - **Documentation**: Refer to the project README.md
 - **Community Discussions**: https://github.com/iflytek/skillhub/discussions
 
