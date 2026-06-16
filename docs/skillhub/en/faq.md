@@ -186,6 +186,66 @@ A: SkillHub has built-in security scanning. The scanner integration, task orches
 
 A: `scanner/Dockerfile` runs `pip install cisco-ai-skill-scanner` directly without pinning a version, so the latest version on PyPI is pulled when the image is built. To pin a version, do so yourself when customizing the build.
 
+## Q: How do I troubleshoot a `registry returned 400` error from `skillhub publish` (CLI)?
+
+A: A 400 usually means backend validation failed. Common causes:
+
+- `SKILL.md` is not in the package root directory;
+- `SKILL.md` frontmatter is missing `name` / `description` or is malformed;
+- name or version conflict (e.g. `error.skill.publish.nameConflict`, meaning a skill with the same name is already published in that namespace) — change `name` in `SKILL.md`, use another namespace, or have an admin handle the existing skill;
+- the namespace does not exist, or you are not a member of it;
+- the package contains suspected tokens/secrets that the CLI cannot confirm skipping;
+- file type / size / path is not allowed.
+
+You can inspect the server logs to locate the cause:
+
+```bash
+docker logs --tail=300 <skillhub-server container> 2>&1 | grep -Ei 'publish|SKILL.md|namespace|400|BadRequest'
+```
+
+## Q: What directory structure does a skill package require?
+
+A: The package root directory must contain a `SKILL.md` file, whose frontmatter must include fields such as `name` and `description`.
+
+## Q: Publishing fails with "package validation failed / malformed input" — what do I do?
+
+A: This error occurs while unzipping and reading file names, usually because the archive is not UTF-8 encoded (e.g. created with the built-in Windows compression tool) or contains Chinese/non-ASCII paths. Repackage using UTF-8 encoding and avoid Chinese / special-character paths.
+
+## Q: How many files can a skill package contain? What if I hit the file-count limit?
+
+A: The default limit is **100 files** (this is separate from the 100MB size limit). To raise it, change the `skillhub.publish.max-file-count` setting, or override it via an environment variable at deploy time:
+
+```bash
+SKILLHUB_PUBLISH_MAX_FILE_COUNT=500
+```
+
+Restart the containers for the change to take effect. Note that `compose.release.yml` must also reference this variable; older versions (e.g. v0.2.6) may hard-code the value, so upgrading to the latest version is recommended.
+
+## Q: Is there a server version requirement for using the CLI (publish / download, etc.)?
+
+A: A SkillHub server image of **v0.2.7 or later** is required for CLI features.
+
+## Q: Does SkillHub support MySQL?
+
+A: Currently only PostgreSQL is supported; MySQL is not supported.
+
+## Q: Can SkillHub be used to distribute Plugins?
+
+A: Not supported for now.
+
+## Q: How do I check the SkillHub version? How do I customize it (e.g. change the logo)?
+
+A:
+
+- Check the server image version:
+
+```bash
+docker image inspect ghcr.io/iflytek/skillhub-server:latest --format '{{index .Config.Labels "org.opencontainers.image.version"}}'
+```
+
+- Check the CLI version: `skillhub version`.
+- For customization (e.g. changing the logo), it is recommended to fork the latest code, modify it, and build your own Docker image.
+
 ## Q: What should I do if I encounter issues?
 
 A: You can get help through the following channels:
