@@ -79,6 +79,29 @@ class RequestLoggingFilterTest {
     }
 
     @Test
+    void doFilterInternal_skipsSseEndpointsWithoutWrappingResponse()
+            throws ServletException, IOException {
+        RequestLoggingFilter filter = new RequestLoggingFilter();
+        attachAppender();
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/web/notifications/sse");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        FilterChain filterChain = (req, res) -> {
+            assertThat(res).isSameAs(response);
+            res.setContentType("text/event-stream");
+            res.getWriter().write("event:connected\n");
+            res.getWriter().flush();
+        };
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getHeader("Content-Length")).isNull();
+        assertThat(response.getContentAsString()).isEqualTo("event:connected\n");
+        assertThat(loggedMessages()).noneMatch(message -> message.contains("/api/web/notifications/sse"));
+    }
+
+    @Test
     void doFilterInternal_logsCoreSummaryFields()
             throws ServletException, IOException {
         RequestLoggingFilter filter = new RequestLoggingFilter();

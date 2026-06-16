@@ -80,12 +80,13 @@ paths:
   /notifications/sse:
     get:
       summary: Open notification SSE stream for the current user
+      description: Keeps a long-lived `text/event-stream` connection open. The server first sends a `connected` event, later sends `notification` events with NotificationSsePayload bodies, and may send heartbeat comments to keep the connection alive.
       operationId: streamNotifications
       security:
         - sessionAuth: []
       responses:
         "200":
-          description: SSE stream. Each `notification` event carries NotificationSsePayload.
+          description: Long-lived SSE stream. Each `notification` event carries NotificationSsePayload.
           content:
             text/event-stream:
               schema:

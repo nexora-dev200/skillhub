@@ -9717,7 +9717,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };
@@ -9737,7 +9737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };

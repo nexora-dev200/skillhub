@@ -16,6 +16,7 @@ import jakarta.validation.constraints.Min;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -78,7 +79,7 @@ public class NotificationController extends BaseApiController {
         return ok("response.success.deleted", null);
     }
 
-    @GetMapping("/sse")
+    @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter sse(@RequestAttribute("userId") String userId) {
         return sseEmitterManager.register(userId);
     }
