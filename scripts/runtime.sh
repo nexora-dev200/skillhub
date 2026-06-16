@@ -159,13 +159,34 @@ set_env_value() {
   fi
 
   tmp="$ENV_FILE.tmp"
-  if grep -q "^$key=" "$ENV_FILE"; then
-    sed "s|^$key=.*|$key=$value|" "$ENV_FILE" >"$tmp"
-  else
-    cat "$ENV_FILE" >"$tmp"
-    printf '%s=%s\n' "$key" "$value" >>"$tmp"
-  fi
+  found=false
+  old_umask="$(umask)"
+  umask 077
+  {
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        "$key="*)
+          printf '%s=%s\n' "$key" "$value"
+          found=true
+          ;;
+        *)
+          printf '%s\n' "$line"
+          ;;
+      esac
+    done <"$ENV_FILE"
+    if [ "$found" = "false" ]; then
+      printf '%s=%s\n' "$key" "$value"
+    fi
+  } >"$tmp"
+  umask "$old_umask"
   mv "$tmp" "$ENV_FILE"
+  secure_env_file
+}
+
+secure_env_file() {
+  if [ -f "$ENV_FILE" ]; then
+    chmod 600 "$ENV_FILE"
+  fi
 }
 
 get_env_value() {
@@ -235,6 +256,23 @@ wait_for_postgres_ready() {
   exit 1
 }
 
+wait_for_redis_ready() {
+  attempt=1
+
+  while [ "$attempt" -le 60 ]; do
+    if run_compose exec -T redis redis-cli ping >/dev/null 2>&1; then
+      return 0
+    fi
+
+    attempt=$((attempt + 1))
+    sleep 2
+  done
+
+  echo "Redis did not become ready in time." >&2
+  run_compose logs redis >&2 || true
+  exit 1
+}
+
 ensure_postgres_password_matches_env() {
   postgres_user="$(get_env_value "POSTGRES_USER" "skillhub")"
   postgres_db="$(get_env_value "POSTGRES_DB" "skillhub")"
@@ -267,8 +305,12 @@ prepare_runtime_files() {
   download_file "$SKILLHUB_RAW_BASE/.env.release.example" "$ENV_EXAMPLE_FILE"
 
   if [ ! -f "$ENV_FILE" ]; then
+    old_umask="$(umask)"
+    umask 077
     cp "$ENV_EXAMPLE_FILE" "$ENV_FILE"
+    umask "$old_umask"
   fi
+  secure_env_file
 
   if [ -n "$SKILLHUB_MIRROR_REGISTRY_VALUE" ]; then
     mirror_registry="${SKILLHUB_MIRROR_REGISTRY_VALUE%/}"
@@ -317,6 +359,10 @@ prepare_runtime_files() {
     set_env_value "SKILLHUB_PUBLIC_BASE_URL" "$SKILLHUB_PUBLIC_BASE_URL_VALUE"
   fi
 
+  if [ "$DISABLE_SCANNER" = "true" ]; then
+    set_env_value "SKILLHUB_SECURITY_SCANNER_ENABLED" "false"
+  fi
+
   ensure_anonymous_download_secret
 }
 
@@ -333,7 +379,9 @@ case "$COMMAND" in
     run_compose up -d postgres
     ensure_postgres_password_matches_env
     if [ "$DISABLE_SCANNER" = "true" ]; then
-      SKILLHUB_SECURITY_SCANNER_ENABLED=false run_compose up -d --scale skill-scanner=0
+      run_compose up -d redis
+      wait_for_redis_ready
+      SKILLHUB_SECURITY_SCANNER_ENABLED=false run_compose up -d --no-deps --scale skill-scanner=0 server web
     else
       run_compose up -d
     fi

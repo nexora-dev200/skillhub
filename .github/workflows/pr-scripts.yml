@@ -4,7 +4,13 @@ on:
   pull_request:
     paths:
       - 'scripts/**'
+      - '.env.release.example'
+      - '.env.release.draft'
+      - 'compose.release.yml'
       - 'Makefile'
+      - '.github/workflows/pr-cli.yml'
+      - '.github/workflows/pr-e2e.yml'
+      - '.github/workflows/pr-tests.yml'
       - '.github/workflows/security.yml'
       - '.github/workflows/pr-scripts.yml'
 

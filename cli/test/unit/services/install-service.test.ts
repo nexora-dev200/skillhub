@@ -132,6 +132,46 @@ describe('installSkill', () => {
     expect(inventory.items[0].targets[0].installDir).toBe(skillDir)
   })
 
+  test('force keeps old installation and inventory when replacement extraction fails', async () => {
+    globalThis.fetch = installFetchWithDownloadResponse(new Response(new TextEncoder().encode('not a zip'), { status: 200 }))
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-install-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-install-root-'))
+    const skillDir = join(rootDir, 'demo')
+    await mkdir(skillDir, { recursive: true })
+    await writeFile(join(skillDir, 'SKILL.md'), '# Old')
+    const inventoryPath = join(home, '.skillhub', 'inventory.json')
+    await mkdir(join(home, '.skillhub'), { recursive: true })
+    await writeFile(inventoryPath, JSON.stringify({
+      items: [{
+        registry: 'http://registry.test',
+        namespace: 'global',
+        slug: 'demo',
+        version: '0.1.0',
+        targets: [{
+          agent: 'codex',
+          rootDir,
+          installDir: skillDir,
+          installedAt: '2026-04-20T00:00:00.000Z'
+        }]
+      }]
+    }, null, 2))
+
+    await expect(installSkill({
+      registry: 'http://registry.test',
+      namespace: 'global',
+      slug: 'demo',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: true,
+      home
+    })).rejects.toThrow('invalid zip central directory')
+
+    expect(await readFile(join(skillDir, 'SKILL.md'), 'utf-8')).toBe('# Old')
+    const inventory = JSON.parse(await readFile(inventoryPath, 'utf-8'))
+    expect(inventory.items).toHaveLength(1)
+    expect(inventory.items[0]).toMatchObject({ namespace: 'global', slug: 'demo', version: '0.1.0' })
+    expect(inventory.items[0].targets[0].installDir).toBe(skillDir)
+  })
+
   test('rejects downloads whose content-length exceeds the package limit', async () => {
     globalThis.fetch = installFetchWithDownloadResponse(new Response(new Uint8Array(0), {
       status: 200,
