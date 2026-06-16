@@ -100,6 +100,21 @@ class NotificationEventListenerTest {
     }
 
     @Test
+    void onProfileReviewSubmitted_shouldDispatchToPlatformUserAdmins() throws Exception {
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(recipientResolver.resolvePlatformUserAdmins())
+                .thenReturn(List.of("user-admin-1", "super-admin-1", "user-admin-1"));
+
+        listener.onProfileReviewSubmitted(
+                new ProfileReviewSubmittedEvent(77L, "submitter-1", List.of("displayName")));
+
+        verify(dispatcher, times(2)).dispatch(anyString(), eq(NotificationCategory.REVIEW),
+                eq("PROFILE_REVIEW_SUBMITTED"), anyString(), anyString(), eq("PROFILE_REVIEW"), eq(77L));
+        verify(dispatcher).dispatch(eq("user-admin-1"), any(), any(), any(), any(), any(), any());
+        verify(dispatcher).dispatch(eq("super-admin-1"), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void onReviewApproved_shouldDispatchToSubmitter() throws Exception {
         Skill skill = mockSkill(1L);
         when(skillRepository.findById(1L)).thenReturn(Optional.of(skill));

@@ -129,6 +129,22 @@ public class NotificationEventListener {
 
     @Async("skillhubEventExecutor")
     @TransactionalEventListener
+    public void onProfileReviewSubmitted(ProfileReviewSubmittedEvent event) {
+        String title = "Profile review submitted";
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("profileReviewId", event.profileReviewId());
+        body.put("submitterId", event.submitterId());
+        body.put("fields", event.fields());
+        String json = toJson(body);
+        List<String> admins = recipientResolver.resolvePlatformUserAdmins();
+        for (String admin : admins.stream().distinct().toList()) {
+            dispatcher.dispatch(admin, NotificationCategory.REVIEW,
+                    "PROFILE_REVIEW_SUBMITTED", title, json, "PROFILE_REVIEW", event.profileReviewId());
+        }
+    }
+
+    @Async("skillhubEventExecutor")
+    @TransactionalEventListener
     public void onReviewApproved(ReviewApprovedEvent event) {
         skillRepository.findById(event.skillId()).ifPresent(skill -> {
             String title = "Review approved: " + skillDisplayName(skill);

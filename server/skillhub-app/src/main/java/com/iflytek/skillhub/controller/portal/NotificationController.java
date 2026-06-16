@@ -113,6 +113,9 @@ public class NotificationController extends BaseApiController {
         if ("REVIEW_SUBMITTED".equals(eventType) && entityId != null) {
             return new NotificationTarget("REVIEW", entityId, "/dashboard/reviews/" + entityId);
         }
+        if ("PROFILE_REVIEW_SUBMITTED".equals(eventType) && entityId != null) {
+            return new NotificationTarget("PROFILE_REVIEW", entityId, "/dashboard/reviews?type=profile");
+        }
         if ("PROMOTION_SUBMITTED".equals(eventType)) {
             return new NotificationTarget("PROMOTION", entityId, "/dashboard/promotions");
         }
