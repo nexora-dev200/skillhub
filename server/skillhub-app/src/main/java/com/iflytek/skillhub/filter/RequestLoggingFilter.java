@@ -30,6 +30,9 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private static final Set<String> SKIP_PREFIXES = Set.of(
             "/actuator", "/favicon.ico", "/assets/"
     );
+    private static final Set<String> SKIP_SUFFIXES = Set.of(
+            "/sse"
+    );
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -86,6 +89,11 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private boolean shouldSkip(String uri) {
         for (String prefix : SKIP_PREFIXES) {
             if (uri.startsWith(prefix)) {
+                return true;
+            }
+        }
+        for (String suffix : SKIP_SUFFIXES) {
+            if (uri.endsWith(suffix)) {
                 return true;
             }
         }

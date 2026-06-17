@@ -9717,7 +9717,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };
@@ -9737,7 +9737,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };
@@ -9938,6 +9938,8 @@ export interface operations {
                 page?: number;
                 size?: number;
                 filter?: string;
+                q?: string;
+                namespace?: string;
             };
             header?: never;
             path?: never;
@@ -9962,6 +9964,8 @@ export interface operations {
                 page?: number;
                 size?: number;
                 filter?: string;
+                q?: string;
+                namespace?: string;
             };
             header?: never;
             path?: never;
