@@ -13,6 +13,7 @@ on:
       - '.github/workflows/pr-tests.yml'
       - '.github/workflows/security.yml'
       - '.github/workflows/pr-scripts.yml'
+      - '**/*.py'
 
 permissions:
   contents: read

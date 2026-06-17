@@ -50,8 +50,6 @@ jobs:
             build-mode: manual
           - language: javascript-typescript
             build-mode: none
-          - language: python
-            build-mode: none
 
     steps:
       - name: Check out repository
