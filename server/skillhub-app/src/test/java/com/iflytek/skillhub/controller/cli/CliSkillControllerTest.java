@@ -22,8 +22,6 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,7 +31,6 @@ import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,7 +40,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.BDDMockito.given;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -204,13 +200,12 @@ class CliSkillControllerTest {
 
     @Test
     void deleteReturnsCliDeleteResponse() throws Exception {
-        PlatformPrincipal principal = new PlatformPrincipal(
-                "user-1", "tester", "t@example.com", "", "api_token", Set.of("USER"));
-        var auth = new UsernamePasswordAuthenticationToken(
-                principal, null, List.of(
-                        new SimpleGrantedAuthority("ROLE_USER"),
-                        new SimpleGrantedAuthority("SCOPE_skill:delete")));
+        ApiToken token = new ApiToken("user-1", "cli", "sk_test", "hash", "[\"skill:delete\"]");
+        UserAccount user = new UserAccount("user-1", "tester", "t@example.com", "");
 
+        given(apiTokenService.validateToken("test-token")).willReturn(Optional.of(token));
+        given(userAccountRepository.findById("user-1")).willReturn(Optional.of(user));
+        given(userRoleBindingRepository.findByUserId("user-1")).willReturn(List.of());
         given(cliSkillAppService.deleteRemote(
                 org.mockito.ArgumentMatchers.eq("global"),
                 org.mockito.ArgumentMatchers.eq("demo"),
@@ -222,8 +217,7 @@ class CliSkillControllerTest {
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                         .delete("/api/cli/v1/skills/global/demo")
-                        .header("Authorization", "Bearer test-token")
-                        .with(authentication(auth)))
+                        .header("Authorization", "Bearer test-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.ok").value(true))
                 .andExpect(jsonPath("$.data.namespace").value("global"))
