@@ -75,7 +75,8 @@ public class PromotionPortalAppService {
                 comment,
                 platformRoles(userId)
         );
-        recordAudit("PROMOTION_APPROVE", userId, promotion.getId(), auditContext, detailWithComment(comment));
+        recordAudit("PROMOTION_APPROVE", userId, promotion.getId(), auditContext,
+                detailWithComment(comment, promotion.getSubmittedBy().equals(userId)));
         return governanceQueryRepository.getPromotionResponse(promotion);
     }
 
@@ -89,7 +90,8 @@ public class PromotionPortalAppService {
                 comment,
                 platformRoles(userId)
         );
-        recordAudit("PROMOTION_REJECT", userId, promotion.getId(), auditContext, detailWithComment(comment));
+        recordAudit("PROMOTION_REJECT", userId, promotion.getId(), auditContext,
+                detailWithComment(comment, promotion.getSubmittedBy().equals(userId)));
         return governanceQueryRepository.getPromotionResponse(promotion);
     }
 
@@ -159,10 +161,26 @@ public class PromotionPortalAppService {
         );
     }
 
-    private String detailWithComment(String comment) {
-        if (comment == null || comment.isBlank()) {
+    private String detailWithComment(String comment, boolean selfReview) {
+        boolean hasComment = comment != null && !comment.isBlank();
+        if (!hasComment && !selfReview) {
             return null;
         }
-        return "{\"comment\":\"" + comment.replace("\"", "\\\"") + "\"}";
+        StringBuilder detail = new StringBuilder("{");
+        if (hasComment) {
+            detail.append("\"comment\":\"").append(escapeJson(comment)).append("\"");
+        }
+        if (selfReview) {
+            if (hasComment) {
+                detail.append(",");
+            }
+            detail.append("\"selfReview\":true");
+        }
+        detail.append("}");
+        return detail.toString();
+    }
+
+    private String escapeJson(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

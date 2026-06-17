@@ -38,6 +38,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -53,6 +56,8 @@ class PromotionApprovalFlowIntegrationTest {
 
     private static final String SUBMITTER_ID = "promotion-owner";
     private static final String REVIEWER_ID = "docker-admin";
+    private static final String SELF_SUPER_ADMIN_ID = "self-super-admin";
+    private static final String SELF_SKILL_ADMIN_ID = "self-skill-admin";
 
     @Autowired
     private MockMvc mockMvc;
@@ -127,31 +132,86 @@ class PromotionApprovalFlowIntegrationTest {
         assertThat(targetVersions.get(0).getStatus()).isEqualTo(SkillVersionStatus.PUBLISHED);
     }
 
+    @Test
+    void approvePromotion_allowsSuperAdminToApproveOwnPromotionThroughV1Route() throws Exception {
+        when(rbacService.getUserRoleCodes(SELF_SUPER_ADMIN_ID)).thenReturn(Set.of("SUPER_ADMIN"));
+        PromotionGraph graph = createPromotionGraph(SELF_SUPER_ADMIN_ID);
+
+        mockMvc.perform(post("/api/v1/promotions/" + graph.request().getId() + "/approve")
+                        .contentType("application/json")
+                        .content("{\"comment\":\"self approve\"}")
+                        .with(authentication(portalAuth(SELF_SUPER_ADMIN_ID, "SUPER_ADMIN")))
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.id").value(graph.request().getId()))
+                .andExpect(jsonPath("$.data.status").value("APPROVED"))
+                .andExpect(jsonPath("$.data.reviewedBy").value(SELF_SUPER_ADMIN_ID))
+                .andExpect(jsonPath("$.data.submittedBy").value(SELF_SUPER_ADMIN_ID));
+
+        PromotionRequest savedRequest = promotionRequestRepository.findAllById(List.of(graph.request().getId()))
+                .stream()
+                .findFirst()
+                .orElseThrow();
+        assertThat(savedRequest.getStatus()).isEqualTo(ReviewTaskStatus.APPROVED);
+        assertThat(savedRequest.getReviewedBy()).isEqualTo(SELF_SUPER_ADMIN_ID);
+        assertThat(savedRequest.getTargetSkillId()).isNotNull();
+        verify(governanceNotificationService).notifyUser(
+                eq(SELF_SUPER_ADMIN_ID),
+                eq("PROMOTION"),
+                eq("PROMOTION_REQUEST"),
+                eq(graph.request().getId()),
+                eq("Promotion approved"),
+                any()
+        );
+    }
+
+    @Test
+    void approvePromotion_rejectsSkillAdminSelfApprovalThroughWebRoute() throws Exception {
+        when(rbacService.getUserRoleCodes(SELF_SKILL_ADMIN_ID)).thenReturn(Set.of("SKILL_ADMIN"));
+        PromotionGraph graph = createPromotionGraph(SELF_SKILL_ADMIN_ID);
+
+        mockMvc.perform(post("/api/web/promotions/" + graph.request().getId() + "/approve")
+                        .contentType("application/json")
+                        .content("{\"comment\":\"self approve\"}")
+                        .with(authentication(portalAuth(SELF_SKILL_ADMIN_ID, "SKILL_ADMIN")))
+                        .with(csrf()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        PromotionRequest savedRequest = promotionRequestRepository.findAllById(List.of(graph.request().getId()))
+                .stream()
+                .findFirst()
+                .orElseThrow();
+        assertThat(savedRequest.getStatus()).isEqualTo(ReviewTaskStatus.PENDING);
+        assertThat(savedRequest.getTargetSkillId()).isNull();
+    }
+
     private PromotionGraph createPromotionGraph() {
+        return createPromotionGraph(SUBMITTER_ID);
+    }
+
+    private PromotionGraph createPromotionGraph(String submitterId) {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
 
-        userAccountRepository.saveAndFlush(
-                new UserAccount(SUBMITTER_ID, "Promotion Owner", "owner-" + suffix + "@example.com", null)
-        );
-        userAccountRepository.saveAndFlush(
-                new UserAccount(REVIEWER_ID, "Admin", "admin-" + suffix + "@example.com", null)
-        );
+        saveUserIfAbsent(submitterId, "Promotion Owner", "owner-" + suffix + "@example.com");
+        saveUserIfAbsent(REVIEWER_ID, "Admin", "admin-" + suffix + "@example.com");
 
         Namespace globalNamespace = new Namespace("global-" + suffix, "Global " + suffix, REVIEWER_ID);
         globalNamespace.setType(NamespaceType.GLOBAL);
         globalNamespace = namespaceRepository.saveAndFlush(globalNamespace);
 
-        Namespace teamNamespace = new Namespace("team-" + suffix, "Team " + suffix, SUBMITTER_ID);
+        Namespace teamNamespace = new Namespace("team-" + suffix, "Team " + suffix, submitterId);
         teamNamespace = namespaceRepository.saveAndFlush(teamNamespace);
 
-        Skill sourceSkill = new Skill(teamNamespace.getId(), "promote-skill-" + suffix, SUBMITTER_ID, SkillVisibility.PUBLIC);
+        Skill sourceSkill = new Skill(teamNamespace.getId(), "promote-skill-" + suffix, submitterId, SkillVisibility.PUBLIC);
         sourceSkill.setDisplayName("Promote Skill " + suffix);
         sourceSkill.setSummary("Used to verify promotion approval flow.");
-        sourceSkill.setCreatedBy(SUBMITTER_ID);
-        sourceSkill.setUpdatedBy(SUBMITTER_ID);
+        sourceSkill.setCreatedBy(submitterId);
+        sourceSkill.setUpdatedBy(submitterId);
         sourceSkill = skillRepository.saveAndFlush(sourceSkill);
 
-        SkillVersion sourceVersion = new SkillVersion(sourceSkill.getId(), "1.0.0", SUBMITTER_ID);
+        SkillVersion sourceVersion = new SkillVersion(sourceSkill.getId(), "1.0.0", submitterId);
         sourceVersion.setStatus(SkillVersionStatus.PUBLISHED);
         sourceVersion.setPublishedAt(Instant.now());
         sourceVersion.setRequestedVisibility(SkillVisibility.PUBLIC);
@@ -160,14 +220,20 @@ class PromotionApprovalFlowIntegrationTest {
         sourceVersion = skillVersionRepository.saveAndFlush(sourceVersion);
 
         sourceSkill.setLatestVersionId(sourceVersion.getId());
-        sourceSkill.setUpdatedBy(SUBMITTER_ID);
+        sourceSkill.setUpdatedBy(submitterId);
         sourceSkill = skillRepository.saveAndFlush(sourceSkill);
 
         PromotionRequest request = promotionRequestRepository.saveAndFlush(
-                new PromotionRequest(sourceSkill.getId(), sourceVersion.getId(), globalNamespace.getId(), SUBMITTER_ID)
+                new PromotionRequest(sourceSkill.getId(), sourceVersion.getId(), globalNamespace.getId(), submitterId)
         );
 
         return new PromotionGraph(globalNamespace, sourceSkill, sourceVersion, request);
+    }
+
+    private void saveUserIfAbsent(String userId, String displayName, String email) {
+        if (!userAccountRepository.existsById(userId)) {
+            userAccountRepository.saveAndFlush(new UserAccount(userId, displayName, email, null));
+        }
     }
 
     private UsernamePasswordAuthenticationToken portalAuth(String userId, String... roles) {
