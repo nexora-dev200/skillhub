@@ -605,8 +605,8 @@ window.location.href = '/oauth2/authorization/github'
 | `GET /api/v1/skills`（搜索） | 仅 `PUBLIC`，且仅搜索 `ACTIVE`、非 hidden、已索引 skill | `PUBLIC + NAMESPACE_ONLY（成员空间）+ PRIVATE（owner/admin）` | `SearchVisibilityScope` + 搜索索引状态 |
 | `GET /api/v1/skills/{ns}/{slug}` | 仅已发布且可见的 `PUBLIC` skill | 同左，另加 owner 可读未发布 skill、namespace `ADMIN` / `OWNER` 可读 hidden | `visibility + latest_version_id + hidden + namespace 成员关系` |
 | `GET /api/v1/skills/{ns}/{slug}/versions` | 仅 `PUBLISHED` 版本 | owner / namespace `ADMIN` / `OWNER` 可见全部五种状态 | 同上 + version status 过滤 |
-| `GET /api/v1/skills/{ns}/{slug}/download` | 仅全局 namespace 下的 `PUBLIC` skill 支持匿名下载 | 已登录后按 visibility 判定；下载目标版本必须是 `PUBLISHED` | visibility + namespace type + version status |
-| `GET /api/v1/skills/{ns}/{slug}/resolve` | 仅全局 namespace 下的 `PUBLIC` skill 可匿名 | 同上 | visibility + namespace type + version status |
+| `GET /api/v1/skills/{ns}/{slug}/download` | 仅 `PUBLIC`、`ACTIVE`、非 hidden、命名空间未归档且目标版本可安装的 skill 支持匿名下载 | 已登录后按 visibility 判定；下载目标版本必须可安装 | visibility + namespace status + `SkillInstallability` |
+| `GET /api/v1/skills/{ns}/{slug}/resolve` | 仅 `PUBLIC`、`ACTIVE`、非 hidden、命名空间未归档且目标版本可安装的 skill 可匿名 | 同上 | visibility + namespace status + `SkillInstallability` |
 | `GET /api/v1/namespaces` | 全部 | 全部 | 无限制 |
 
 ### 10.2 Authenticated API
@@ -655,6 +655,6 @@ window.location.href = '/oauth2/authorization/github'
 |------|---------|---------|
 | `GET /api/v1/whoami` | 任意有效 Bearer Token | 无 |
 | `GET /api/v1/search` | 可选（匿名限 PUBLIC） | `SearchVisibilityScope` |
-| `GET /api/v1/resolve` | 可选（匿名仅限全局 namespace 下的 PUBLIC） | visibility + namespace type + version status |
-| `GET /api/v1/download/{slug}/{version}` | 可选（匿名仅限全局 namespace 下的 PUBLIC） | visibility + namespace type + version status |
+| `GET /api/v1/resolve` | 可选（匿名仅限 `PUBLIC`、`ACTIVE`、非 hidden、命名空间未归档且目标版本可安装） | visibility + namespace status + `SkillInstallability` |
+| `GET /api/v1/download/{slug}/{version}` | 可选（匿名仅限 `PUBLIC`、`ACTIVE`、非 hidden、命名空间未归档且目标版本可安装） | visibility + namespace status + `SkillInstallability` |
 | `POST /api/v1/publish` | Bearer Token + `skill:publish` | 普通用户要求目标 namespace 成员；`SUPER_ADMIN` 可绕过（namespace 由 canonical slug 解析） |

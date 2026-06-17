@@ -51,12 +51,11 @@ public class CliSkillAppService {
     public record CliSearchResult(List<CliSearchItem> items, long total, int limit) {}
 
     public CliSearchResult search(String q, int limit, String userId, Map<Long, NamespaceRole> userNsRoles) {
-        SkillSearchAppService.SearchResponse response = skillSearchAppService.search(
+        SkillSearchAppService.SearchResponse response = skillSearchAppService.searchInstallableLatest(
                 q, null, "newest", 0, limit, userId, userNsRoles
         );
 
         List<CliSearchItem> items = response.items().stream()
-                .filter(item -> item.publishedVersion() != null)
                 .map(item -> new CliSearchItem(
                         item.namespace(),
                         item.slug(),
@@ -65,7 +64,7 @@ public class CliSkillAppService {
                 ))
                 .toList();
 
-        return new CliSearchResult(items, items.size(), limit);
+        return new CliSearchResult(items, response.total(), limit);
     }
 
     public CliResolveResponse resolve(String namespace, String slug, String version, String userId, Map<Long, NamespaceRole> userNsRoles) {
