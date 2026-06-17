@@ -37,6 +37,17 @@ grep -Fq 'cd server && ./mvnw -q -DskipTests package' "$SECURITY_WORKFLOW" \
 grep -Fq 'security-events: write' "$SECURITY_WORKFLOW" \
   || fail "security workflow must grant SARIF upload permission"
 
+python_source="$(find "$REPO_ROOT" \
+  \( -path "$REPO_ROOT/.git" -o -path '*/node_modules' -o -path '*/.venv' \) -prune -o \
+  -type f -name '*.py' -print -quit)"
+if [[ -n "$python_source" ]]; then
+  grep -Fq 'language: python' "$SECURITY_WORKFLOW" \
+    || fail "security workflow must run Python CodeQL when Python source exists"
+else
+  ! grep -Fq 'language: python' "$SECURITY_WORKFLOW" \
+    || fail "security workflow must not run Python CodeQL without Python source"
+fi
+
 grep -Fq '.github/workflows/security.yml' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when security workflow changes"
 grep -Fq '.github/workflows/pr-cli.yml' "$PR_SCRIPTS_WORKFLOW" \
@@ -45,6 +56,8 @@ grep -Fq '.github/workflows/pr-e2e.yml' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when PR E2E workflow changes"
 grep -Fq '.github/workflows/pr-tests.yml' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when PR Tests workflow changes"
+grep -Fq "'**/*.py'" "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run when Python source changes"
 grep -Fq '.env.release.example' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when release env example changes"
 grep -Fq '.env.release.draft' "$PR_SCRIPTS_WORKFLOW" \
