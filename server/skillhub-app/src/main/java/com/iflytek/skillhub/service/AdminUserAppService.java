@@ -81,6 +81,7 @@ public class AdminUserAppService {
     @Transactional
     public AdminUserMutationResponse updateUserRole(String userId, String roleCode, Set<String> actorPlatformRoles) {
         UserAccount user = loadUser(userId);
+        rejectSystemAccountMutation(user);
         String normalizedRoleCode = normalizeRoleCode(roleCode);
 
         if ("SUPER_ADMIN".equals(normalizedRoleCode)
@@ -102,6 +103,7 @@ public class AdminUserAppService {
     @Transactional
     public AdminUserMutationResponse updateUserStatus(String userId, String status) {
         UserAccount user = loadUser(userId);
+        rejectSystemAccountMutation(user);
         UserStatus nextStatus = parseManageableStatus(status);
         user.setStatus(nextStatus);
         userAccountRepository.save(user);
@@ -163,5 +165,11 @@ public class AdminUserAppService {
     private UserAccount loadUser(String userId) {
         return userAccountRepository.findById(userId)
                 .orElseThrow(() -> new DomainNotFoundException("error.admin.user.notFound", userId));
+    }
+
+    private void rejectSystemAccountMutation(UserAccount user) {
+        if (user.isSystemAccount()) {
+            throw new DomainForbiddenException("error.admin.user.systemAccount.immutable");
+        }
     }
 }
