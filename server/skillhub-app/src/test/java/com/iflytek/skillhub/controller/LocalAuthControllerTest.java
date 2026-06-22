@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.iflytek.skillhub.auth.exception.AuthFlowException;
 import com.iflytek.skillhub.auth.local.LocalAuthService;
+import com.iflytek.skillhub.auth.local.LocalCredentialRepository;
 import com.iflytek.skillhub.auth.local.PasswordResetService;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
@@ -55,6 +56,9 @@ class LocalAuthControllerTest {
     @MockBean
     private PasswordResetService passwordResetService;
 
+    @MockBean
+    private LocalCredentialRepository localCredentialRepository;
+
     @Test
     void login_returnsCurrentUserEnvelope() throws Exception {
         PlatformPrincipal principal = new PlatformPrincipal(
@@ -66,6 +70,7 @@ class LocalAuthControllerTest {
             Set.of("SUPER_ADMIN")
         );
         given(localAuthService.login("alice", "Abcd123!")).willReturn(principal);
+        given(localCredentialRepository.existsByUserId("usr_1")).willReturn(true);
 
         mockMvc.perform(post("/api/v1/auth/local/login")
                 .with(csrf())
@@ -76,7 +81,8 @@ class LocalAuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data.userId").value("usr_1"))
-            .andExpect(jsonPath("$.data.oauthProvider").value("local"));
+            .andExpect(jsonPath("$.data.oauthProvider").value("local"))
+            .andExpect(jsonPath("$.data.canChangePassword").value(true));
         verify(skillHubMetrics).recordLocalLogin(true);
         verify(skillHubMetrics, never()).recordLocalLogin(false);
         verify(authFailureThrottleService).resetIdentifier("local", "alice");
@@ -93,6 +99,7 @@ class LocalAuthControllerTest {
             Set.of()
         );
         given(localAuthService.register("bob", "Abcd123!", "bob@example.com")).willReturn(principal);
+        given(localCredentialRepository.existsByUserId("usr_2")).willReturn(true);
 
         mockMvc.perform(post("/api/v1/auth/local/register")
                 .with(csrf())
@@ -102,7 +109,8 @@ class LocalAuthControllerTest {
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
-            .andExpect(jsonPath("$.data.displayName").value("bob"));
+            .andExpect(jsonPath("$.data.displayName").value("bob"))
+            .andExpect(jsonPath("$.data.canChangePassword").value(true));
         verify(skillHubMetrics).incrementUserRegister();
     }
 

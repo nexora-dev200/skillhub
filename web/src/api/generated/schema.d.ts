@@ -3846,6 +3846,7 @@ export interface components {
             email?: string;
             avatarUrl?: string;
             oauthProvider?: string;
+            canChangePassword?: boolean;
             platformRoles?: string[];
         };
         LocalRegisterRequest: {
