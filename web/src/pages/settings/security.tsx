@@ -11,6 +11,14 @@ import { Button } from '@/shared/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
 
+interface PasswordChangeCapabilityUser {
+  canChangePassword?: boolean
+}
+
+function canUsePasswordChangeForm(user?: PasswordChangeCapabilityUser | null) {
+  return user?.canChangePassword === true
+}
+
 /**
  * Security settings page for password changes. After a successful change the
  * user is logged out so all existing authenticated state is re-established with
@@ -25,7 +33,7 @@ export function SecuritySettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const passwordChangeUnavailable = user?.canChangePassword === false
+  const canChangePassword = canUsePasswordChangeForm(user)
 
   /**
    * Submits the password change request and clears local auth state afterward,
@@ -34,6 +42,11 @@ export function SecuritySettingsPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setErrorMessage('')
+
+    if (!canChangePassword) {
+      setErrorMessage(t('security.unavailableTitle'))
+      return
+    }
 
     if (!currentPassword.trim()) {
       setErrorMessage(t('security.currentPasswordRequired'))
@@ -81,12 +94,7 @@ export function SecuritySettingsPage() {
           <CardDescription>{t('security.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
-          {passwordChangeUnavailable ? (
-            <div className="rounded-lg border border-border/70 bg-muted/30 p-4">
-              <p className="text-sm font-medium text-foreground">{t('security.unavailableTitle')}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{t('security.unavailableDescription')}</p>
-            </div>
-          ) : (
+          {canChangePassword ? (
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="current-password">{t('security.currentPassword')}</label>
@@ -113,6 +121,11 @@ export function SecuritySettingsPage() {
                 {isSubmitting ? t('security.submitting') : t('security.submit')}
               </Button>
             </form>
+          ) : (
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-4">
+              <p className="text-sm font-medium text-foreground">{t('security.unavailableTitle')}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t('security.unavailableDescription')}</p>
+            </div>
           )}
         </CardContent>
       </Card>

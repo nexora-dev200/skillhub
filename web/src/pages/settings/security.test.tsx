@@ -116,4 +116,14 @@ describe('SecuritySettingsPage', () => {
     expect(html).not.toContain('security.currentPassword')
     expect(html).not.toContain('security.submit')
   })
+
+  it('defaults to the unavailable state while the user capability is unknown', () => {
+    useAuthMock.mockReturnValue({ user: null })
+
+    const html = renderToStaticMarkup(<SecuritySettingsPage />)
+
+    expect(html).toContain('security.unavailableTitle')
+    expect(html).not.toContain('security.currentPassword')
+    expect(html).not.toContain('security.submit')
+  })
 })
