@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ApiError, authApi } from '@/api/client'
+import { useAuth } from '@/features/auth/use-auth'
 import { clearSessionScopedQueries } from '@/features/notification/notification-session'
 import { truncateErrorMessage } from '@/shared/lib/error-display'
 import { toast } from '@/shared/lib/toast'
@@ -19,10 +20,12 @@ export function SecuritySettingsPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const passwordChangeUnavailable = user?.canChangePassword === false
 
   /**
    * Submits the password change request and clears local auth state afterward,
@@ -78,32 +81,39 @@ export function SecuritySettingsPage() {
           <CardDescription>{t('security.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="current-password">{t('security.currentPassword')}</label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-              />
+          {passwordChangeUnavailable ? (
+            <div className="rounded-lg border border-border/70 bg-muted/30 p-4">
+              <p className="text-sm font-medium text-foreground">{t('security.unavailableTitle')}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t('security.unavailableDescription')}</p>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="new-password">{t('security.newPassword')}</label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-              />
-            </div>
-            {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t('security.submitting') : t('security.submit')}
-            </Button>
-          </form>
+          ) : (
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="current-password">{t('security.currentPassword')}</label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="new-password">{t('security.newPassword')}</label>
+                <Input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                />
+              </div>
+              {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? t('security.submitting') : t('security.submit')}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -743,6 +743,8 @@
     "successTitle": "密码修改成功",
     "successDescription": "请使用新密码重新登录。",
     "defaultError": "修改密码失败",
+    "unavailableTitle": "此账号暂不可修改密码。",
+    "unavailableDescription": "此账号通过外部身份提供方登录，或尚未配置本地密码凭据。",
     "submitting": "提交中...",
     "submit": "更新密码"
   },

@@ -743,6 +743,8 @@
     "successTitle": "Password changed successfully",
     "successDescription": "Please sign in again with your new password.",
     "defaultError": "Failed to change password",
+    "unavailableTitle": "Password changes are unavailable for this account.",
+    "unavailableDescription": "This account signs in through an external identity provider or has no local password credential.",
     "submitting": "Submitting...",
     "submit": "Update Password"
   },
