@@ -485,23 +485,20 @@ Session 中存储以下字段：
   "code": 0,
   "msg": "获取成功",
   "data": {
-    "userId": 42,
+    "userId": "usr_42",
     "displayName": "zhangsan",
     "email": "zhangsan@company.com",
     "avatarUrl": "https://...",
-    "oauthProvider": "github",
-    "platformRoles": ["SKILL_ADMIN", "AUDITOR"],
-    "namespaces": [
-      { "slug": "ai-team", "role": "ADMIN" },
-      { "slug": "global", "role": "MEMBER" }
-    ]
+    "oauthProvider": "local",
+    "canChangePassword": true,
+    "platformRoles": ["SKILL_ADMIN", "AUDITOR"]
   },
   "timestamp": "2026-03-12T06:00:00Z",
   "requestId": "req-123"
 }
 ```
 
-前端权限判定基于 `platformRoles` + `namespaces[].role`，后端通过 `role_permission` 表查询权限码。
+前端平台级权限判定基于 `platformRoles`；是否展示修改密码入口和表单基于后端返回的 `canChangePassword`。后端通过 `role_permission` 表查询权限码。
 
 统一约束：
 - `/api/v1/auth/me`、`/api/v1/auth/providers` 等 JSON 响应必须统一使用 `code/msg/data/timestamp/requestId` 外层结构。
