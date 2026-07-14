@@ -22,7 +22,12 @@ data:
   # S3 配置
   s3-bucket: {{ .Values.s3.bucket }}
   s3-endpoint: {{ .Values.s3.endpoint }}
+  s3-public-endpoint: {{ .Values.s3.publicEndpoint }}
   s3-region: {{ .Values.s3.region }}
+  s3-force-path-style: {{ .Values.s3.forcePathStyle | quote }}
+  s3-disable-chunked-encoding: {{ .Values.s3.disableChunkedEncoding | quote }}
+  s3-auto-create-bucket: {{ .Values.s3.autoCreateBucket | quote }}
+  s3-presign-expiry: {{ .Values.s3.presignExpiry | quote }}
   {{- end }}
 
   # 技能扫描器
@@ -39,3 +44,10 @@ data:
 
   # Session
   session-cookie-secure: {{ .Values.session.cookieSecure | quote }}
+
+  # Public URL and authentication
+  public-base-url: {{ .Values.publicBaseUrl | quote }}
+  device-auth-verification-uri: {{ .Values.deviceAuthVerificationUri | quote }}
+  auth-direct-enabled: {{ .Values.auth.direct.enabled | quote }}
+  auth-direct-provider: {{ .Values.auth.direct.provider | quote }}
+  builtin-skills-enabled: {{ .Values.builtinSkills.enabled | quote }}

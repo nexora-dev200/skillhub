@@ -24,7 +24,8 @@
 kubectl create namespace skillhub
 
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
-  --set bootstrapAdmin.password=your-secure-password
+  --set bootstrapAdmin.password=your-secure-password \
+  --set publicBaseUrl=https://skills.example.com
 ```
 
 ### 高可用模式
@@ -55,22 +56,23 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 
 ### 使用 existingSecret
 
-通过 `existingSecret` 引用已存在的 Secret 对象，避免在 values 中明文写入密码。该 Secret 必须包含以下 key：
+通过 `existingSecret` 引用已存在的 Secret 对象，避免在 values 中明文写入密码。
+内置 PostgreSQL/Redis 使用各自的 Bitnami Secret，不需要复制到该 Secret。
 
 | Key | 必填 | 说明 |
 |-----|------|------|
-| `spring-datasource-url` | 是 | JDBC 连接 URL |
-| `spring-datasource-username` | 是 | 数据库用户名 |
-| `spring-datasource-password` | 是 | 数据库密码 |
-| `redis-password` | 是 | Redis 密码 |
-| `redis-sentinel-password` | 否 | Redis Sentinel 密码（sentinel 模式） |
+| `spring-datasource-password` | 使用外部 PostgreSQL 时 | 数据库密码 |
+| `redis-password` | 使用外部 Redis 时 | Redis 密码 |
+| `redis-sentinel-password` | 使用外部 Sentinel 时 | Redis Sentinel 密码 |
 | `bootstrap-admin-password` | 是 | 初始管理员密码 |
+| `skillhub-download-anon-cookie-secret` | 是 | 至少 32 字符的匿名下载 Cookie 签名密钥 |
 | `oauth2-github-client-id` | 否 | GitHub OAuth2 Client ID |
 | `oauth2-github-client-secret` | 否 | GitHub OAuth2 Client Secret |
 | `skill-scanner-llm-api-key` | 否 | Scanner LLM API Key |
+| `skill-scanner-llm-base-url` | 否 | Scanner 自定义 LLM API 地址 |
 | `skill-scanner-llm-model` | 否 | Scanner LLM 模型名称 |
-| `s3-access-key` | 否 | S3 Access Key |
-| `s3-secret-key` | 否 | S3 Secret Key |
+| `skillhub-storage-s3-access-key` | 否 | S3 Access Key |
+| `skillhub-storage-s3-secret-key` | 否 | S3 Secret Key |
 
 ```bash
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
@@ -137,7 +139,11 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 | `s3.enabled` | 启用 S3 | `false` |
 | `s3.bucket` | Bucket 名称 | `skillhub-storage` |
 | `s3.endpoint` | S3 端点 | `""` |
+| `s3.publicEndpoint` | S3 公网访问端点 | `""` |
 | `s3.region` | 区域 | `us-east-1` |
+| `s3.forcePathStyle` | 强制 path-style 访问 | `true` |
+| `s3.disableChunkedEncoding` | 禁用 aws-chunked 编码 | `false` |
+| `s3.autoCreateBucket` | 自动创建 Bucket | `false` |
 | `s3.accessKey` | Access Key | `""` |
 | `s3.secretKey` | Secret Key | `""` |
 
@@ -158,6 +164,7 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
   --set ingress.enabled=true \
   --set ingress.host=skills.example.com \
+  --set publicBaseUrl=https://skills.example.com \
   --set ingress.tls.enabled=true \
   --set ingress.certManager.enabled=true
 ```

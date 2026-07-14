@@ -69,20 +69,19 @@ spec:
 
             # Database
             - name: SPRING_DATASOURCE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "skillhub.secretName" . }}
-                  key: spring-datasource-url
+              value: {{ include "skillhub.jdbcUrl" . | quote }}
             - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "skillhub.secretName" . }}
-                  key: spring-datasource-username
+              value: {{ include "skillhub.postgresql.username" . | quote }}
             - name: SPRING_DATASOURCE_PASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.postgresql.enabled }}
+                  name: {{ include "skillhub.postgresql.secretName" . }}
+                  key: {{ include "skillhub.postgresql.passwordKey" . }}
+                  {{- else }}
                   name: {{ include "skillhub.secretName" . }}
                   key: spring-datasource-password
+                  {{- end }}
 
             # Redis
             {{- if and .Values.redis.enabled .Values.redis.sentinel.enabled }}
@@ -112,19 +111,24 @@ spec:
             - name: SPRING_DATA_REDIS_SENTINEL_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "skillhub.secretName" . }}
-                  {{- if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
-                  key: redis-sentinel-password
+                  {{- if .Values.redis.enabled }}
+                  name: {{ include "skillhub.redis.secretName" . }}
+                  key: {{ include "skillhub.redis.passwordKey" . }}
                   {{- else }}
-                  key: redis-password
+                  name: {{ include "skillhub.secretName" . }}
+                  key: redis-sentinel-password
                   {{- end }}
                   optional: true
             {{- else if or .Values.redis.enabled .Values.externalRedis.password }}
             - name: SPRING_DATA_REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
+                  {{- if .Values.redis.enabled }}
+                  name: {{ include "skillhub.redis.secretName" . }}
+                  {{- else }}
                   name: {{ include "skillhub.secretName" . }}
-                  key: redis-password
+                  {{- end }}
+                  key: {{ if .Values.redis.enabled }}{{ include "skillhub.redis.passwordKey" . }}{{ else }}redis-password{{ end }}
                   optional: true
             {{- end }}
 
@@ -141,32 +145,57 @@ spec:
                   key: skillhub-storage-provider
 
             {{- if .Values.s3.enabled }}
-            - name: SKILLHUB_S3_BUCKET
+            - name: SKILLHUB_STORAGE_S3_BUCKET
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: s3-bucket
-            - name: SKILLHUB_S3_ENDPOINT
+            - name: SKILLHUB_STORAGE_S3_ENDPOINT
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: s3-endpoint
-            - name: SKILLHUB_S3_REGION
+            - name: SKILLHUB_STORAGE_S3_PUBLIC_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-public-endpoint
+            - name: SKILLHUB_STORAGE_S3_REGION
               valueFrom:
                 configMapKeyRef:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: s3-region
-            - name: SKILLHUB_S3_ACCESS_KEY
+            - name: SKILLHUB_STORAGE_S3_FORCE_PATH_STYLE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-force-path-style
+            - name: SKILLHUB_STORAGE_S3_DISABLE_CHUNKED_ENCODING
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-disable-chunked-encoding
+            - name: SKILLHUB_STORAGE_S3_AUTO_CREATE_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-auto-create-bucket
+            - name: SKILLHUB_STORAGE_S3_PRESIGN_EXPIRY
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: s3-presign-expiry
+            - name: SKILLHUB_STORAGE_S3_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "skillhub.secretName" . }}
-                  key: s3-access-key
+                  key: skillhub-storage-s3-access-key
                   optional: true
-            - name: SKILLHUB_S3_SECRET_KEY
+            - name: SKILLHUB_STORAGE_S3_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "skillhub.secretName" . }}
-                  key: s3-secret-key
+                  key: skillhub-storage-s3-secret-key
                   optional: true
             {{- end }}
 
@@ -193,6 +222,33 @@ spec:
                 configMapKeyRef:
                   name: {{ include "skillhub.fullname" . }}-config
                   key: session-cookie-secure
+
+            # Public URL and authentication
+            - name: SKILLHUB_PUBLIC_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: public-base-url
+            - name: DEVICE_AUTH_VERIFICATION_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: device-auth-verification-uri
+            - name: SKILLHUB_AUTH_DIRECT_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: auth-direct-enabled
+            - name: SKILLHUB_BUILTIN_SKILLS_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "skillhub.fullname" . }}-config
+                  key: builtin-skills-enabled
+            - name: SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: skillhub-download-anon-cookie-secret
 
             # Bootstrap Admin
             - name: BOOTSTRAP_ADMIN_ENABLED

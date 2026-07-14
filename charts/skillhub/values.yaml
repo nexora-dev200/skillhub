@@ -13,6 +13,18 @@ images:
 nameOverride: ""
 fullnameOverride: ""
 
+# 浏览器、CLI 和 OAuth 回调访问的公开地址（不带末尾斜杠）
+publicBaseUrl: ""
+deviceAuthVerificationUri: ""
+
+auth:
+  direct:
+    enabled: true
+    provider: local
+
+builtinSkills:
+  enabled: true
+
 # ============================================================================
 # Ingress 配置
 # ============================================================================
@@ -37,7 +49,12 @@ s3:
   enabled: false
   bucket: skillhub-storage
   endpoint: ""
+  publicEndpoint: ""
   region: us-east-1
+  forcePathStyle: true
+  disableChunkedEncoding: false
+  autoCreateBucket: false
+  presignExpiry: PT10M
   accessKey: ""
   secretKey: ""
 
@@ -69,11 +86,12 @@ springProfilesActive: docker
 existingSecret: ""
 
 secrets:
-  springDatasourcePassword: ""
   bootstrapAdminPassword: ""
+  downloadAnonCookieSecret: ""
   oauth2GithubClientId: ""
   oauth2GithubClientSecret: ""
   scannerLlmApiKey: ""
+  scannerLlmBaseUrl: ""
   scannerLlmModel: ""
 
 # ============================================================================
