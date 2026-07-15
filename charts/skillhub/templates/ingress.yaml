@@ -1,39 +1,43 @@
 {{- if .Values.ingress.enabled }}
-{{- $secretName := .Values.ingress.tls.secretName | default (printf "%s-tls" (include "skillhub.fullname" .)) }}
+{{- $hosts := .Values.ingress.hosts }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "skillhub.fullname" . }}
   labels:
     {{- include "skillhub.labels" . | nindent 4 }}
+  {{- if .Values.ingress.annotations }}
   annotations:
-    {{- if .Values.ingress.annotations }}
     {{- toYaml .Values.ingress.annotations | nindent 4 }}
-    {{- end }}
+  {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
-  {{- if or .Values.ingress.tls.enabled .Values.ingress.certManager.enabled }}
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
   tls:
-    - hosts:
-        - {{ .Values.ingress.host }}
-      secretName: {{ $secretName }}
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
   {{- end }}
   rules:
-    - host: {{ .Values.ingress.host }}
+    {{- range $host := $hosts }}
+    - host: {{ $host.host | quote }}
       http:
         paths:
           - path: /api
             pathType: Prefix
             backend:
               service:
-                name: {{ include "skillhub.fullname" . }}-server
+                name: {{ include "skillhub.fullname" $ }}-server
                 port:
-                  number: {{ .Values.server.service.port }}
-          - path: /
-            pathType: Prefix
+                  number: {{ $.Values.server.service.port }}
+          {{- range $path := $host.paths }}
+          - path: {{ $path.path | quote }}
+            pathType: {{ $path.pathType }}
             backend:
               service:
-                name: {{ include "skillhub.fullname" . }}-web
+                name: {{ include "skillhub.fullname" $ }}-web
                 port:
-                  number: {{ .Values.web.service.port }}
+                  number: {{ $.Values.web.service.port }}
+          {{- end }}
+    {{- end }}
 {{- end }}

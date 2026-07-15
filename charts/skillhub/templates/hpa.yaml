@@ -1,6 +1,10 @@
 {{- range $name := list "server" "web" "scanner" }}
 {{- $component := index $.Values $name }}
-{{- if and (default true $component.enabled) $component.autoscaling.enabled }}
+{{- $enabled := true }}
+{{- if hasKey $component "enabled" }}
+{{- $enabled = $component.enabled }}
+{{- end }}
+{{- if and $enabled $component.autoscaling.enabled }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

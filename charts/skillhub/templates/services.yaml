@@ -6,7 +6,11 @@ SkillHub Service 资源
 
 {{- range $name := list "server" "web" }}
 {{- $component := index $.Values $name }}
-{{- if $component.service.enabled }}
+{{- $enabled := true }}
+{{- if hasKey $component "enabled" }}
+{{- $enabled = $component.enabled }}
+{{- end }}
+{{- if and $enabled $component.service.enabled }}
 ---
 apiVersion: v1
 kind: Service

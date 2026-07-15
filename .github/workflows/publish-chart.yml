@@ -67,7 +67,7 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
 
       - name: Lint chart
-        run: helm lint .
+        run: helm lint . -f tests/test-values.yaml
 
       - name: Package and push
         run: |

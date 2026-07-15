@@ -30,14 +30,15 @@ spec:
       {{- end }}
       initContainers:
         - name: wait-for-dependencies
-          image: busybox:1.37
+          image: {{ printf "%s/%s:%s" .Values.server.dependencyWait.image.registry .Values.server.dependencyWait.image.repository .Values.server.dependencyWait.image.tag | quote }}
+          imagePullPolicy: {{ .Values.server.dependencyWait.image.pullPolicy }}
           env:
             - name: DB_HOST
-              value: {{ include "skillhub.postgresql.serviceName" . }}
+              value: {{ include "skillhub.postgresql.serviceName" . | quote }}
             - name: DB_PORT
               value: {{ include "skillhub.postgresql.port" . | quote }}
             - name: REDIS_HOST
-              value: {{ include "skillhub.redis.serviceName" . }}
+              value: {{ include "skillhub.redis.serviceName" . | quote }}
             - name: REDIS_PORT
               value: {{ include "skillhub.redis.port" . | quote }}
           command:
@@ -65,7 +66,7 @@ spec:
               {{- else if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
               {{- $profiles = printf "%s,redis-sentinel" $profiles }}
               {{- end }}
-              value: {{ $profiles }}
+              value: {{ $profiles | quote }}
 
             # Database
             - name: SPRING_DATASOURCE_URL
@@ -88,12 +89,12 @@ spec:
             - name: SPRING_DATA_REDIS_SENTINEL_MASTER
               value: {{ .Values.redis.sentinel.masterSet | default "mymaster" | quote }}
             - name: SPRING_DATA_REDIS_SENTINEL_NODES
-              value: {{ include "skillhub.redis.sentinel.nodes" . }}
+              value: {{ include "skillhub.redis.sentinel.nodes" . | quote }}
             {{- else if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
             - name: SPRING_DATA_REDIS_SENTINEL_MASTER
               value: {{ .Values.externalRedis.sentinel.masterSet | default "mymaster" | quote }}
             - name: SPRING_DATA_REDIS_SENTINEL_NODES
-              value: {{ join "," .Values.externalRedis.sentinel.nodes }}
+              value: {{ join "," .Values.externalRedis.sentinel.nodes | quote }}
             {{- else }}
             - name: SPRING_DATA_REDIS_HOST
               valueFrom:
@@ -108,6 +109,17 @@ spec:
             {{- end }}
 
             {{- if or (and .Values.redis.enabled .Values.redis.sentinel.enabled) (and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled) }}
+            - name: SPRING_DATA_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.redis.enabled }}
+                  name: {{ include "skillhub.redis.secretName" . }}
+                  key: {{ include "skillhub.redis.passwordKey" . }}
+                  {{- else }}
+                  name: {{ include "skillhub.secretName" . }}
+                  key: redis-password
+                  {{- end }}
+                  optional: true
             - name: SPRING_DATA_REDIS_SENTINEL_PASSWORD
               valueFrom:
                 secretKeyRef:

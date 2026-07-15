@@ -44,7 +44,10 @@ jobs:
         run: helm dependency build .
 
       - name: Lint chart
-        run: helm lint .
+        run: helm lint --strict . -f tests/test-values.yaml
+
+      - name: Validate configuration contracts
+        run: bash tests/configuration-contracts.sh
 
       - name: Validate chart metadata
         run: |
@@ -118,6 +121,7 @@ jobs:
               --set server.autoscaling.enabled=true
               --set web.autoscaling.enabled=true
               --set scanner.autoscaling.enabled=true
+              --set server.storage.accessMode=ReadWriteMany
               --set server.podDisruptionBudget.enabled=true
               --set web.podDisruptionBudget.enabled=true
               --set scanner.podDisruptionBudget.enabled=true
@@ -155,8 +159,8 @@ jobs:
         if: ${{ matrix.scenario.name == 'bitnami-default' }}
         run: |
           helm template test-release . --show-only templates/server-deployment.yaml > server.yaml
-          grep -Fq 'value: test-release-postgresql' server.yaml
-          grep -Fq 'value: test-release-redis-master' server.yaml
+          grep -Fq 'value: "test-release-postgresql"' server.yaml
+          grep -Fq 'value: "test-release-redis-master"' server.yaml
           grep -Fq 'name: test-release-postgresql' server.yaml
           grep -Fq 'name: test-release-redis' server.yaml
           grep -Fq 'key: password' server.yaml

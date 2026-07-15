@@ -171,9 +171,10 @@ app.kubernetes.io/component: scanner
 {{- $fullname := include "skillhub.redis.fullname" . -}}
 {{- $prefix := printf "%s-node" $fullname -}}
 {{- $headless := printf "%s-headless" $fullname -}}
-{{- $port := include "skillhub.redis.port" . -}}
+{{- /* Headless Service DNS resolves directly to pod IPs, so use the container port. */ -}}
+{{- $port := .Values.redis.sentinel.containerPorts.sentinel | default 26379 -}}
 {{- $replicas := .Values.redis.replica.replicaCount | default 3 | int -}}
-{{- $nodes := list -}}{{- range $i := until $replicas -}}{{- $nodes = append $nodes (printf "%s-%d.%s.%s.svc.cluster.local:%s" $prefix $i $headless $.Release.Namespace $port) -}}{{- end -}}{{- join "," $nodes -}}
+{{- $nodes := list -}}{{- range $i := until $replicas -}}{{- $nodes = append $nodes (printf "%s-%d.%s.%s.svc.cluster.local:%v" $prefix $i $headless $.Release.Namespace $port) -}}{{- end -}}{{- join "," $nodes -}}
 {{- end }}
 
 {{- /* Redis Host */}}
@@ -198,7 +199,12 @@ app.kubernetes.io/component: scanner
 {{- print "6379" -}}
 {{- end -}}
 {{- else -}}
+{{- if .Values.externalRedis.sentinel.enabled -}}
+{{- $node := first .Values.externalRedis.sentinel.nodes -}}
+{{- last (splitList ":" $node) -}}
+{{- else -}}
 {{- .Values.externalRedis.port | default 6379 | int -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
 
@@ -235,6 +241,11 @@ app.kubernetes.io/component: scanner
 {{- if .Values.redis.enabled -}}
 {{- include "skillhub.redis.host" . -}}
 {{- else -}}
+{{- if .Values.externalRedis.sentinel.enabled -}}
+{{- $node := first .Values.externalRedis.sentinel.nodes -}}
+{{- first (splitList ":" $node) -}}
+{{- else -}}
 {{- .Values.externalRedis.host -}}
+{{- end -}}
 {{- end -}}
 {{- end }}

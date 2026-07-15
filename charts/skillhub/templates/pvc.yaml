@@ -10,16 +10,12 @@ metadata:
 spec:
   {{- $accessMode := .Values.server.storage.accessMode }}
   {{- if not $accessMode }}
-  {{- if or (gt (.Values.server.replicaCount | int) 1) (and .Values.server.autoscaling.enabled (gt (.Values.server.autoscaling.maxReplicas | int) 1)) }}
-  {{- $accessMode = "ReadWriteMany" }}
-  {{- else }}
   {{- $accessMode = "ReadWriteOnce" }}
-  {{- end }}
   {{- end }}
   accessModes:
     - {{ $accessMode }}
   {{- if .Values.server.storage.storageClassName }}
-  storageClassName: {{ .Values.server.storage.storageClassName }}
+  storageClassName: {{ .Values.server.storage.storageClassName | quote }}
   {{- end }}
   resources:
     requests:
