@@ -301,6 +301,17 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 | `server.storage.accessMode` | 留空时单副本使用 ReadWriteOnce；多副本必须显式使用 ReadWriteMany | `""` |
 | `server.storage.size` | PVC 大小 | `10Gi` |
 | `server.storage.storageClassName` | StorageClass | `""` |
+| `server.podSecurityContext.fsGroup` | Server 本地存储的可写组 ID，应与镜像内 app 用户组一致 | `101` |
+| `server.podSecurityContext.fsGroupChangePolicy` | kubelet 调整 PVC 组权限的策略 | `OnRootMismatch` |
+
+本地 PVC 会覆盖镜像内预先设置的目录所有者。Chart 默认通过 Pod `fsGroup=101`
+使 Server 的非 root `app` 用户可以创建和更新技能文件。使用自定义 Server 镜像且其
+运行组 ID 不同时，必须同步覆盖 `server.podSecurityContext.fsGroup`。
+
+使用本地 `ReadWriteOnce` PVC 时，Server Deployment 自动采用 `Recreate`，避免
+滚动升级期间新旧 Pod 同时挂载非共享卷而触发 Multi-Attach。单副本升级会有短暂
+停机；使用支持 RWX 的 `ReadWriteMany` 存储或启用 S3 时，Chart 保留
+`RollingUpdate`。
 
 ```bash
 # 默认使用本地 PVC

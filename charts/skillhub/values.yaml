@@ -281,6 +281,11 @@ server:
     size: 10Gi
     storageClassName: ""
 
+  # PVC 挂载会覆盖镜像内目录权限；使用镜像中 app 用户的组 ID 使本地存储可写
+  podSecurityContext:
+    fsGroup: 101
+    fsGroupChangePolicy: OnRootMismatch
+
   resources:
     requests:
       cpu: 500m

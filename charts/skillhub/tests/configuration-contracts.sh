@@ -27,6 +27,16 @@ render verify "$CHART_DIR" >"$TMP_DIR/default.yaml"
 grep -Fq 'name: POSTGRESQL_MAX_CONNECTIONS' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-postgresql"' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-redis-master"' "$TMP_DIR/default.yaml"
+grep -Fq 'fsGroup: 101' "$TMP_DIR/default.yaml"
+grep -Fq 'fsGroupChangePolicy: OnRootMismatch' "$TMP_DIR/default.yaml"
+grep -Fq 'type: Recreate' "$TMP_DIR/default.yaml"
+
+render custom-server-fsgroup "$CHART_DIR" \
+  --set server.podSecurityContext.fsGroup=2000 \
+  --set server.podSecurityContext.fsGroupChangePolicy=Always \
+  --show-only templates/server-deployment.yaml >"$TMP_DIR/custom-server-fsgroup.yaml"
+grep -Fq 'fsGroup: 2000' "$TMP_DIR/custom-server-fsgroup.yaml"
+grep -Fq 'fsGroupChangePolicy: Always' "$TMP_DIR/custom-server-fsgroup.yaml"
 
 stable_args=(
   --set-string secrets.bootstrapAdminPassword=stable-bootstrap-password
@@ -143,6 +153,16 @@ render multi-rwx "$CHART_DIR" \
   --set server.replicaCount=2 \
   --set server.storage.accessMode=ReadWriteMany >"$TMP_DIR/multi-rwx.yaml"
 grep -Fq -- '- ReadWriteMany' "$TMP_DIR/multi-rwx.yaml"
+grep -Fq 'type: RollingUpdate' "$TMP_DIR/multi-rwx.yaml"
+
+render s3-rolling "$CHART_DIR" \
+  --set s3.enabled=true \
+  --set s3.bucket=skillhub \
+  --set s3.endpoint=https://s3.example.com \
+  --set s3.accessKey=access-key \
+  --set s3.secretKey=secret-key \
+  --show-only templates/server-deployment.yaml >"$TMP_DIR/s3-rolling.yaml"
+grep -Fq 'type: RollingUpdate' "$TMP_DIR/s3-rolling.yaml"
 
 assert_rejected server-off --set server.enabled=false
 assert_rejected direct-auth-without-provider \

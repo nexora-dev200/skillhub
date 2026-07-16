@@ -344,7 +344,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": ["enabled", "replicaCount", "image", "dependencyWait", "service", "storage", "resources", "javaOpts", "extraEnv", "podAnnotations", "imagePullSecrets", "nodeSelector", "tolerations", "affinity", "probes", "autoscaling", "podDisruptionBudget"],
+          "required": ["enabled", "replicaCount", "image", "dependencyWait", "service", "storage", "podSecurityContext", "resources", "javaOpts", "extraEnv", "podAnnotations", "imagePullSecrets", "nodeSelector", "tolerations", "affinity", "probes", "autoscaling", "podDisruptionBudget"],
           "properties": {
             "enabled": { "type": "boolean" },
             "replicaCount": { "type": "integer", "minimum": 1 },
@@ -376,6 +376,15 @@
                 "accessMode": { "enum": ["", "ReadWriteOnce", "ReadWriteMany"] },
                 "size": { "type": "string", "minLength": 1 },
                 "storageClassName": { "type": "string" }
+              }
+            },
+            "podSecurityContext": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["fsGroup", "fsGroupChangePolicy"],
+              "properties": {
+                "fsGroup": { "type": "integer", "minimum": 1 },
+                "fsGroupChangePolicy": { "enum": ["Always", "OnRootMismatch"] }
               }
             },
             "resources": { "$ref": "#/definitions/resources" },
