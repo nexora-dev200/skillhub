@@ -1,17 +1,29 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { afterEach, describe, expect, mock, test } from 'bun:test'
 import type { AgentCandidate } from '../../../src/agents/types'
 
+interface PromptChoice {
+  value: AgentCandidate
+}
+
 interface PromptOptions {
+  choices?: PromptChoice[]
   onRender?: (this: { cursor?: number }) => void
   format?: (selectedTargets: AgentCandidate[]) => AgentCandidate[]
 }
 
+const defaultSelectedTargets = (options: PromptOptions): AgentCandidate[] => options.format?.([]) ?? []
+let selectPromptTargets = defaultSelectedTargets
+
 mock.module('prompts', () => ({
   default: (options: PromptOptions) => {
     options.onRender?.call({ cursor: 1 })
-    return { selected: options.format?.([]) ?? [] }
+    return { selected: selectPromptTargets(options) }
   }
 }))
+
+afterEach(() => {
+  selectPromptTargets = defaultSelectedTargets
+})
 
 const { resolveInstallTargets } = await import('../../../src/agents/resolver')
 
@@ -34,7 +46,21 @@ describe('resolveInstallTargets interactive prompt', () => {
     expect(targets).toEqual([highlighted])
   })
 
-  test('offers the generic user target alongside detected agent targets', async () => {
+  test('allows selecting generic alongside detected user targets', async () => {
+    selectPromptTargets = options => options.choices?.map(choice => choice.value) ?? []
+    const codex: AgentCandidate = {
+      agent: 'codex',
+      rootDir: '/home/u/.codex/skills',
+      scope: 'user',
+      source: 'detected'
+    }
+    const generic: AgentCandidate = {
+      agent: 'generic',
+      rootDir: '/home/u/.agents/skills',
+      scope: 'user',
+      source: 'fallback'
+    }
+
     const targets = await resolveInstallTargets({
       cwd: '/repo',
       home: '/home/u',
@@ -42,16 +68,9 @@ describe('resolveInstallTargets interactive prompt', () => {
       scope: 'user',
       json: false,
       interactive: true,
-      detected: [
-        { agent: 'codex', rootDir: '/home/u/.codex/skills', scope: 'user', source: 'detected' }
-      ]
+      detected: [codex]
     })
 
-    expect(targets).toEqual([{
-      agent: 'generic',
-      rootDir: '/home/u/.agents/skills',
-      scope: 'user',
-      source: 'fallback'
-    }])
+    expect(targets).toEqual([codex, generic])
   })
 })

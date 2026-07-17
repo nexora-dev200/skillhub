@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { CliError } from '../shared/errors'
 import { EXIT } from '../shared/constants'
-import { pathExists } from '../platform/paths'
+import { canonicalizeExistingPath, pathExists } from '../platform/paths'
 import type { AgentCandidate } from './types'
 import { allProfiles, profileMap } from './detector'
 
@@ -66,10 +66,10 @@ async function resolveScopedTargets(
   } else {
     candidates = await generateScopedCandidates(scope, options.cwd, scopedHome)
   }
-  candidates = dedupeByRoot(candidates)
+  candidates = await dedupeByRoot(candidates)
 
   if (scope === 'user' && agentList.length === 0 && options.interactive && !options.json) {
-    candidates = dedupeByRoot([
+    candidates = await dedupeByRoot([
       ...candidates,
       {
         agent: 'generic',
@@ -161,13 +161,18 @@ async function resolveExplicitAgents(
   return results
 }
 
-function dedupeByRoot(candidates: AgentCandidate[]): AgentCandidate[] {
+async function dedupeByRoot(candidates: AgentCandidate[]): Promise<AgentCandidate[]> {
   const seen = new Set<string>()
-  return candidates.filter(c => {
-    if (seen.has(c.rootDir)) return false
-    seen.add(c.rootDir)
-    return true
-  })
+  const deduped: AgentCandidate[] = []
+
+  for (const candidate of candidates) {
+    const canonicalRootDir = await canonicalizeExistingPath(candidate.rootDir)
+    if (seen.has(canonicalRootDir)) continue
+    seen.add(canonicalRootDir)
+    deduped.push(candidate)
+  }
+
+  return deduped
 }
 
 async function selectTargetsInteractively(candidates: AgentCandidate[]): Promise<AgentCandidate[]> {
