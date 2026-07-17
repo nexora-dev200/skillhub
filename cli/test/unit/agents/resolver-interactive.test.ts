@@ -33,4 +33,25 @@ describe('resolveInstallTargets interactive prompt', () => {
 
     expect(targets).toEqual([highlighted])
   })
+
+  test('offers the generic user target alongside detected agent targets', async () => {
+    const targets = await resolveInstallTargets({
+      cwd: '/repo',
+      home: '/home/u',
+      agents: [],
+      scope: 'user',
+      json: false,
+      interactive: true,
+      detected: [
+        { agent: 'codex', rootDir: '/home/u/.codex/skills', scope: 'user', source: 'detected' }
+      ]
+    })
+
+    expect(targets).toEqual([{
+      agent: 'generic',
+      rootDir: '/home/u/.agents/skills',
+      scope: 'user',
+      source: 'fallback'
+    }])
+  })
 })

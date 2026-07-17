@@ -68,6 +68,18 @@ async function resolveScopedTargets(
   }
   candidates = dedupeByRoot(candidates)
 
+  if (scope === 'user' && agentList.length === 0 && options.interactive && !options.json) {
+    candidates = dedupeByRoot([
+      ...candidates,
+      {
+        agent: 'generic',
+        rootDir: `${scopedHome}/.agents/skills`,
+        scope: 'user',
+        source: 'fallback'
+      }
+    ])
+  }
+
   if (candidates.length === 0) {
     const fallbackRoot = scope === 'user'
       ? `${scopedHome}/.agents/skills`
