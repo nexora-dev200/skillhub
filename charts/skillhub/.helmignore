@@ -19,3 +19,6 @@ CLAUDE.md
 
 # CI
 .github/
+
+# Source-only contract tests
+tests/

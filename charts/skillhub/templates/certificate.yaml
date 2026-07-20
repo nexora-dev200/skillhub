@@ -1,18 +1,24 @@
-{{- $secretName := .Values.ingress.tls.secretName | default (printf "%s-tls" (include "skillhub.fullname" .)) }}
 {{- if and .Values.ingress.enabled .Values.ingress.certManager.enabled }}
+{{- range $index, $tls := .Values.ingress.tls }}
+{{- if $index }}
+---
+{{- end }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ $secretName }}-cert
+  name: {{ $tls.secretName }}-cert
   labels:
-    {{- include "skillhub.labels" . | nindent 4 }}
+    {{- include "skillhub.labels" $ | nindent 4 }}
 spec:
-  secretName: {{ $secretName }}
+  secretName: {{ $tls.secretName }}
   duration: 2160h
   renewBefore: 360h
   dnsNames:
-    - {{ .Values.ingress.host }}
+    {{- range $tls.hosts }}
+    - {{ . | quote }}
+    {{- end }}
   issuerRef:
-    name: {{ .Values.ingress.certManager.issuerName }}
-    kind: {{ .Values.ingress.certManager.issuerKind }}
+    name: {{ $.Values.ingress.certManager.issuerName | quote }}
+    kind: {{ $.Values.ingress.certManager.issuerKind | quote }}
+{{- end }}
 {{- end }}

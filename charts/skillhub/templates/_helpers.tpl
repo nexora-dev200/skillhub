@@ -70,10 +70,38 @@ app.kubernetes.io/component: scanner
 app.kubernetes.io/component: scanner
 {{- end }}
 
+{{- /* Bitnami PostgreSQL subchart 完整名称 */}}
+{{- define "skillhub.postgresql.fullname" -}}
+{{- if .Values.postgresql.fullnameOverride -}}
+{{- .Values.postgresql.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "postgresql" .Values.postgresql.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{- /* Bitnami Redis subchart 完整名称 */}}
+{{- define "skillhub.redis.fullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+{{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- $name := default "redis" .Values.redis.nameOverride -}}
+{{- if contains $name .Release.Name -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+
 {{- /* PostgreSQL Host */}}
 {{- define "skillhub.postgresql.host" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- $prefix := printf "%s-postgresql" (include "skillhub.fullname" .) -}}
+{{- $prefix := include "skillhub.postgresql.fullname" . -}}
 {{- if eq .Values.postgresql.architecture "replication" -}}
 {{- printf "%s-primary" $prefix -}}
 {{- else -}}
@@ -114,9 +142,18 @@ app.kubernetes.io/component: scanner
 {{- /* PostgreSQL Secret Name */}}
 {{- define "skillhub.postgresql.secretName" -}}
 {{- if .Values.postgresql.enabled -}}
-{{- printf "%s-postgresql" (include "skillhub.fullname" .) -}}
+{{- .Values.postgresql.auth.existingSecret | default (include "skillhub.postgresql.fullname" .) -}}
 {{- else -}}
 {{- include "skillhub.secretName" . -}}
+{{- end -}}
+{{- end }}
+
+{{- /* PostgreSQL 密码 Secret key；postgres 使用管理员密码，其他用户使用应用密码 */}}
+{{- define "skillhub.postgresql.passwordKey" -}}
+{{- if eq .Values.postgresql.auth.username "postgres" -}}
+{{- .Values.postgresql.auth.secretKeys.adminPasswordKey | default "postgres-password" -}}
+{{- else -}}
+{{- .Values.postgresql.auth.secretKeys.userPasswordKey | default "password" -}}
 {{- end -}}
 {{- end }}
 
@@ -135,20 +172,22 @@ app.kubernetes.io/component: scanner
 
 {{- /* Redis Sentinel 节点列表（Redisson 需要具体 pod FQDN，格式: {pod}.{headless-svc}.{ns}.svc.cluster.local） */}}
 {{- define "skillhub.redis.sentinel.nodes" -}}
-{{- $prefix := printf "%s-redis-node" (include "skillhub.fullname" .) -}}
-{{- $headless := printf "%s-redis-headless" (include "skillhub.fullname" .) -}}
-{{- $port := include "skillhub.redis.port" . -}}
+{{- $fullname := include "skillhub.redis.fullname" . -}}
+{{- $prefix := printf "%s-node" $fullname -}}
+{{- $headless := printf "%s-headless" $fullname -}}
+{{- /* Headless Service DNS resolves directly to pod IPs, so use the container port. */ -}}
+{{- $port := .Values.redis.sentinel.containerPorts.sentinel | default 26379 -}}
 {{- $replicas := .Values.redis.replica.replicaCount | default 3 | int -}}
-{{- $nodes := list -}}{{- range $i := until $replicas -}}{{- $nodes = append $nodes (printf "%s-%d.%s.%s.svc.cluster.local:%s" $prefix $i $headless $.Release.Namespace $port) -}}{{- end -}}{{- join "," $nodes -}}
+{{- $nodes := list -}}{{- range $i := until $replicas -}}{{- $nodes = append $nodes (printf "%s-%d.%s.%s.svc.cluster.local:%v" $prefix $i $headless $.Release.Namespace $port) -}}{{- end -}}{{- join "," $nodes -}}
 {{- end }}
 
 {{- /* Redis Host */}}
 {{- define "skillhub.redis.host" -}}
 {{- if .Values.redis.enabled -}}
 {{- if .Values.redis.sentinel.enabled -}}
-{{- printf "%s-redis" (include "skillhub.fullname" .) -}}
+{{- include "skillhub.redis.fullname" . -}}
 {{- else -}}
-{{- printf "%s-redis-master" (include "skillhub.fullname" .) -}}
+{{- printf "%s-master" (include "skillhub.redis.fullname" .) -}}
 {{- end -}}
 {{- else -}}
 {{- .Values.externalRedis.host -}}
@@ -164,17 +203,27 @@ app.kubernetes.io/component: scanner
 {{- print "6379" -}}
 {{- end -}}
 {{- else -}}
+{{- if .Values.externalRedis.sentinel.enabled -}}
+{{- $node := first .Values.externalRedis.sentinel.nodes -}}
+{{- last (splitList ":" $node) -}}
+{{- else -}}
 {{- .Values.externalRedis.port | default 6379 | int -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
 
 {{- /* Redis Password Secret Name */}}
 {{- define "skillhub.redis.secretName" -}}
 {{- if .Values.redis.enabled -}}
-{{- printf "%s-redis" (include "skillhub.fullname" .) -}}
+{{- .Values.redis.auth.existingSecret | default (include "skillhub.redis.fullname" .) -}}
 {{- else -}}
 {{- include "skillhub.secretName" . -}}
 {{- end -}}
+{{- end }}
+
+{{- /* Redis 密码 Secret key */}}
+{{- define "skillhub.redis.passwordKey" -}}
+{{- .Values.redis.auth.existingSecretPasswordKey | default "redis-password" -}}
 {{- end }}
 
 {{- /* Secret 名称 */}}
@@ -196,6 +245,11 @@ app.kubernetes.io/component: scanner
 {{- if .Values.redis.enabled -}}
 {{- include "skillhub.redis.host" . -}}
 {{- else -}}
+{{- if .Values.externalRedis.sentinel.enabled -}}
+{{- $node := first .Values.externalRedis.sentinel.nodes -}}
+{{- first (splitList ":" $node) -}}
+{{- else -}}
 {{- .Values.externalRedis.host -}}
+{{- end -}}
 {{- end -}}
 {{- end }}
