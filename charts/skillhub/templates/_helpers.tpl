@@ -148,9 +148,13 @@ app.kubernetes.io/component: scanner
 {{- end -}}
 {{- end }}
 
-{{- /* PostgreSQL 应用用户密码 Secret key */}}
+{{- /* PostgreSQL 密码 Secret key；postgres 使用管理员密码，其他用户使用应用密码 */}}
 {{- define "skillhub.postgresql.passwordKey" -}}
+{{- if eq .Values.postgresql.auth.username "postgres" -}}
+{{- .Values.postgresql.auth.secretKeys.adminPasswordKey | default "postgres-password" -}}
+{{- else -}}
 {{- .Values.postgresql.auth.secretKeys.userPasswordKey | default "password" -}}
+{{- end -}}
 {{- end }}
 
 {{- /* PostgreSQL JDBC URL */}}

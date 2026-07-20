@@ -98,7 +98,8 @@ jobs:
             description: Ingress + TLS + cert-manager
             args: >-
               --set ingress.enabled=true
-              --set ingress.tls.enabled=true
+              --set-json 'ingress.hosts=[{"host":"skills.example.com","paths":[{"path":"/","pathType":"Prefix"}]}]'
+              --set-json 'ingress.tls=[{"hosts":["skills.example.com"],"secretName":"skills-tls"}]'
               --set ingress.certManager.enabled=true
           - name: s3-storage
             description: S3 存储
@@ -143,7 +144,7 @@ jobs:
       - name: Render template - ${{ matrix.scenario.name }}
         run: |
           echo "## ${{ matrix.scenario.description }}"
-          helm template test-release . ${{ matrix.scenario.args }} > rendered.yaml
+          helm template test-release . -f tests/test-values.yaml ${{ matrix.scenario.args }} > rendered.yaml
           echo "✅ Template rendered successfully"
 
       - name: Validate resources
@@ -158,7 +159,7 @@ jobs:
       - name: Validate default dependency wiring
         if: ${{ matrix.scenario.name == 'bitnami-default' }}
         run: |
-          helm template test-release . --show-only templates/server-deployment.yaml > server.yaml
+          helm template test-release . -f tests/test-values.yaml --show-only templates/server-deployment.yaml > server.yaml
           grep -Fq 'value: "test-release-postgresql"' server.yaml
           grep -Fq 'value: "test-release-redis-master"' server.yaml
           grep -Fq 'name: test-release-postgresql' server.yaml

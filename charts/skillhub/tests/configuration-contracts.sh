@@ -72,6 +72,27 @@ grep -Fq 'key: custom-pg-key' "$TMP_DIR/custom.yaml"
 grep -Fq 'name: custom-redis' "$TMP_DIR/custom.yaml"
 grep -Fq 'key: custom-redis-key' "$TMP_DIR/custom.yaml"
 
+render postgresql-admin "$CHART_DIR" \
+  --set postgresql.auth.username=postgres \
+  --show-only templates/server-deployment.yaml >"$TMP_DIR/postgresql-admin.yaml"
+grep -Fq 'value: "postgres"' "$TMP_DIR/postgresql-admin.yaml"
+grep -Fq 'key: postgres-password' "$TMP_DIR/postgresql-admin.yaml"
+render postgresql-admin-secret "$CHART_DIR" \
+  --set postgresql.auth.username=postgres \
+  --show-only charts/postgresql/templates/secrets.yaml >"$TMP_DIR/postgresql-admin-secret.yaml"
+grep -Eq '^  postgres-password:' "$TMP_DIR/postgresql-admin-secret.yaml"
+if grep -Eq '^  password:' "$TMP_DIR/postgresql-admin-secret.yaml"; then
+  fail "Bitnami PostgreSQL must not create a custom-user password key for username=postgres"
+fi
+
+render postgresql-admin-existing-secret "$CHART_DIR" \
+  --set postgresql.auth.username=postgres \
+  --set postgresql.auth.existingSecret=custom-pg-admin \
+  --set postgresql.auth.secretKeys.adminPasswordKey=custom-admin-key \
+  --show-only templates/server-deployment.yaml >"$TMP_DIR/postgresql-admin-existing-secret.yaml"
+grep -Fq 'name: custom-pg-admin' "$TMP_DIR/postgresql-admin-existing-secret.yaml"
+grep -Fq 'key: custom-admin-key' "$TMP_DIR/postgresql-admin-existing-secret.yaml"
+
 render sentinel "$CHART_DIR" \
   --set redis.architecture=replication \
   --set redis.sentinel.enabled=true \
