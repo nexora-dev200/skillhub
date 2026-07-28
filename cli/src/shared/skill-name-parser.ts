@@ -24,7 +24,7 @@ function parseSeparatedCoordinate(
   const namespace = skillName.slice(namespaceStart, separatorIndex)
   const slug = skillName.slice(separatorIndex + separatorLength)
 
-  if (!namespace || !slug) {
+  if (!namespace || !slug || slug.includes('/')) {
     throw invalidCoordinate(skillName)
   }
 

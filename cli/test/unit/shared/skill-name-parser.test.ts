@@ -44,7 +44,10 @@ describe('parseSkillName', () => {
     'team/',
     '/my-skill',
     '--my-skill',
-    'team--'
+    'team--',
+    'team/my-skill/extra',
+    '@team/my-skill/extra',
+    'team--my-skill/extra'
   ])('rejects malformed coordinate %p', (skillName) => {
     expectUsageError(() => parseSkillName(skillName))
   })
