@@ -377,7 +377,7 @@ API Token 仍保留，但定位从“CLI 唯一认证方式”调整为“平台
 - 用途：自动化脚本、兼容层调用、手工 Token 管理、后续系统集成
 - 存储：只存 SHA-256 哈希，明文只展示一次
 - 校验：从 `Authorization: Bearer <token>` 提取 → 哈希比对 → 加载关联用户 → 检查用户状态
-- 失败闭合：公共读接口只有在缺少 `Authorization` 头时才按匿名访问处理；只要出现 Bearer 凭证，空值、格式错误、未知、过期、已吊销、用户缺失或用户禁用均返回 401，不能回退为匿名访问
+- 失败闭合：共享认证过滤器只识别 Bearer scheme；公共读接口在未提供可识别的 Bearer 凭证时按匿名访问处理（包括缺少 `Authorization` 头，以及 Basic 或其他非 Bearer scheme）。请求一旦使用 Bearer scheme，空值、格式错误、未知、过期、已吊销、用户缺失或用户禁用均返回 401，不能回退为匿名访问
 - 作用域：`skill:read`, `skill:publish`, `skill:delete`, `token:manage`
 
 > **一期作用域说明（非最小权限）**：一期 Token 作用域为粗粒度动作级别，不与 namespace 绑定。Token 继承用户的全部权限——如果用户是某个 namespace 的 MEMBER，则该用户的任何 Token（只要包含 `skill:publish` scope）都可以向该 namespace 发布技能。这是有意的一期简化，不满足最小权限原则。后续版本计划引入 namespace 级别的 Token 作用域限定（如 `namespace:ai-team:skill:publish`），或通过 `api_token_scope` 子表实现 Token 与 namespace 的绑定。
@@ -629,7 +629,7 @@ window.location.href = '/oauth2/authorization/github'
 | `GET /api/cli/v1/skills/{namespace}/{slug}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
 | `GET /api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
 
-公共读接口仅在完全缺少 `Authorization` 头时允许匿名访问。请求一旦携带 Bearer 凭证，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
+共享 API token 过滤器只识别 Bearer scheme。公共读接口在未提供可识别的 Bearer 凭证时允许匿名访问：这既包括完全缺少 `Authorization` 头，也包括 Basic 或其他非 Bearer scheme；`whoami` 因自身要求认证，在这些情况下仍返回 401。请求一旦使用 Bearer scheme，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401，不能降级为匿名身份。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
 
 ### 10.4 Admin API
 

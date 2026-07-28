@@ -4,9 +4,11 @@ info:
   version: 1.0.0
   description: >-
     Authentication contract for CLI identity and public skill reads. Public read
-    operations permit a request with no Authorization header, but any supplied
-    Bearer credential must be valid; malformed, unknown, expired, or revoked
-    credentials return HTTP 401 and never fall back to anonymous access.
+    operations treat a request with no recognized Bearer credential as anonymous,
+    including an absent Authorization header or an unsupported scheme such as
+    Basic. Once the Bearer scheme is used, the credential must be valid;
+    malformed, unknown, expired, or revoked Bearer credentials return HTTP 401
+    and never fall back to anonymous access.
 servers:
   - url: /
 tags:
@@ -34,7 +36,7 @@ paths:
       tags: [CLI Skills]
       summary: Search CLI-installable skills
       operationId: cliSearchSkills
-      description: No Authorization header uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
       security:
         - {}
         - bearerAuth: []
@@ -65,6 +67,7 @@ paths:
       tags: [CLI Skills]
       summary: Resolve a skill version
       operationId: cliResolveSkill
+      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
       security:
         - {}
         - bearerAuth: []
@@ -95,6 +98,7 @@ paths:
       tags: [CLI Skills]
       summary: Download the latest installable skill version
       operationId: cliDownloadLatestSkill
+      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
       security:
         - {}
         - bearerAuth: []
@@ -119,6 +123,7 @@ paths:
       tags: [CLI Skills]
       summary: Download an exact installable skill version
       operationId: cliDownloadSkillVersion
+      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
       security:
         - {}
         - bearerAuth: []
@@ -218,13 +223,13 @@ components:
   schemas:
     Envelope:
       type: object
-      required: [code, msg, timestamp]
+      required: [code, msg, data, timestamp, requestId]
       properties:
         code: {type: integer, format: int32}
         msg: {type: string}
         data: {type: object, nullable: true}
         timestamp: {type: string, format: date-time}
-        requestId: {type: string, nullable: true}
+        requestId: {type: string, example: req-123}
     ErrorEnvelope:
       allOf:
         - $ref: '#/components/schemas/Envelope'

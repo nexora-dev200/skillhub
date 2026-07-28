@@ -13,7 +13,7 @@
 ## File Map
 
 - Create `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliTokenLifecycleSecurityIntegrationTest.java`: persisted valid/revoked/expired/unknown/empty/malformed credential matrix for each CLI endpoint.
-- Create `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliRestrictedReadAuthorizationIntegrationTest.java`: real PRIVATE-skill read authorization through resolve, latest download, and versioned download.
+- Create `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliRestrictedReadAuthorizationIntegrationTest.java`: real PRIVATE-skill search omission and read authorization through resolve, latest download, and versioned download.
 - Modify `docs/03-authentication-design.md`: current CLI route table and explicit anonymous/401/403 rules.
 - Create `docs/api/authentication.openapi.yaml`: OpenAPI 3.0 contract for whoami, search, resolve, latest download, and versioned download.
 - Do not modify `server/skillhub-auth/src/main/**` unless Task 5 records a failing unmodified-source assertion and a separate systematic-debugging plan amendment identifies the root cause.
@@ -412,7 +412,34 @@ Run focused commands for the invalid, anonymous, and valid versioned-download me
 
 Expected: all commands PASS and the filter source has no diff.
 
-- [ ] **Step 4: Run the complete persisted credential matrix**
+- [ ] **Step 4: Add and prove the same-token valid-to-revoked replay**
+
+Create one token through `ApiTokenService`, retain its raw value, and use that
+same value successfully against whoami, search, resolve, latest download, and
+versioned download. Revoke the persisted token through
+`ApiTokenService.revokeToken`, clear prior business-service invocations, then
+replay the exact same raw value against all five endpoints. Each replay must
+return 401 and the mocked business service must receive no post-revocation
+interaction.
+
+For the three valid JSON responses and all five revoked error responses, assert
+that the outer JSON object contains exactly `code`, `msg`, `data`, `timestamp`,
+and `requestId`; successful downloads remain binary-stream exceptions.
+
+Apply the reversible invalid-token fail-open mutation and run:
+
+```bash
+cd server && ./mvnw -pl skillhub-app -am \
+  -Dtest=CliTokenLifecycleSecurityIntegrationTest#sameRawTokenIsRejectedByAllEndpointsAfterValidUseAndRevocation \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Expected RED: at least one public read replay returns 200 instead of 401.
+Restore the filter, confirm its production diff is empty, and rerun the same
+command. Expected GREEN: one test passes with all five valid calls and all five
+revoked replays exercised.
+
+- [ ] **Step 5: Run the complete persisted credential matrix**
 
 Run:
 
@@ -422,9 +449,11 @@ cd server && ./mvnw -pl skillhub-app -am \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-Expected: PASS for all five endpoints and all absent, valid, revoked, expired, unknown, empty, and malformed credential cases.
+Expected: PASS for all five endpoints and all absent, valid, revoked, expired,
+unknown, empty, and malformed credential cases, plus the same-token lifecycle
+replay.
 
-- [ ] **Step 5: Commit the credential matrix**
+- [ ] **Step 6: Commit the credential matrix**
 
 ```bash
 git add server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliTokenLifecycleSecurityIntegrationTest.java
@@ -596,21 +625,25 @@ Confirm `git diff -- server/skillhub-domain/src/main/java/com/iflytek/skillhub/d
 
 Expected: outsider resolve/latest/versioned each PASS with 403; owner resolve PASS with 200.
 
-- [ ] **Step 5: Run the existing search-visibility boundary tests**
+- [ ] **Step 5: Persist and verify the PRIVATE search-visibility boundary**
 
-Run the search authorization checks independently as a supplementary 200-with-omission boundary:
+Persist a `SkillSearchDocumentEntity` for the same PRIVATE fixture, call the CLI
+search endpoint with the valid outsider token through the real
+`CliSkillAppService` and `SearchQueryService`, and assert HTTP 200 with the
+fixture slug omitted. Run it independently:
 
 ```bash
 cd server
 ./mvnw -pl skillhub-app -am \
-  -Dtest='PostgresFullTextQueryServiceTest#anonymousSearchSqlShouldOnlyReadPublicActiveVisibleNonArchivedSkills' \
-  -Dsurefire.failIfNoSpecifiedTests=false test
-./mvnw -pl skillhub-app -am \
-  -Dtest='SkillSearchAppServiceTest#search_shouldIncludeMemberNamespacesInVisibilityScope' \
+  -Dtest='CliRestrictedReadAuthorizationIntegrationTest#outsiderSearchOmitsPersistedPrivateSkill' \
   -Dsurefire.failIfNoSpecifiedTests=false test
 ```
 
-Expected: both commands PASS. Record search as a successful response whose result set omits inaccessible PRIVATE skills; it is not a substitute for the real resolve/download 403 assertions above.
+Before the GREEN run, temporarily include PRIVATE documents in the search
+adapter's visibility predicate and confirm the test fails because the fixture
+slug appears. Restore the production predicate and confirm the command passes.
+The search omission is not a substitute for the real resolve/download 403
+assertions above.
 
 - [ ] **Step 6: Commit the restricted-read tests**
 
@@ -662,7 +695,7 @@ Use this content in section 10.3:
 | `GET /api/cli/v1/skills/{namespace}/{slug}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
 | `GET /api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
 
-公共读接口仅在完全缺少 `Authorization` 头时允许匿名访问。请求一旦携带 Bearer 凭证，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
+共享 API token 过滤器只识别 Bearer scheme。公共读接口在未提供可识别的 Bearer 凭证时允许匿名访问：这既包括完全缺少 `Authorization` 头，也包括 Basic 或其他非 Bearer scheme；`whoami` 因自身要求认证，在这些情况下仍返回 401。请求一旦使用 Bearer scheme，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401，不能降级为匿名身份。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
 ```
 
 - [ ] **Step 2: Create the complete OpenAPI 3.0 document**
@@ -676,9 +709,11 @@ info:
   version: 1.0.0
   description: >-
     Authentication contract for CLI identity and public skill reads. Public read
-    operations permit a request with no Authorization header, but any supplied
-    Bearer credential must be valid; malformed, unknown, expired, or revoked
-    credentials return HTTP 401 and never fall back to anonymous access.
+    operations treat a request with no recognized Bearer credential as anonymous,
+    including an absent Authorization header or an unsupported scheme such as
+    Basic. Once the Bearer scheme is used, the credential must be valid;
+    malformed, unknown, expired, or revoked Bearer credentials return HTTP 401
+    and never fall back to anonymous access.
 servers:
   - url: /
 tags:
@@ -706,7 +741,7 @@ paths:
       tags: [CLI Skills]
       summary: Search CLI-installable skills
       operationId: cliSearchSkills
-      description: No Authorization header uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
       security:
         - {}
         - bearerAuth: []
@@ -890,13 +925,13 @@ components:
   schemas:
     Envelope:
       type: object
-      required: [code, msg, timestamp]
+      required: [code, msg, data, timestamp, requestId]
       properties:
         code: {type: integer, format: int32}
         msg: {type: string}
         data: {type: object, nullable: true}
         timestamp: {type: string, format: date-time}
-        requestId: {type: string, nullable: true}
+        requestId: {type: string, example: req-123}
     ErrorEnvelope:
       allOf:
         - $ref: '#/components/schemas/Envelope'

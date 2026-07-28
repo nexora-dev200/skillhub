@@ -4,10 +4,11 @@
 
 Prove and preserve fail-closed API-token behavior across the CLI API using a
 real persisted token lifecycle. Invalid Bearer credentials must return HTTP
-401 before endpoint business logic runs, while requests without an
-`Authorization` header retain the existing anonymous-public-read contract and
-valid credentials without sufficient authorization continue to return HTTP
-403.
+401 before endpoint business logic runs, while requests without a recognized
+Bearer credential retain the existing anonymous-public-read contract. This
+includes an absent `Authorization` header and unsupported schemes such as
+Basic. Valid credentials without sufficient authorization continue to return
+HTTP 403.
 
 ## Scope
 
@@ -100,7 +101,9 @@ source-code conclusion is accepted.
 ## Architecture
 
 `ApiTokenAuthenticationFilter` remains the single Bearer-authentication entry
-point. Controllers must not duplicate token parsing or lifecycle checks.
+point. It ignores Basic and other non-Bearer schemes, which therefore reach
+public read routes as anonymous requests; controllers must not duplicate token
+parsing or lifecycle checks.
 
 The regression test will boot the Spring application with MockMvc, real
 `ApiTokenService`, real `ApiTokenRepository`, and real user persistence. CLI
@@ -150,6 +153,7 @@ arguments and assertions for every credential state.
 | Credential state | `whoami` | Public `search` | Public `resolve` | Public latest download | Public versioned download | Meaning |
 |---|---:|---:|---:|---:|---:|---|
 | No `Authorization` header | 401 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Anonymous access is preserved only where already public |
+| Basic or another non-Bearer scheme | 401 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Unsupported schemes are not treated as API-token attempts |
 | Valid active token | 200 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Principal and roles/scopes are projected |
 | Revoked token | 401 | 401 | 401 | 401 | 401 | Credential cannot degrade to anonymous |
 | Expired token | 401 | 401 | 401 | 401 | 401 | Credential cannot degrade to anonymous |
