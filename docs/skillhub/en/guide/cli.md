@@ -83,6 +83,8 @@ skillhub login --token sk_xxx --registry https://skillhub.example.com
 
 `login` validates the token, stores it in `~/.skillhub/credentials.json`, and writes the registry to `~/.skillhub/config.json`.
 
+When an API-token request is denied, the CLI shows the safe reason returned by the server and its `Request ID`. Use that ID to correlate the failure with server logs. Other authorization failures continue to use a generic message.
+
 ### Check Current Identity
 
 ```bash
@@ -157,7 +159,7 @@ The CLI determines the installation location using the following logic:
 1. If `--dir` is specified: Install to that directory, agent marked as `custom`. `--dir` is mutually exclusive with `--scope` and `--agent`.
 2. If `--scope user|project` is specified: Limit detection to the chosen scope.
    - With `--agent <profile>`: Install to that profile's user or project skills directory directly.
-   - Without `--agent`: Detect existing skills directories within the chosen scope only.
+   - Without `--agent`: Detect existing skills directories within the chosen scope only. In interactive user scope, the `generic` target (`<home>/.agents/skills/`) is always also offered and can be selected alone or together with detected targets.
    - No detected directory in the chosen scope → Fallback to `<home>/.agents/skills/` for `--scope user` or `<cwd>/.agents/skills/` for `--scope project`.
 3. If `--agent` is specified (no `--scope`): Install to the corresponding Agent's skills directory (existing behaviour, unchanged).
 4. If none of the above is specified:
@@ -188,7 +190,7 @@ Each Agent has both project-level and user-level skills directories. Use `--scop
 | `kilo` | `<project>/.kilo/skills/` | `~/.kilo/skills/` |
 | _fallback_ | `<project>/.agents/skills/` | `~/.agents/skills/` |
 
-For Agents not in the list, use `--dir` to specify the installation path. When `--scope user|project` finds no matching agent directory, the CLI falls back to the `_fallback_` row above.
+For a custom path or an unsupported Agent directory, use `--dir` to specify the installation path. In interactive user scope, the `generic` target is offered alongside detected Agent targets. When `--scope user|project` finds no matching agent directory, the CLI falls back to the `_fallback_` row above.
 
 ### File Structure After Installation
 

@@ -2,6 +2,7 @@ package com.iflytek.skillhub.domain.skill.service;
 
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.skill.Skill;
+import com.iflytek.skillhub.domain.skill.SkillInstallability;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVersionRepository;
 import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
@@ -39,6 +40,10 @@ public class SkillLifecycleProjectionService {
             ResolutionMode resolutionMode
     ) {}
 
+    private static final Comparator<SkillVersion> RECENCY = Comparator
+            .comparing(SkillVersion::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(SkillVersion::getId, Comparator.nullsLast(Comparator.naturalOrder()));
+
     private final SkillVersionRepository skillVersionRepository;
 
     public SkillLifecycleProjectionService(SkillVersionRepository skillVersionRepository) {
@@ -46,22 +51,26 @@ public class SkillLifecycleProjectionService {
     }
 
     public Projection projectForViewer(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
-        VersionProjection publishedVersion = toProjection(resolvePublishedVersion(skill));
-        VersionProjection ownerPreviewVersion = toProjection(resolveOwnerPendingPreview(skill, currentUserId, userNsRoles));
-        VersionProjection headlineVersion = publishedVersion != null ? publishedVersion : ownerPreviewVersion;
-        ResolutionMode resolutionMode = headlineVersion == null
-                ? ResolutionMode.NONE
-                : publishedVersion != null ? ResolutionMode.PUBLISHED : ResolutionMode.OWNER_PREVIEW;
-        return new Projection(headlineVersion, publishedVersion, ownerPreviewVersion, resolutionMode);
+        SkillVersion published = resolvePublishedVersion(skill);
+        SkillVersion preview = canManage(skill, currentUserId, userNsRoles)
+                ? resolveNewerNonPublishedVersion(skill, published)
+                : null;
+        return buildProjection(published, preview);
     }
 
     public Projection projectForOwnerSummary(Skill skill) {
-        VersionProjection publishedVersion = toProjection(resolvePublishedVersion(skill));
-        VersionProjection ownerPreviewVersion = toProjection(resolveNewestNonPublishedVersion(skill));
+        SkillVersion published = resolvePublishedVersion(skill);
+        SkillVersion preview = resolveNewerNonPublishedVersion(skill, published);
+        return buildProjection(published, preview);
+    }
+
+    private Projection buildProjection(SkillVersion published, SkillVersion preview) {
+        VersionProjection publishedVersion = toProjection(published);
+        VersionProjection ownerPreviewVersion = toProjection(preview);
         VersionProjection headlineVersion = publishedVersion != null ? publishedVersion : ownerPreviewVersion;
-        ResolutionMode resolutionMode = headlineVersion == null
-                ? ResolutionMode.NONE
-                : publishedVersion != null ? ResolutionMode.PUBLISHED : ResolutionMode.OWNER_PREVIEW;
+        ResolutionMode resolutionMode = headlineVersion == null ? ResolutionMode.NONE
+                : publishedVersion != null ? ResolutionMode.PUBLISHED
+                : ResolutionMode.OWNER_PREVIEW;
         return new Projection(headlineVersion, publishedVersion, ownerPreviewVersion, resolutionMode);
     }
 
@@ -80,19 +89,10 @@ public class SkillLifecycleProjectionService {
                 .collect(Collectors.toMap(SkillVersion::getId, Function.identity()));
 
         Map<Long, SkillVersion> publishedBySkillId = new java.util.HashMap<>();
-        List<Long> unresolvedSkillIds = new java.util.ArrayList<>();
         for (Skill skill : skills) {
             SkillVersion latestVersion = latestVersionsById.get(skill.getLatestVersionId());
-            if (latestVersion != null && latestVersion.getStatus() == SkillVersionStatus.PUBLISHED) {
+            if (SkillInstallability.isInstallableVersion(latestVersion)) {
                 publishedBySkillId.put(skill.getId(), latestVersion);
-            } else {
-                unresolvedSkillIds.add(skill.getId());
-            }
-        }
-
-        if (!unresolvedSkillIds.isEmpty()) {
-            for (SkillVersion version : skillVersionRepository.findBySkillIdInAndStatus(unresolvedSkillIds, SkillVersionStatus.PUBLISHED)) {
-                publishedBySkillId.merge(version.getSkillId(), version, this::newerVersion);
             }
         }
 
@@ -116,27 +116,19 @@ public class SkillLifecycleProjectionService {
     }
 
     /**
-     * Returns the newest non-published version the owner can preview.
-     * Includes PENDING_REVIEW, REJECTED, DRAFT, SCANNING, SCAN_FAILED — any status
-     * that isn't already covered by the published projection and isn't yanked.
+     * Returns the newest non-published version (PENDING_REVIEW, REJECTED, DRAFT, SCANNING,
+     * SCAN_FAILED) that represents a NEW round of work layered on top of the current published
+     * version. A non-published version that is older than the published version is treated as
+     * settled history (e.g. an early rejected attempt later superseded by a published release)
+     * and is intentionally not surfaced, so the owner does not see a stale preview/rejected badge
+     * next to an already-published skill.
      */
-    private SkillVersion resolveOwnerPendingPreview(Skill skill, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
-        if (!canManage(skill, currentUserId, userNsRoles)) {
-            return null;
-        }
+    private SkillVersion resolveNewerNonPublishedVersion(Skill skill, SkillVersion publishedVersion) {
         return skillVersionRepository.findBySkillId(skill.getId()).stream()
-                .filter(v -> v.getStatus() != SkillVersionStatus.PUBLISHED
-                        && v.getStatus() != SkillVersionStatus.YANKED)
-                .max(versionComparator())
-                .orElse(null);
-    }
-
-    private SkillVersion resolveNewestNonPublishedVersion(Skill skill) {
-        List<SkillVersion> versions = skillVersionRepository.findBySkillId(skill.getId());
-        return versions.stream()
                 .filter(version -> version.getStatus() != SkillVersionStatus.PUBLISHED
                         && version.getStatus() != SkillVersionStatus.YANKED)
-                .max(versionComparator())
+                .filter(version -> publishedVersion == null || RECENCY.compare(version, publishedVersion) > 0)
+                .max(RECENCY)
                 .orElse(null);
     }
 
@@ -155,10 +147,6 @@ public class SkillLifecycleProjectionService {
                 .comparing(SkillVersion::getPublishedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(SkillVersion::getCreatedAt, Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(SkillVersion::getId, Comparator.nullsLast(Comparator.naturalOrder()));
-    }
-
-    private SkillVersion newerVersion(SkillVersion left, SkillVersion right) {
-        return versionComparator().compare(left, right) >= 0 ? left : right;
     }
 
     private VersionProjection toProjection(SkillVersion version) {

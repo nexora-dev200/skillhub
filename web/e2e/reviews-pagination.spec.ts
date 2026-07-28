@@ -41,6 +41,7 @@ test.describe('Review Management Pagination (Real API)', () => {
 
     await page.goto('/dashboard/reviews')
     await expect(page.getByRole('heading', { name: 'Review Center' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Skill Reviews' })).toBeVisible()
 
     const tabMeta: Record<ReviewStatus, { tabLabel: string; summaryPrefix: string }> = {
       PENDING: { tabLabel: 'Pending', summaryPrefix: 'Total' },
@@ -49,7 +50,7 @@ test.describe('Review Management Pagination (Real API)', () => {
     }
 
     for (const status of statuses) {
-      await page.getByRole('button', { name: tabMeta[status].tabLabel }).click()
+      await page.getByRole('tab', { name: tabMeta[status].tabLabel }).click()
 
       const meta = metaByStatus.get(status)
       if (!meta) {
@@ -79,5 +80,13 @@ test.describe('Review Management Pagination (Real API)', () => {
         await expect(nextButton).toBeDisabled()
       }
     }
+  })
+
+  test('opens the profile review queue from the review type search param', async ({ page }) => {
+    await page.goto('/dashboard/reviews?type=profile')
+
+    await expect(page).toHaveURL(/\/dashboard\/reviews\?type=profile$/)
+    await expect(page.getByRole('heading', { name: 'Review Center' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Profile Review Queue' })).toBeVisible()
   })
 })

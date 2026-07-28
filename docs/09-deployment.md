@@ -194,6 +194,9 @@ docker compose --env-file .env.release -f compose.release.yml up -d
 - 推荐将敏感变量放入 CI/CD Secret 或主机上的受控 `.env.release`
 - 外部对象存储通过 `SKILLHUB_STORAGE_S3_*` 注入
 - 前端反代和运行时 API 地址通过 `SKILLHUB_API_UPSTREAM` / `SKILLHUB_WEB_API_BASE_URL` 注入
+- `SKILLHUB_TRUST_FORWARDED_PROTO` 默认保持 `false`。只有 Web 容器仅能经由可信
+  TLS 终止代理访问，且该代理会覆盖客户端传入的 `X-Forwarded-Proto` 时才设为
+  `true`；否则客户端可伪造协议并影响 OAuth 回调、重定向和安全 Cookie 判断
 - 如果要开放真实登录，再补充 `OAUTH2_GITHUB_CLIENT_ID` / `OAUTH2_GITHUB_CLIENT_SECRET`
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 

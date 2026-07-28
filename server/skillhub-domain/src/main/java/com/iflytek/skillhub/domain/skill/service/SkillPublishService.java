@@ -62,6 +62,12 @@ public class SkillPublishService {
 
     private static final DateTimeFormatter AUTO_VERSION_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd.HHmmss").withZone(ZoneId.systemDefault());
+    private static final Set<SkillVersionStatus> REPLACEABLE_VERSION_STATUSES = Set.of(
+            SkillVersionStatus.DRAFT,
+            SkillVersionStatus.SCAN_FAILED,
+            SkillVersionStatus.UPLOADED,
+            SkillVersionStatus.REJECTED
+    );
     private static final Logger log = LoggerFactory.getLogger(SkillPublishService.class);
 
     public record PublishResult(
@@ -169,6 +175,9 @@ public class SkillPublishService {
             if (member.isEmpty()) {
                 errors.add("Publisher is not a member of namespace: " + namespaceSlug);
             }
+        }
+        if (requiresSecurityScanner(visibility) && !securityScanService.isEnabled()) {
+            errors.add("error.security.scanner.required");
         }
 
         // 3. Package validation
@@ -380,6 +389,9 @@ public class SkillPublishService {
                     "error.skill.publish.precheck.confirmRequired",
                     formatValidationMessages(publishWarnings));
         }
+        if (requiresSecurityScanner(visibility) && !securityScanService.isEnabled()) {
+            throw new DomainBadRequestException("error.security.scanner.required");
+        }
 
         // 6. Find or create Skill record (with owner isolation)
         List<Skill> existingSkills = skillRepository.findByNamespaceIdAndSlug(namespace.getId(), skillSlug);
@@ -560,12 +572,21 @@ public class SkillPublishService {
     }
 
     private void deleteReplaceableVersionArtifacts(Skill skill, SkillVersion version, String namespaceSlug) {
-        if (version.getStatus() == SkillVersionStatus.PUBLISHED) {
+        if (!REPLACEABLE_VERSION_STATUSES.contains(version.getStatus())) {
             throw new DomainBadRequestException("error.skill.version.exists", version.getVersion());
         }
 
-        reviewTaskRepository.findBySkillVersionIdAndStatus(version.getId(), ReviewTaskStatus.PENDING)
-                .ifPresent(reviewTaskRepository::delete);
+        // PostgreSQL prevents deleting a skill_version while skill.latest_version_id still references it.
+        if (version.getId().equals(skill.getLatestVersionId())) {
+            skill.setLatestVersionId(null);
+            skillRepository.save(skill);
+            skillRepository.flush();
+        }
+
+        // Every review task referencing this version has to go, not just a PENDING one:
+        // a rejected version still owns a REJECTED task whose foreign key blocks the
+        // skill_version delete below, which surfaces to the caller as an HTTP 500.
+        reviewTaskRepository.deleteBySkillVersionIdIn(List.of(version.getId()));
 
         List<SkillFile> files = skillFileRepository.findByVersionId(version.getId());
         List<String> storageKeys = new ArrayList<>();
@@ -579,10 +600,10 @@ public class SkillPublishService {
         securityScanService.softDeleteByVersionId(version.getId());
         skillVersionRepository.delete(version);
         skillVersionRepository.flush();
+    }
 
-        if (version.getId().equals(skill.getLatestVersionId())) {
-            skill.setLatestVersionId(null);
-        }
+    private boolean requiresSecurityScanner(SkillVisibility visibility) {
+        return visibility == SkillVisibility.PUBLIC || visibility == SkillVisibility.NAMESPACE_ONLY;
     }
 
     private String resolveNamespaceSlug(Long namespaceId) {
