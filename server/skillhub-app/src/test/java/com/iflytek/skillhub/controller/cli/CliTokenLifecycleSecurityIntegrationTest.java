@@ -24,6 +24,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -163,7 +165,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
     void latestDownloadWithValidPersistedTokenReturns200() throws Exception {
         String token = createActiveToken();
         mockMvc.perform(withBearer(get("/api/cli/v1/skills/global/demo/download"), token))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"));
     }
 
     @ParameterizedTest(name = "latest download rejects {0}")
@@ -187,7 +190,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
         String token = createActiveToken();
         mockMvc.perform(withBearer(
                         get("/api/cli/v1/skills/global/demo/versions/1.0.0/download"), token))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"));
     }
 
     @ParameterizedTest(name = "versioned download rejects {0}")
@@ -251,7 +255,9 @@ class CliTokenLifecycleSecurityIntegrationTest {
     }
 
     private ResponseEntity<InputStreamResource> downloadResponse() {
-        return ResponseEntity.ok(new InputStreamResource(
-                new ByteArrayInputStream("zip".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .body(new InputStreamResource(
+                        new ByteArrayInputStream("zip".getBytes(java.nio.charset.StandardCharsets.UTF_8))));
     }
 }
