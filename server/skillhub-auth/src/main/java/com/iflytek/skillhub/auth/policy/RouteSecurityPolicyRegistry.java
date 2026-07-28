@@ -82,7 +82,8 @@ public class RouteSecurityPolicyRegistry {
             RouteAuthorizationPolicy.permitAll(HttpMethod.GET, "/api/cli/v1/skills/*/*/download"),
             RouteAuthorizationPolicy.permitAll(HttpMethod.GET, "/api/cli/v1/skills/*/*/versions/*/download"),
             RouteAuthorizationPolicy.authenticated(HttpMethod.DELETE, "/api/cli/v1/skills/*/*"),
-            RouteAuthorizationPolicy.authenticated(HttpMethod.POST, "/api/cli/v1/skills/*/publish")
+            RouteAuthorizationPolicy.authenticated(HttpMethod.POST, "/api/cli/v1/skills/*/publish"),
+            RouteAuthorizationPolicy.authenticated(HttpMethod.POST, "/api/cli/v1/skills/*/publish/validate")
     );
 
     private static final List<ApiTokenPolicy> API_TOKEN_POLICIES = List.of(
@@ -121,7 +122,8 @@ public class RouteSecurityPolicyRegistry {
             ApiTokenPolicy.allow(HttpMethod.GET, "/api/cli/v1/skills/*/*/download"),
             ApiTokenPolicy.allow(HttpMethod.GET, "/api/cli/v1/skills/*/*/versions/*/download"),
             ApiTokenPolicy.require(HttpMethod.DELETE, "/api/cli/v1/skills/*/*", "skill:delete"),
-            ApiTokenPolicy.require(HttpMethod.POST, "/api/cli/v1/skills/*/publish", "skill:publish")
+            ApiTokenPolicy.require(HttpMethod.POST, "/api/cli/v1/skills/*/publish", "skill:publish"),
+            ApiTokenPolicy.require(HttpMethod.POST, "/api/cli/v1/skills/*/publish/validate", "skill:publish")
     );
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
@@ -148,14 +150,22 @@ public class RouteSecurityPolicyRegistry {
         return ApiTokenAuthorizationDecision.unsupported(path);
     }
 
-    public boolean shouldIgnoreCsrf(String path, String authorizationHeader) {
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+    public boolean shouldIgnoreCsrf(String method, String path, String authorizationHeader) {
+        return shouldIgnoreCsrf(method, path, authorizationHeader, false);
+    }
+
+    public boolean shouldIgnoreCsrf(String method, String path, String authorizationHeader, boolean hasSessionCookie) {
+        if (!hasSessionCookie && authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             return true;
         }
         if (path == null) {
             return false;
         }
-        return path.startsWith("/api/");
+        if (!"POST".equalsIgnoreCase(method)) {
+            return false;
+        }
+        return "/api/v1/auth/device/code".equals(path)
+                || "/api/v1/auth/device/token".equals(path);
     }
 
     public boolean shouldProjectRequestContext(String path) {

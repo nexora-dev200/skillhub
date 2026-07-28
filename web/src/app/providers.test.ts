@@ -4,10 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 // and Toaster. It exports only the App component. We verify the export exists.
 
 vi.mock('@tanstack/react-query', () => ({
-  QueryClient: vi.fn().mockImplementation(() => ({})),
+  QueryClient: vi.fn().mockImplementation(function () {
+    return {}
+  }),
   QueryClientProvider: ({ children }: { children: unknown }) => children,
-  QueryCache: vi.fn().mockImplementation(() => ({})),
-  MutationCache: vi.fn().mockImplementation(() => ({})),
+  QueryCache: vi.fn().mockImplementation(function () {
+    return {}
+  }),
+  MutationCache: vi.fn().mockImplementation(function () {
+    return {}
+  }),
 }))
 
 vi.mock('@tanstack/react-router', () => ({

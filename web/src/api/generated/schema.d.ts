@@ -916,6 +916,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/web/namespaces/{slug}/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transferOwnership"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/namespaces/{slug}/transfer-ownership": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["transferOwnership_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/web/namespaces/{slug}/restore": {
         parameters: {
             query?: never;
@@ -1646,6 +1678,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["publish_3"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cli/v1/skills/{namespace}/publish/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["validatePublish"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3644,9 +3692,19 @@ export interface components {
             id?: number;
             /** Format: int64 */
             sourceSkillId?: number;
+            sourceSkillDisplayName?: string;
+            sourceSkillSummary?: string;
             sourceNamespace?: string;
             sourceSkillSlug?: string;
             sourceVersion?: string;
+            /** Format: int32 */
+            sourceVersionFileCount?: number;
+            /** Format: int64 */
+            sourceVersionTotalSize?: number;
+            /** Format: int64 */
+            sourceSkillDownloadCount?: number;
+            /** Format: int32 */
+            sourceSkillStarCount?: number;
             targetNamespace?: string;
             /** Format: int64 */
             targetSkillId?: number;
@@ -3668,6 +3726,21 @@ export interface components {
             sourceVersionId?: number;
             /** Format: int64 */
             targetNamespaceId?: number;
+        };
+        TransferOwnershipRequest: {
+            newOwnerId: string;
+        };
+        ApiResponseMessageResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["MessageResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        MessageResponse: {
+            message?: string;
         };
         BatchMemberRequest: {
             members: components["schemas"]["MemberRequest"][];
@@ -3765,18 +3838,6 @@ export interface components {
         AuthorizeRequest: {
             userCode?: string;
         };
-        ApiResponseMessageResponse: {
-            /** Format: int32 */
-            code?: number;
-            msg?: string;
-            data?: components["schemas"]["MessageResponse"];
-            /** Format: date-time */
-            timestamp?: string;
-            requestId?: string;
-        };
-        MessageResponse: {
-            message?: string;
-        };
         SessionBootstrapRequest: {
             provider: string;
         };
@@ -3795,6 +3856,7 @@ export interface components {
             email?: string;
             avatarUrl?: string;
             oauthProvider?: string;
+            canChangePassword?: boolean;
             platformRoles?: string[];
         };
         LocalRegisterRequest: {
@@ -3947,6 +4009,22 @@ export interface components {
             slug?: string;
             version?: string;
             visibility?: string;
+        };
+        ApiResponseCliDryRunResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["CliDryRunResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        CliDryRunResponse: {
+            valid?: boolean;
+            errors?: string[];
+            warnings?: string[];
+            resolvedSlug?: string;
+            resolvedVersion?: string;
         };
         UpdateProfileRequest: {
             displayName?: string;
@@ -6866,9 +6944,11 @@ export interface operations {
     listPromotions: {
         parameters: {
             query?: {
-                status?: string;
+                status?: "PENDING" | "APPROVED" | "REJECTED";
                 page?: number;
                 size?: number;
+                sortBy?: "reviewedAt";
+                sortDirection?: "ASC" | "DESC";
             };
             header?: never;
             path?: never;
@@ -6914,9 +6994,11 @@ export interface operations {
     listPromotions_1: {
         parameters: {
             query?: {
-                status?: string;
+                status?: "PENDING" | "APPROVED" | "REJECTED";
                 page?: number;
                 size?: number;
+                sortBy?: "reviewedAt";
+                sortDirection?: "ASC" | "DESC";
             };
             header?: never;
             path?: never;
@@ -6999,6 +7081,58 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseNamespaceResponse"];
+                };
+            };
+        };
+    };
+    transferOwnership: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferOwnershipRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMessageResponse"];
+                };
+            };
+        };
+    };
+    transferOwnership_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TransferOwnershipRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseMessageResponse"];
                 };
             };
         };
@@ -8294,6 +8428,36 @@ export interface operations {
             };
         };
     };
+    validatePublish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                    visibility?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseCliDryRunResponse"];
+                };
+            };
+        };
+    };
     getProfile: {
         parameters: {
             query?: never;
@@ -9568,7 +9732,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };
@@ -9588,7 +9752,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "*/*": components["schemas"]["SseEmitter"];
+                    "text/event-stream": components["schemas"]["SseEmitter"];
                 };
             };
         };
@@ -9789,6 +9953,8 @@ export interface operations {
                 page?: number;
                 size?: number;
                 filter?: string;
+                q?: string;
+                namespace?: string;
             };
             header?: never;
             path?: never;
@@ -9813,6 +9979,8 @@ export interface operations {
                 page?: number;
                 size?: number;
                 filter?: string;
+                q?: string;
+                namespace?: string;
             };
             header?: never;
             path?: never;

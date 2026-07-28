@@ -320,4 +320,111 @@ describe('remove command — local remove (P1)', () => {
     const agents = parsed.removed.map((r: { agent: string }) => r.agent).sort()
     expect(agents).toEqual(['claude-code', 'cursor'])
   })
+
+  // -------------------------------------------------------------------------
+  // P1: --remote --hard against a slug that doesn't exist on the server
+  // -------------------------------------------------------------------------
+  test('--remote --hard for a nonexistent slug surfaces server 404 as non-zero exit', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({
+      token: 'sk_ok',
+      user: { handle: 'u', displayName: 'U' }
+      // No skills configured → DELETE returns 404.
+    })
+
+    const result = await runCli(
+      [
+        'remove', 'never-published',
+        '--remote', '--hard',
+        '--namespace', 'global',
+        '--registry', registry.url,
+        '--token', 'sk_ok'
+      ],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+
+    expect(result.exitCode).not.toBe(0)
+    expect(result.stderr.toLowerCase()).toMatch(/404|not found|registry returned 4/)
+  })
+
+  // -------------------------------------------------------------------------
+  // P1: --agent on a multi-target inventory leaves OTHER agents' targets
+  // intact in the inventory file (not just in the JSON envelope).
+  // -------------------------------------------------------------------------
+  test('--agent removes one target while leaving others in inventory.json', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({ token: 'sk_ok' })
+
+    const rootDir = `${env.home}/agents`
+    const codexDir = `${rootDir}/codex/skills/keep-others`
+    const claudeDir = `${rootDir}/claude-code/skills/keep-others`
+    await createInstallDir(codexDir)
+    await createInstallDir(claudeDir)
+
+    await seedInventory(env.home, [
+      {
+        registry: registry.url,
+        namespace: 'global',
+        slug: 'keep-others',
+        version: '1.0.0',
+        targets: [
+          { agent: 'codex', rootDir: `${rootDir}/codex`, installDir: codexDir, installedAt: '2026-04-20T00:00:00Z' },
+          { agent: 'claude-code', rootDir: `${rootDir}/claude-code`, installDir: claudeDir, installedAt: '2026-04-20T00:00:00Z' }
+        ]
+      }
+    ])
+
+    const result = await runCli(
+      ['remove', 'keep-others', '--agent', 'codex', '--registry', registry.url, '--json'],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+    expect(result.exitCode).toBe(0)
+
+    const inv = JSON.parse(await Bun.file(`${env.home}/.skillhub/inventory.json`).text()) as {
+      items: Array<{ slug: string; targets: Array<{ agent: string }> }>
+    }
+    const survived = inv.items.find(i => i.slug === 'keep-others')
+    expect(survived).toBeDefined()
+    expect(survived!.targets.map(t => t.agent)).toEqual(['claude-code'])
+  })
+
+  // -------------------------------------------------------------------------
+  // P1: --agent + --namespace together filter precisely so a same-slug skill
+  // in a different namespace is not collateral damage.
+  // -------------------------------------------------------------------------
+  test('--agent + --namespace filters precisely; same slug under different namespace is untouched', async () => {
+    const env = await createTempHome()
+    registry = await startFakeRegistry({ token: 'sk_ok' })
+
+    const rootDir = `${env.home}/agents`
+    const aDir = `${rootDir}/codex/skills/dup-slug-A`
+    const bDir = `${rootDir}/codex/skills/dup-slug-B`
+    await createInstallDir(aDir)
+    await createInstallDir(bDir)
+
+    await seedInventory(env.home, [
+      {
+        registry: registry.url, namespace: 'team-a', slug: 'dup-slug-A', version: '1.0.0',
+        targets: [{ agent: 'codex', rootDir: `${rootDir}/codex`, installDir: aDir, installedAt: '2026-04-20T00:00:00Z' }]
+      },
+      {
+        registry: registry.url, namespace: 'team-b', slug: 'dup-slug-B', version: '1.0.0',
+        targets: [{ agent: 'codex', rootDir: `${rootDir}/codex`, installDir: bDir, installedAt: '2026-04-20T00:00:00Z' }]
+      }
+    ])
+
+    // Remove dup-slug-A only — dup-slug-B should survive even though both
+    // share the codex agent.
+    const result = await runCli(
+      ['remove', 'dup-slug-A', '--agent', 'codex', '--registry', registry.url],
+      { HOME: env.home, USERPROFILE: env.home }
+    )
+    expect(result.exitCode).toBe(0)
+
+    const inv = JSON.parse(await Bun.file(`${env.home}/.skillhub/inventory.json`).text()) as {
+      items: Array<{ slug: string }>
+    }
+    const slugs = inv.items.map(i => i.slug).sort()
+    expect(slugs).toEqual(['dup-slug-B'])
+  })
 })

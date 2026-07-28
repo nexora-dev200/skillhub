@@ -2,7 +2,14 @@
 
 ## Overview
 
-CLI releases are fully automated. Running `make publish-cli` on a clean `main` branch bumps the version, commits, creates a `cli-vX.Y.Z` tag, and pushes everything to origin. The GitHub Actions workflow [`release-cli.yml`](../.github/workflows/release-cli.yml) listens for the tag and handles build, test, npm publish, and GitHub Release creation.
+CLI releases use a PR-based flow. Running `make publish-cli` on a clean `main` branch:
+
+1. Runs local build-and-test (lint, typecheck, test, build)
+2. Computes the next version from the latest `cli-v*` tag on `origin`
+3. Creates a `release/cli-vX.Y.Z` branch with the version bump committed
+4. Pushes the branch and opens a PR to `main`
+
+After the PR is merged, you manually tag and push — the tag triggers [`release-cli.yml`](../.github/workflows/release-cli.yml) which builds, publishes to npm, and creates a GitHub Release.
 
 ## Prerequisites
 
@@ -21,8 +28,9 @@ Configure in GitHub repository → Settings → Secrets and variables → Action
 
 ### Local Environment
 
-- `node` and `npm` installed (the script uses `npm version` to bump)
-- `git` installed with push access to the repository
+- `node` and `bun` installed
+- `gh` CLI installed and authenticated (`gh auth login`)
+- `git` with push access to the repository
 - On the `main` branch with a clean working tree
 
 ### Package Configuration
@@ -40,7 +48,7 @@ In [`cli/package.json`](./package.json):
 
 ## Release Process
 
-### One-shot Release
+### Step 1: Run the publish script
 
 From the repository root, on a clean `main` branch:
 
@@ -52,15 +60,31 @@ make publish-cli-major   # major: 0.1.5 -> 1.0.0
 
 [`scripts/publish-cli.sh`](../scripts/publish-cli.sh) performs the following steps:
 
-1. Verify the working tree is clean
-2. Require the current branch to be `main`, otherwise abort
+1. Verify `gh` CLI is installed and authenticated
+2. Verify the working tree is clean and on `main`
 3. `git pull --ff-only` from `origin/main`
-4. Fetch remote tags and align `package.json` with the latest `cli-v*` tag
-5. Compute the new version via `npm version <bump>`
-6. Verify the new tag does not exist locally or on origin
-7. After interactive confirmation: commit the bump, create the `cli-vX.Y.Z` tag, push both commit and tag to origin
+4. Run full local build-and-test (lint, typecheck, test, build)
+5. Compute the next version from the latest `cli-v*` tag on `origin` (via `git ls-remote`, so local orphan tags from a failed `git push origin cli-vX.Y.Z` are ignored)
+6. Verify the tag and release branch don't already exist
+7. After interactive confirmation: create release branch, commit version bump, push, and open PR
 
-Pushing the tag triggers CI — no further manual action required.
+### Step 2: Merge the PR
+
+Review and merge the PR on GitHub as usual.
+
+### Step 3: Tag and push
+
+After the PR is merged:
+
+```bash
+git fetch origin main
+git tag cli-vX.Y.Z origin/main   # replace with the actual version
+git push origin cli-vX.Y.Z
+```
+
+This ensures the tag is always placed on the merge commit on `origin/main`, regardless of your local branch state.
+
+Pushing the tag triggers CI which builds, publishes to npm, and creates a GitHub Release.
 
 ### CI Workflow
 
@@ -104,6 +128,22 @@ From the Actions UI:
 2. Enter an existing tag name matching `cli-vX.Y.Z`
 3. Optionally enable skip npm publish
 
+## Error Recovery
+
+The script uses a cleanup state machine. If it fails at different stages:
+
+- **Before push**: release branch is deleted locally, you're returned to `main`
+- **After push, before PR**: the script prints recovery instructions (open PR manually or delete the remote branch)
+- **After PR opened**: success — no cleanup needed
+
+If you need to manually clean up a failed release:
+
+```bash
+git checkout main
+git branch -D release/cli-vX.Y.Z           # delete local branch
+git push origin --delete release/cli-vX.Y.Z # delete remote branch (if pushed)
+```
+
 ## Troubleshooting
 
 ### `releases must be cut from 'main'`
@@ -117,6 +157,10 @@ Commit or stash local changes first.
 ### `tag cli-vX.Y.Z already exists`
 
 The previous release didn't clean up, or someone else released the same version. Check `git tag --list 'cli-v*'` and remote tags, then retry with a higher version.
+
+### `branch release/cli-vX.Y.Z already exists`
+
+A previous release attempt left a stale branch. Delete it locally and/or on origin, then retry.
 
 ### npm Publish Fails
 

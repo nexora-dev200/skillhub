@@ -8,7 +8,7 @@ skillhub 的目标是客户端可互操作：skillhub CLI 安装的技能可以�
 
 - SKILL.md 格式（frontmatter + markdown body）
 - 技能包目录结构约定（SKILL.md + references/ + scripts/ + assets/）
-- 四级目录优先级：skillhub CLI 遵循 `.agent/skills` → `~/.agent/skills` → `.claude/skills` → `~/.claude/skills` 的发现顺序，与 OpenSkills/Claude 一致
+- 四级目录优先级：`.agents/skills` → `~/.agents/skills` → `.claude/skills` → `~/.claude/skills`（与 OpenSkills/Claude 一致）。详见 §8.4。
 - 目录名作为 lookup key：安装后的目录名等于 `skill.slug`（即 SKILL.md 的 `name` 字段），客户端通过目录名发现技能
 - AGENTS.md `<skill>` 描述块格式：skillhub CLI 生成的 AGENTS.md 索引区块与 OpenSkills 格式兼容
 
@@ -66,7 +66,7 @@ my-skill/
 ```
 
 校验规则：
-- 根目录必须包含 `SKILL.md`
+- 根目录必须包含规范入口文件 `SKILL.md`；上传时服务端兼容 `skill.md`、`Skill.md` 等大小写变体，并在内部归一化为 `SKILL.md`
 - 文件类型白名单：`.md`, `.txt`, `.json`, `.yaml`, `.yml`, `.js`, `.cjs`, `.mjs`, `.ts`, `.py`, `.sh`, `.png`, `.jpg`, `.svg`
 - 单文件大小限制：1MB（可配置）
 - 总包大小限制：10MB（可配置）
@@ -78,8 +78,8 @@ skillhub CLI 遵循以下目录优先级，与 OpenSkills/Claude 保持互操作
 
 | 优先级 | 路径 | 说明 |
 |--------|------|------|
-| 1 | `./.agent/skills/` | 项目级，universal 模式 |
-| 2 | `~/.agent/skills/` | 全局级，universal 模式 |
+| 1 | `./.agents/skills/` | 项目级，universal 模式 |
+| 2 | `~/.agents/skills/` | 全局级，universal 模式 |
 | 3 | `./.claude/skills/` | 项目级，Claude 默认 |
 | 4 | `~/.claude/skills/` | 全局级，Claude 默认 |
 

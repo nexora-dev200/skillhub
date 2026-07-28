@@ -112,6 +112,9 @@ Logout only removes the token for the specified registry, preserving registry co
 # Keyword search
 skillhub search pdf
 
+# Search with a one-off token
+skillhub search pdf --token sk_xxx
+
 # List all skills (empty query)
 skillhub search "" --limit 50
 
@@ -126,6 +129,10 @@ Output format: `namespace/slug  version  summary`
 ```bash
 # Install to auto-detected Agent directory
 skillhub install pdf-parser
+
+# Choose install scope explicitly
+skillhub install pdf-parser --scope user
+skillhub install pdf-parser --scope project --agent codex
 
 # Specify namespace (default: global)
 skillhub install pdf-parser --namespace myspace
@@ -150,18 +157,21 @@ skillhub install pdf-parser --force
 
 The CLI determines the installation location using the following logic:
 
-1. If `--dir` is specified: Install to that directory, agent marked as `custom`
-2. If `--agent` is specified: Install to the corresponding Agent's skills directory
-3. If neither is specified: Auto-scan current directory to detect existing Agent config directories
-   - 1 Agent detected → Install directly
-   - Multiple Agents detected → Interactive selection (TTY mode) or error (non-interactive mode)
-   - No Agent detected → Fallback to `<cwd>/.agents/skills/`
+1. If `--dir` is specified: Install to that directory, agent marked as `custom`. `--dir` is mutually exclusive with `--scope` and `--agent`.
+2. If `--scope user|project` is specified: Limit detection to the chosen scope.
+   - With `--agent <profile>`: Install to that profile's user or project skills directory directly.
+   - Without `--agent`: Detect existing skills directories within the chosen scope only. In interactive user scope, the `generic` target (`<home>/.agents/skills/`) is always also offered and can be selected alone or together with detected targets.
+   - No detected directory in the chosen scope → Fallback to `<home>/.agents/skills/` for `--scope user` or `<cwd>/.agents/skills/` for `--scope project`.
+3. If `--agent` is specified (no `--scope`): Install to the corresponding Agent's skills directory (existing behaviour, unchanged).
+4. If none of the above is specified:
+   - **Interactive mode** (stdin and stdout are both TTY, no `--json`): Prompt for `user` or `project` scope first, then continue per the `--scope` rule above.
+   - **Non-interactive mode**: Auto-scan current directory to detect existing Agent config directories. 1 Agent detected → install directly; multiple → error; none detected → fallback to `<cwd>/.agents/skills/`.
 
-> `--dir` and `--agent` cannot be used together.
+> `--dir` cannot be combined with `--scope` or `--agent`.
 
 ### Install Paths
 
-Each Agent has both project-level and user-level skills directories:
+Each Agent has both project-level and user-level skills directories. Use `--scope user|project` to control which one is used.
 
 | Agent | Project-level Path | User-level Path |
 |-------|-------------------|-----------------|
@@ -169,9 +179,9 @@ Each Agent has both project-level and user-level skills directories:
 | `codex` | `<project>/.codex/skills/` | `~/.codex/skills/` |
 | `cursor` | `<project>/.cursor/skills/` | `~/.cursor/skills/` |
 | `github-copilot` | `<project>/.github-copilot/skills/` | `~/.github-copilot/skills/` |
-| `gemini-cli` | `<project>/.gemini-cli/skills/` | `~/.gemini-cli/skills/` |
+| `gemini-cli` | `<project>/.gemini/skills/` | `~/.gemini/skills/` |
 | `windsurf` | `<project>/.windsurf/skills/` | `~/.windsurf/skills/` |
-| `kiro-cli` | `<project>/.kiro-cli/skills/` | `~/.kiro-cli/skills/` |
+| `kiro-cli` | `<project>/.kiro/skills/` | `~/.kiro/skills/` |
 | `roo` | `<project>/.roo/skills/` | `~/.roo/skills/` |
 | `trae` | `<project>/.trae/skills/` | `~/.trae/skills/` |
 | `trae-cn` | `<project>/.trae-cn/skills/` | `~/.trae-cn/skills/` |
@@ -179,8 +189,9 @@ Each Agent has both project-level and user-level skills directories:
 | `openclaw` | `<project>/.openclaw/skills/` | `~/.openclaw/skills/` |
 | `opencode` | `<project>/.opencode/skills/` | `~/.opencode/skills/` |
 | `kilo` | `<project>/.kilo/skills/` | `~/.kilo/skills/` |
+| _fallback_ | `<project>/.agents/skills/` | `~/.agents/skills/` |
 
-For Agents not in the list, use `--dir` to specify the installation path.
+For a custom path or an unsupported Agent directory, use `--dir` to specify the installation path. In interactive user scope, the `generic` target is offered alongside detected Agent targets. When `--scope user|project` finds no matching agent directory, the CLI falls back to the `_fallback_` row above.
 
 ### File Structure After Installation
 
@@ -325,8 +336,8 @@ Update mechanism:
 | `skillhub login --token <token> [--registry <url>] [--json]` | Save token and registry configuration |
 | `skillhub logout [--registry <url>] [--json]` | Remove token for specified registry |
 | `skillhub whoami [--registry <url>] [--token <token>] [--json]` | Validate current token and display user information |
-| `skillhub search <query> [--registry <url>] [--limit <n>] [--json]` | Search published skills |
-| `skillhub install <slug> [--namespace <slug>] [--version <v>] [--agent <profile>] [--dir <path>] [--force] [--registry <url>] [--token <token>] [--json]` | Install a skill |
+| `skillhub search <query> [--registry <url>] [--token <token>] [--limit <n>] [--json]` | Search published skills |
+| `skillhub install <slug> [--scope <user\|project>] [--namespace <slug>] [--version <v>] [--agent <profile>] [--dir <path>] [--force] [--registry <url>] [--token <token>] [--json]` | Install a skill |
 | `skillhub list [--agent <profile>] [--dir <path>] [--registry <url>] [--json]` | List installed skills |
 | `skillhub remove <slug> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--registry <url>] [--token <token>] [--json]` | Remove a skill |
 | `skillhub doctor [--json]` | Scan project directory and rebuild local inventory |

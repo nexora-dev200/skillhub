@@ -143,6 +143,139 @@ describe('doctor command', () => {
     expect(json.inventoryPath).toContain('inventory.json')
   })
 
+  // -------------------------------------------------------------------------
+  // P1: same registry+namespace+slug appearing in two agent dirs with
+  // different versions surfaces in `conflicts` and is excluded from items.
+  // -------------------------------------------------------------------------
+  test('doctor reports conflicts when two agent dirs disagree on version', async () => {
+    const { home, cwd } = await createTempHome()
+
+    // Two installs of the same global/pdf-parser with mismatched versions.
+    await seedSkill(cwd, {
+      agentDir: '.codex',
+      slug: 'pdf-parser',
+      metadata: {
+        registry: 'https://skill.xfyun.cn',
+        namespace: 'global',
+        slug: 'pdf-parser',
+        version: '1.0.0',
+        agent: 'codex',
+        installedAt: '2026-04-20T12:00:00Z'
+      }
+    })
+    await seedSkill(cwd, {
+      agentDir: '.claude',
+      slug: 'pdf-parser',
+      metadata: {
+        registry: 'https://skill.xfyun.cn',
+        namespace: 'global',
+        slug: 'pdf-parser',
+        version: '2.0.0',
+        agent: 'claude-code',
+        installedAt: '2026-04-21T09:00:00Z'
+      }
+    })
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home,
+      USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      ok: boolean
+      itemsScanned: number
+      targetsScanned: number
+      conflicts: Array<{ key: string; versions: string[] }>
+    }
+    expect(json.ok).toBe(true)
+    // Conflicting group is dropped from items, recorded as a conflict.
+    expect(json.itemsScanned).toBe(0)
+    expect(json.targetsScanned).toBe(0)
+    expect(json.conflicts).toHaveLength(1)
+    expect(json.conflicts[0]?.key).toBe('https://skill.xfyun.cn|global|pdf-parser')
+    expect(json.conflicts[0]?.versions.sort()).toEqual(['1.0.0', '2.0.0'])
+
+    // The persisted inventory must mirror the JSON output: no items.
+    const inventory = JSON.parse(
+      await readFile(join(home, '.skillhub', 'inventory.json'), 'utf-8')
+    ) as { items: unknown[] }
+    expect(inventory.items).toHaveLength(0)
+  })
+
+  // -------------------------------------------------------------------------
+  // P1: malformed metadata (unparseable JSON, or missing required fields)
+  // is reported in `skipped` and does not produce inventory entries. Two
+  // distinct failure modes are seeded to exercise both branches in
+  // scanMetadata: JSON.parse throw and the post-parse field check.
+  // -------------------------------------------------------------------------
+  test('doctor reports skipped entries for malformed and incomplete metadata', async () => {
+    const { home, cwd } = await createTempHome()
+
+    // (1) Bad JSON: triggers the catch around JSON.parse → "no .skillhub/metadata.json"
+    //     because the catch block is shared with the readFile failure path.
+    const badJsonDir = join(cwd, '.codex', 'skills', 'broken-json', '.skillhub')
+    await mkdir(badJsonDir, { recursive: true })
+    await writeFile(join(badJsonDir, 'metadata.json'), '{ this is not json')
+
+    // (2) Incomplete fields: parses fine but is missing `version`.
+    const incompleteDir = join(cwd, '.claude', 'skills', 'incomplete', '.skillhub')
+    await mkdir(incompleteDir, { recursive: true })
+    await writeFile(
+      join(incompleteDir, 'metadata.json'),
+      JSON.stringify({
+        registry: 'https://skill.xfyun.cn',
+        namespace: 'global',
+        slug: 'incomplete',
+        // version intentionally missing
+        agent: 'claude-code',
+        installedAt: '2026-04-22T10:00:00Z'
+      })
+    )
+
+    // (3) A valid sibling so we can prove skipped entries don't poison the
+    //     surrounding scan — the valid skill should still land in inventory.
+    await seedSkill(cwd, {
+      agentDir: '.codex',
+      slug: 'good-skill',
+      metadata: {
+        registry: 'https://skill.xfyun.cn',
+        namespace: 'global',
+        slug: 'good-skill',
+        version: '1.0.0',
+        agent: 'codex',
+        installedAt: '2026-04-22T10:00:00Z'
+      }
+    })
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home,
+      USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      ok: boolean
+      itemsScanned: number
+      skipped: Array<{ path: string; reason: string }>
+    }
+    expect(json.ok).toBe(true)
+
+    // Both broken entries should be in skipped, the good one in items.
+    const broken = json.skipped.find(s => s.path.endsWith('broken-json'))
+    expect(broken).toBeDefined()
+    const incomplete = json.skipped.find(s => s.path.endsWith('incomplete'))
+    expect(incomplete).toBeDefined()
+    expect(incomplete?.reason).toContain('incomplete')
+
+    expect(json.itemsScanned).toBe(1) // only good-skill
+    const inventory = JSON.parse(
+      await readFile(join(home, '.skillhub', 'inventory.json'), 'utf-8')
+    ) as { items: Array<{ slug: string }> }
+    expect(inventory.items).toHaveLength(1)
+    expect(inventory.items[0]?.slug).toBe('good-skill')
+  })
+
   test('doctor backs up existing inventory.json and reports backupPath', async () => {
     const { home, cwd } = await createTempHome()
 
@@ -226,5 +359,105 @@ describe('doctor command', () => {
     expect(inventory.items.map(item => item.slug)).toEqual(
       expect.arrayContaining(['external-skill', 'local-skill'])
     )
+  })
+
+  // -------------------------------------------------------------------------
+  // P1 — Symlink safety: doctor must skip (not follow) symlinked agent /
+  // skill / .skillhub directories. This protects against malicious or
+  // accidental symlinks that would otherwise let metadata be slurped from
+  // arbitrary filesystem locations.
+  // -------------------------------------------------------------------------
+  test('doctor skips an agent dir that is a symlink', async () => {
+    const { home, cwd } = await createTempHome()
+    const { symlink, mkdir: mkdirP } = await import('node:fs/promises')
+
+    // Real target with a valid metadata file off in /tmp.
+    const realRoot = join(cwd, '__real__', '.codex', 'skills', 'pdf-parser', '.skillhub')
+    await mkdirP(realRoot, { recursive: true })
+    await writeFile(join(realRoot, 'metadata.json'), JSON.stringify({
+      registry: 'https://skill.xfyun.cn', namespace: 'global', slug: 'pdf-parser',
+      version: '1.0.0', agent: 'codex', installedAt: '2026-04-20T12:00:00Z'
+    }))
+
+    // Symlink ./.codex -> __real__/.codex inside cwd. Doctor scans cwd.
+    await symlink(join(cwd, '__real__', '.codex'), join(cwd, '.codex'))
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home, USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      itemsScanned: number
+      skipped: Array<{ path: string; reason: string }>
+    }
+    // The symlinked agent dir must NOT contribute an inventory item.
+    expect(json.itemsScanned).toBe(0)
+    expect(json.skipped.some(s => s.path.endsWith('.codex') && s.reason.includes('regular directory'))).toBe(true)
+  })
+
+  test('doctor skips a slug dir that is a symlink (real agent dir, symlinked slug)', async () => {
+    const { home, cwd } = await createTempHome()
+    const { symlink, mkdir: mkdirP } = await import('node:fs/promises')
+
+    // Real metadata under cwd/__real__/pdf-parser/.skillhub/
+    const realSlug = join(cwd, '__real__', 'pdf-parser')
+    const realSkillhub = join(realSlug, '.skillhub')
+    await mkdirP(realSkillhub, { recursive: true })
+    await writeFile(join(realSkillhub, 'metadata.json'), JSON.stringify({
+      registry: 'https://skill.xfyun.cn', namespace: 'global', slug: 'pdf-parser',
+      version: '1.0.0', agent: 'codex', installedAt: '2026-04-20T12:00:00Z'
+    }))
+
+    // .codex/skills exists as a real dir, but pdf-parser inside it is a
+    // symlink to the real metadata location.
+    const skillsDir = join(cwd, '.codex', 'skills')
+    await mkdirP(skillsDir, { recursive: true })
+    await symlink(realSlug, join(skillsDir, 'pdf-parser'))
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home, USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      itemsScanned: number
+      skipped: Array<{ path: string; reason: string }>
+    }
+    expect(json.itemsScanned).toBe(0)
+    const symlinked = json.skipped.find(s => s.path.endsWith('pdf-parser'))
+    expect(symlinked).toBeDefined()
+    expect(symlinked?.reason).toContain('regular directory')
+  })
+
+  test('doctor skips a .skillhub dir that is a symlink', async () => {
+    const { home, cwd } = await createTempHome()
+    const { symlink, mkdir: mkdirP } = await import('node:fs/promises')
+
+    // Real metadata reachable through a symlinked .skillhub directory.
+    const realSkillhub = join(cwd, '__real_meta__')
+    await mkdirP(realSkillhub, { recursive: true })
+    await writeFile(join(realSkillhub, 'metadata.json'), JSON.stringify({
+      registry: 'https://skill.xfyun.cn', namespace: 'global', slug: 'pdf-parser',
+      version: '1.0.0', agent: 'codex', installedAt: '2026-04-20T12:00:00Z'
+    }))
+
+    const slugDir = join(cwd, '.codex', 'skills', 'pdf-parser')
+    await mkdirP(slugDir, { recursive: true })
+    await symlink(realSkillhub, join(slugDir, '.skillhub'))
+
+    const result = await runCli(['doctor', '--json'], {
+      HOME: home, USERPROFILE: home
+    }, { cwd })
+
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as {
+      itemsScanned: number
+      skipped: Array<{ path: string; reason: string }>
+    }
+    expect(json.itemsScanned).toBe(0)
+    const skipped = json.skipped.find(s => s.path.endsWith('pdf-parser'))
+    expect(skipped).toBeDefined()
+    expect(skipped?.reason.toLowerCase()).toMatch(/skillhub|regular directory/)
   })
 })
