@@ -156,10 +156,18 @@ A: 该现象多见于「手动部署」场景（接口异常或初始化未完�
 
 ## Q: 如何修改 admin 密码？修改配置后不生效？
 
-A: 环境变量在容器启动时读取，修改后必须重启容器才会生效。
+A: 环境变量在容器创建时注入，修改后必须重新创建容器才会生效；仅执行 `restart` 不会重新注入环境变量。
 
 1. 修改运行时目录下的 `/tmp/skillhub-runtime/.env.release`（参考仓库 [.env.release.example](https://github.com/iflytek/skillhub/blob/main/.env.release.example)）。
-2. 重启相关容器。
+2. 重新创建相关容器：
+
+   ```bash
+   docker compose \
+     --env-file /tmp/skillhub-runtime/.env.release \
+     -f /tmp/skillhub-runtime/compose.release.yml \
+     up -d --force-recreate
+   ```
+
 3. 若此前密码已写入数据库导致仍不生效，可能需要清理对应数据后重新初始化。
 
 ## Q: 修改 / 找回密码必须使用邮箱验证码吗？
@@ -219,7 +227,7 @@ A: 默认上限为 **100 个文件**（这与 100MB 的大小限制是两回事�
 SKILLHUB_PUBLISH_MAX_FILE_COUNT=500
 ```
 
-修改后需重启容器生效。注意 `compose.release.yml` 中也需引用该变量；较旧版本（如 v0.2.6）可能将该值写死，建议升级到最新版本。
+修改后需重新创建容器才会生效；仅执行 `restart` 不会重新注入环境变量。注意 `compose.release.yml` 中也需引用该变量；较旧版本（如 v0.2.6）可能将该值写死，建议升级到最新版本。
 
 ## Q: 使用 CLI（发布 / 下载等）对服务端版本有要求吗？
 
@@ -245,6 +253,75 @@ docker image inspect ghcr.io/iflytek/skillhub-server:latest --format '{{index .C
 
 - 查看 CLI 版本：`skillhub version`。
 - 如需定制（如修改 logo 等），建议基于最新代码进行二次开发并自行构建 docker 镜像。
+
+## Q: 页面能打开，但登录 / 注册接口返回 502？
+
+A: 页面由 `web` 容器提供，登录、注册等接口由 `web` 转发给 `server`（默认 `SKILLHUB_API_UPSTREAM=http://server:8080`）。出现「页面正常但 API 502」时，通常先检查 `server` 是否正常启动；upstream 配置、DNS 或容器网络异常也可能返回 502。
+
+排查顺序：
+
+```bash
+# 1. 看 server 是否处于运行状态
+docker compose --env-file .env.release -f compose.release.yml ps
+
+# 2. 看 server 启动日志中的第一条错误
+docker compose --env-file .env.release -f compose.release.yml logs server | head -50
+```
+
+一条常见的启动失败日志是：
+
+```
+SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET must not use the default placeholder
+```
+
+说明 `server` 读到的仍是模板里的占位值。在 `.env.release` 中改成自己的随机字符串（**至少 32 个字符**）后重建容器即可：
+
+```bash
+SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET=<替换成你自己的随机字符串，至少 32 个字符>
+```
+
+启动前可以先执行 `make validate-release-config`，它会校验 `.env.release`，提前暴露这类占位值和缺失项。
+
+## Q: 改了配置为什么不生效？
+
+A: 两个高频原因：
+
+1. **改错了文件**：`.env.release.example` 只是模板，Compose 实际读取的是 `--env-file` 指定的 `.env.release`。请先 `cp .env.release.example .env.release`，然后修改 `.env.release`。
+2. **只重启没重建**：环境变量在容器创建时注入，`restart` 不会重新注入。改完配置需要重建容器：
+
+```bash
+docker compose --env-file .env.release -f compose.release.yml up -d --force-recreate
+```
+
+## Q: SkillHub 运行时需要哪些外部依赖？
+
+A: 必需 PostgreSQL 和 Redis；对象存储支持 `local` 与 S3 两种模式，由 `SKILLHUB_STORAGE_PROVIDER` 控制。`.env.release.example` 显式配置为 `local`，但如果使用 `compose.release.yml` 时完全没有设置该变量，Compose 的回退值是 `s3`。建议始终显式设置；生产环境推荐使用 S3（通过 `SKILLHUB_STORAGE_S3_*` 配置）。数据库仅支持 PostgreSQL，暂不支持 MySQL。
+
+发布版 Compose 已内置 PostgreSQL 与 Redis，默认只绑定在 `127.0.0.1`。
+
+## Q: 通过 OAuth（GitHub / GitLab 等）登录的账号，如何取得管理员权限？
+
+A: OAuth 首次登录创建的是普通用户。需要由已有的 `SUPER_ADMIN`（例如初始化时的 bootstrap admin）在后台将其提升为管理员。
+
+`USER_ADMIN` 可以管理用户状态，并分配除 `SUPER_ADMIN` 之外的平台角色；但不能向任何账号授予 `SUPER_ADMIN`，也不能修改已有 `SUPER_ADMIN` 账号的角色。这两类操作只有 `SUPER_ADMIN` 可以执行。
+
+## Q: 如何批量安装多个技能包？
+
+A: CLI 的 `install` 一次处理一个技能包。下面两个示例都通过 `--dir` 将技能批量安装到同一个目标根目录；每个技能实际位于 `$target_dir/<skill-slug>/`：
+
+```bash
+target_dir=/opt/skillhub-skills
+
+# 逐个安装
+for skill in skill-a skill-b skill-c; do
+  skillhub install "$skill" --dir "$target_dir"
+done
+
+# 或从清单文件读取（每行一个技能名）
+xargs -a skills.txt -I {} skillhub install "{}" --dir "$target_dir"
+```
+
+自 **SkillHub Server v0.2.12** 起，公开技能支持匿名搜索与安装；如果配置了无效的 Bearer Token，命令会直接失败而不再回退匿名访问，遇到这种情况请更新凭据或先移除无效 Token。
 
 ## Q: 遇到问题怎么办？
 
