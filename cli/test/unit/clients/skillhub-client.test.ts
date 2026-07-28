@@ -36,12 +36,12 @@ describe('SkillHubClient', () => {
     await err.toHaveProperty('exitCode', EXIT.auth)
   })
 
-  test('download() throws auth error on 403', async () => {
+  test('download() throws a neutral access error on 403', async () => {
     const fetchImpl = (async () => new Response(null, { status: 403 })) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
     const err = expect(client.download('ns', 'slug')).rejects
     await err.toBeInstanceOf(CliError)
-    await err.toHaveProperty('message', 'authentication failed')
+    await err.toHaveProperty('message', 'access denied')
     await err.toHaveProperty('exitCode', EXIT.auth)
   })
 
@@ -158,6 +158,111 @@ describe('SkillHubClient', () => {
   })
 
   // --- handleJsonResponse() non-2xx classification ---
+
+  test('search() preserves a public 403 message and request ID', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 403,
+      msg: 'token has been revoked',
+      requestId: 'req-403'
+    }, { status: 403 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    try {
+      await client.search('test', 20)
+      throw new Error('expected search to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError)
+      expect((error as CliError).message).toBe('token has been revoked')
+      expect((error as CliError).exitCode).toBe(EXIT.auth)
+      expect((error as CliError).details).toEqual({
+        registry: 'http://registry.test',
+        requestId: 'req-403'
+      })
+    }
+  })
+
+  test('search() uses a neutral 403 fallback when msg is absent', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 403,
+      requestId: 'req-fallback'
+    }, { status: 403 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    try {
+      await client.search('test', 20)
+      throw new Error('expected search to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError)
+      expect((error as CliError).message).toBe('access denied')
+      expect((error as CliError).exitCode).toBe(EXIT.auth)
+      expect((error as CliError).details).toEqual({
+        registry: 'http://registry.test',
+        requestId: 'req-fallback'
+      })
+    }
+  })
+
+  test('search() uses a neutral 403 fallback for a non-JSON body', async () => {
+    const fetchImpl = (async () => new Response('<html>forbidden</html>', {
+      status: 403,
+      headers: { 'Content-Type': 'text/html' }
+    })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    try {
+      await client.search('test', 20)
+      throw new Error('expected search to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError)
+      expect((error as CliError).message).toBe('access denied')
+      expect((error as CliError).exitCode).toBe(EXIT.auth)
+      expect((error as CliError).details).toEqual({ registry: 'http://registry.test' })
+    }
+  })
+
+  test('whoami() preserves a structured 404 message and request ID', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 404,
+      msg: 'namespace not found',
+      requestId: 'req-404'
+    }, { status: 404 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    try {
+      await client.whoami()
+      throw new Error('expected whoami to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError)
+      expect((error as CliError).message).toBe('namespace not found')
+      expect((error as CliError).exitCode).toBe(EXIT.generic)
+      expect((error as CliError).details).toEqual({
+        registry: 'http://registry.test',
+        requestId: 'req-404'
+      })
+    }
+  })
+
+  test('download() preserves a structured 403 message and request ID', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 403,
+      msg: 'namespace access denied',
+      requestId: 'req-download'
+    }, { status: 403 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    try {
+      await client.download('team', 'private-skill')
+      throw new Error('expected download to fail')
+    } catch (error) {
+      expect(error).toBeInstanceOf(CliError)
+      expect((error as CliError).message).toBe('namespace access denied')
+      expect((error as CliError).exitCode).toBe(EXIT.auth)
+      expect((error as CliError).details).toEqual({
+        registry: 'http://registry.test',
+        requestId: 'req-download'
+      })
+    }
+  })
 
   test('whoami() throws generic error on 500', async () => {
     const fetchImpl = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch
