@@ -324,7 +324,11 @@ describe('install command — P1', () => {
     expect(meta.version).toBe('2.0.0')
   })
 
-  test('@namespace/slug resolves the namespaced registry path', async () => {
+  test.each([
+    'team/my-skill',
+    '@team/my-skill',
+    'team--my-skill'
+  ])('%s resolves the namespaced registry path', async (coordinate) => {
     const env = await createTempHome()
     registry = await startFakeRegistry({
       token: 'sk_ok',
@@ -341,7 +345,7 @@ describe('install command — P1', () => {
 
     const result = await runCli(
       [
-        'install', '@team/my-skill',
+        'install', coordinate,
         '--dir', installDir,
         '--registry', registry.url,
         '--token', 'sk_ok',
