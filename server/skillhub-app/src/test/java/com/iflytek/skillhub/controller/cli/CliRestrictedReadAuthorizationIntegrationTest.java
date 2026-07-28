@@ -11,6 +11,8 @@ import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.domain.user.UserAccountRepository;
+import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentEntity;
+import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentJpaRepository;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -38,6 +43,7 @@ class CliRestrictedReadAuthorizationIntegrationTest {
     @Autowired NamespaceRepository namespaceRepository;
     @Autowired SkillRepository skillRepository;
     @Autowired SkillVersionRepository skillVersionRepository;
+    @Autowired SkillSearchDocumentJpaRepository skillSearchDocumentRepository;
 
     private String namespaceSlug;
     private String skillSlug;
@@ -76,6 +82,29 @@ class CliRestrictedReadAuthorizationIntegrationTest {
         skillRepository.save(skill);
         skillRepository.flush();
         skillVersionRepository.flush();
+        skillSearchDocumentRepository.saveAndFlush(new SkillSearchDocumentEntity(
+                skill.getId(),
+                namespace.getId(),
+                namespaceSlug,
+                ownerId,
+                skillSlug,
+                "Private skill search fixture",
+                "private",
+                skillSlug,
+                "",
+                SkillVisibility.PRIVATE.name(),
+                skill.getStatus().name()));
+    }
+
+    @Test
+    void outsiderSearchOmitsPersistedPrivateSkill() throws Exception {
+        mockMvc.perform(withBearer(
+                        get("/api/cli/v1/skills/search").param("limit", "20"),
+                        outsiderToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(5)))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.items[*].slug", not(hasItem(skillSlug))));
     }
 
     @Test

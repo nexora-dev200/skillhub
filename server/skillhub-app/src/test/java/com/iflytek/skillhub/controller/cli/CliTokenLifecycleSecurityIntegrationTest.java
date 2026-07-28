@@ -29,8 +29,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -203,6 +206,65 @@ class CliTokenLifecycleSecurityIntegrationTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401));
         verifyNoInteractions(cliSkillAppService);
+    }
+
+    @Test
+    void sameRawTokenIsRejectedByAllEndpointsAfterValidUseAndRevocation() throws Exception {
+        ApiTokenService.TokenCreateResult token = createToken();
+        String rawToken = token.rawToken();
+
+        assertSuccessEnvelope(withBearer(get("/api/cli/v1/auth/whoami"), rawToken))
+                .andExpect(jsonPath("$.data.handle").value(userId));
+        assertSuccessEnvelope(withBearer(
+                get("/api/cli/v1/skills/search").param("q", "demo").param("limit", "20"),
+                rawToken));
+        assertSuccessEnvelope(withBearer(
+                get("/api/cli/v1/skills/global/demo/resolve"), rawToken));
+        mockMvc.perform(withBearer(
+                        get("/api/cli/v1/skills/global/demo/download"), rawToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"));
+        mockMvc.perform(withBearer(
+                        get("/api/cli/v1/skills/global/demo/versions/1.0.0/download"), rawToken))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("application/zip"));
+
+        apiTokenService.revokeToken(token.entity().getId(), userId);
+        clearInvocations(cliSkillAppService);
+
+        assertUnauthorizedEnvelope(withBearer(get("/api/cli/v1/auth/whoami"), rawToken));
+        assertUnauthorizedEnvelope(withBearer(
+                get("/api/cli/v1/skills/search").param("q", "demo").param("limit", "20"),
+                rawToken));
+        assertUnauthorizedEnvelope(withBearer(
+                get("/api/cli/v1/skills/global/demo/resolve"), rawToken));
+        assertUnauthorizedEnvelope(withBearer(
+                get("/api/cli/v1/skills/global/demo/download"), rawToken));
+        assertUnauthorizedEnvelope(withBearer(
+                get("/api/cli/v1/skills/global/demo/versions/1.0.0/download"), rawToken));
+        verifyNoInteractions(cliSkillAppService);
+    }
+
+    private ResultActions assertSuccessEnvelope(MockHttpServletRequestBuilder request) throws Exception {
+        return mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", aMapWithSize(5)))
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").isString())
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.requestId").isString());
+    }
+
+    private void assertUnauthorizedEnvelope(MockHttpServletRequestBuilder request) throws Exception {
+        mockMvc.perform(request)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$", aMapWithSize(5)))
+                .andExpect(jsonPath("$.code").value(401))
+                .andExpect(jsonPath("$.msg").isString())
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.requestId").isString());
     }
 
     private MockHttpServletRequestBuilder withInvalidBearer(
