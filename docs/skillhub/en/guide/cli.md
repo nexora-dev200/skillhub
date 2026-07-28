@@ -236,8 +236,16 @@ skillhub list --json
 ### Remove Skills
 
 ```bash
-# Remove all local installation targets
+# A bare slug removes same-named local installations across namespaces
 skillhub remove pdf-parser
+
+# An explicit namespaced coordinate removes only that namespace
+skillhub remove myspace/pdf-parser
+skillhub remove @myspace/pdf-parser
+skillhub remove myspace--pdf-parser
+
+# Equivalent precise local removal with an explicit namespace
+skillhub remove pdf-parser --namespace myspace
 
 # Remove only specific Agent's installation
 skillhub remove pdf-parser --agent codex
@@ -499,7 +507,7 @@ Options:
 ### remove
 
 ```bash
-skillhub remove <slug> [options]
+skillhub remove <coordinate> [options]
 ```
 
 Options:
@@ -507,10 +515,15 @@ Options:
 - `--all` — Remove all targets
 - `--remote` — Remove remote skill
 - `--hard` — Skip remote deletion confirmation
-- `--namespace <slug>` — Namespace for remote deletion
+- `--namespace <slug>` — Namespace for local or remote deletion
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token
 - `--json` — JSON output
+
+An explicit namespaced coordinate (`team/my-skill`, `@team/my-skill`, or
+`team--my-skill`) or `--namespace team` removes local installations only from
+that namespace. For compatibility, a bare slug removes same-named local
+installations across all namespaces in the current registry.
 
 ### doctor
 

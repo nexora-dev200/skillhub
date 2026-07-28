@@ -64,6 +64,11 @@ export function parseSkillName(skillName: string, defaultNamespace = 'global'): 
   }
 }
 
+/** Return whether a skill coordinate explicitly includes a namespace. */
+export function hasExplicitNamespace(skillName: string): boolean {
+  return parseCoordinate(skillName).namespace !== undefined
+}
+
 /** Resolve a skill coordinate and an optional command-line namespace into one registry identity. */
 export function resolveSkillName(skillName: string, explicitNamespace?: string): ParsedSkillName {
   const parsed = parseCoordinate(skillName)

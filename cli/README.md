@@ -258,8 +258,16 @@ skillhub list --json
 ### Remove Skills
 
 ```bash
-# Remove all local installation targets
+# A bare slug removes matching local installations across namespaces
 skillhub remove pdf-parser
+
+# A namespaced coordinate removes only that namespace
+skillhub remove myspace/pdf-parser
+skillhub remove @myspace/pdf-parser
+skillhub remove myspace--pdf-parser
+
+# Equivalent precise local removal with an explicit namespace
+skillhub remove pdf-parser --namespace myspace
 
 # Remove only specific Agent's installation
 skillhub remove pdf-parser --agent codex
@@ -358,7 +366,7 @@ Update mechanism:
 | `skillhub search <query> [--registry <url>] [--token <token>] [--limit <n>] [--json]` | Search published skills |
 | `skillhub install <coordinate> [--scope <user\|project>] [--namespace <slug>] [--version <v>] [--agent <profile>] [--dir <path>] [--force] [--registry <url>] [--token <token>] [--json]` | Install a skill |
 | `skillhub list [--agent <profile>] [--dir <path>] [--registry <url>] [--json]` | List installed skills |
-| `skillhub remove <slug> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--registry <url>] [--token <token>] [--json]` | Remove a skill |
+| `skillhub remove <coordinate> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--registry <url>] [--token <token>] [--json]` | Remove a skill |
 | `skillhub doctor [--json]` | Scan project directory and rebuild local inventory |
 | `skillhub publish <path> [--namespace <slug>] [--visibility <v>] [--registry <url>] [--token <token>] [--json]` | Publish a skill |
 | `skillhub update [--check] [--json]` | Check or execute CLI self-update |

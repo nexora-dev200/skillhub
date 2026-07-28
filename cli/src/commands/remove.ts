@@ -5,7 +5,7 @@ import { resolveRegistry, resolveToken } from '../services/registry-service'
 import { removeLocalSkill } from '../services/remove-service'
 import { CliError } from '../shared/errors'
 import { EXIT } from '../shared/constants'
-import { resolveSkillName } from '../shared/skill-name-parser'
+import { hasExplicitNamespace, resolveSkillName } from '../shared/skill-name-parser'
 
 export interface RemoveCommandOptions {
   agent?: string[] | undefined
@@ -60,8 +60,13 @@ export async function removeCommand(skillNameArg: string, options: RemoveCommand
   }
 
   // Local remove
+  const namespaceFilter = options.namespace !== undefined || hasExplicitNamespace(skillNameArg)
+    ? namespace
+    : undefined
   const result = await removeLocalSkill({
-    registry, slug,
+    registry,
+    namespace: namespaceFilter,
+    slug,
     agents: options.agent,
     all: options.all
   })

@@ -256,17 +256,17 @@ cli
   })
 
 cli
-  .command('remove <slug>', 'Remove local or remote skill')
+  .command('remove <coordinate>', 'Remove local or remote skill')
   .option('--agent <profile>', 'Filter by agent (repeatable)')
   .option('--all', 'Remove all targets')
   .option('--remote', 'Delete remote skill')
   .option('--hard', 'Skip confirmation for remote delete')
-  .option('--namespace <slug>', 'Namespace for remote delete')
+  .option('--namespace <slug>', 'Namespace for local or remote delete')
   .option('--registry <url>', 'Registry URL')
   .option('--token <token>', 'API token')
   .option('--json', 'Output JSON')
-  .action((slug: string, options: RemoveCommandOptions & { agent?: string | string[] }) => {
-    return runCommand(() => removeCommand(slug, { ...options, agent: toArray(options.agent) }), Boolean(options.json))
+  .action((coordinate: string, options: RemoveCommandOptions & { agent?: string | string[] }) => {
+    return runCommand(() => removeCommand(coordinate, { ...options, agent: toArray(options.agent) }), Boolean(options.json))
   })
 
 cli

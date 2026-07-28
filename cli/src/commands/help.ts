@@ -50,8 +50,13 @@ export const commands = {
   },
   remove: {
     summary: 'Remove local or remote skill',
-    usage: 'skillhub remove <slug> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--json]',
-    examples: ['skillhub remove pdf-parser', 'skillhub remove pdf-parser --remote --hard']
+    usage: 'skillhub remove <coordinate> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--json]',
+    examples: [
+      'skillhub remove pdf-parser',
+      'skillhub remove team/my-skill',
+      'skillhub remove my-skill --namespace team',
+      'skillhub remove pdf-parser --remote --hard'
+    ]
   },
   doctor: {
     summary: 'Scan project and merge into local inventory (preserves entries outside scan scope)',
