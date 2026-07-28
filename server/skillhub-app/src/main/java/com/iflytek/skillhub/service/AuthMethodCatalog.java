@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2ClientProperties;
 import org.springframework.stereotype.Service;
 
@@ -56,16 +57,14 @@ public class AuthMethodCatalog {
     }
 
     /**
-     * Check if an OAuth provider has valid configuration (non-empty client-id that is not a placeholder).
+     * Checks whether an OAuth provider has a non-empty, non-placeholder client ID.
      */
     private boolean isValidOAuthProvider(OAuth2ClientProperties.Registration registration) {
         String clientId = registration.getClientId();
         if (clientId == null || clientId.isBlank()) {
             return false;
         }
-        // Filter out placeholder values used in dev/test configs
-        String lowerClientId = clientId.toLowerCase();
-        return !lowerClientId.contains("placeholder") && !lowerClientId.contains("local-placeholder");
+        return !clientId.toLowerCase(Locale.ROOT).contains("placeholder");
     }
 
     public List<AuthMethodResponse> listMethods(String returnTo) {
