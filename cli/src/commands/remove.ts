@@ -5,7 +5,7 @@ import { resolveRegistry, resolveToken } from '../services/registry-service'
 import { removeLocalSkill } from '../services/remove-service'
 import { CliError } from '../shared/errors'
 import { EXIT } from '../shared/constants'
-import { parseSkillName } from '../shared/skill-name-parser'
+import { resolveSkillName } from '../shared/skill-name-parser'
 
 export interface RemoveCommandOptions {
   agent?: string[] | undefined
@@ -30,9 +30,7 @@ export async function removeCommand(skillNameArg: string, options: RemoveCommand
   const credentialsStore = new CredentialsStore()
   const registry = resolveRegistry(options, process.env, await configStore.read())
 
-  const parsed = parseSkillName(skillNameArg)
-  const namespace = options.namespace ?? parsed.namespace
-  const slug = parsed.slug
+  const { namespace, slug } = resolveSkillName(skillNameArg, options.namespace)
 
   if (options.remote) {
     const token = resolveToken(options, process.env, await credentialsStore.getToken(registry))

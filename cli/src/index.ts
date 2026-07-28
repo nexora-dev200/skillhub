@@ -232,7 +232,7 @@ cli
 
 cli
   .command('install <slug>', 'Install a skill locally')
-  .option('--namespace <slug>', 'Namespace', { default: 'global' })
+  .option('--namespace <slug>', 'Namespace for a bare skill slug')
   .option('--version <v>', 'Version')
   .option('--scope <scope>', 'Install scope: user or project')
   .option('--agent <profile>', 'Agent profile (repeatable)')
