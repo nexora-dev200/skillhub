@@ -64,8 +64,14 @@ grep -Fq '.env.release.draft' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when release env draft changes"
 grep -Fq 'compose.release.yml' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run when release compose changes"
+grep -Fq 'web/Dockerfile' "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run when the web image changes"
+grep -Fq 'web/nginx.conf.template' "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run when the nginx template changes"
 grep -Fq 'bash scripts/tests/validate-release-config-test.sh' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run validate-release-config-test"
+grep -Fq 'bash scripts/tests/nginx-forwarded-proto-test.sh' "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run nginx-forwarded-proto-test"
 grep -Fq 'bash scripts/tests/runtime-secret-test.sh' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run runtime-secret-test"
 grep -Fq 'bash scripts/tests/dev-web-host-test.sh' "$PR_SCRIPTS_WORKFLOW" \
