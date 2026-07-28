@@ -621,10 +621,15 @@ window.location.href = '/oauth2/authorization/github'
 
 ### 10.3 CLI API
 
-| 接口 | 所需凭证 | 额外判定 |
-|------|---------|---------|
-| `GET /api/v1/whoami` | 任意有效 Bearer Token | 无 |
-| `POST /api/v1/publish` | Bearer Token + `skill:publish` | 普通用户要求目标 namespace 成员；`SUPER_ADMIN` 可绕过 |
+| 接口 | 凭证规则 | 授权与错误语义 |
+|------|---------|---------------|
+| `GET /api/cli/v1/auth/whoami` | 必须提供有效 Bearer Token | 缺失、未知、过期、撤销或 malformed token 返回 401 |
+| `GET /api/cli/v1/skills/search` | 可匿名；提供 Bearer 时必须有效 | 匿名仅返回公开可安装 skill；坏凭证返回 401，不得降级匿名 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/resolve` | 可匿名读取公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
+
+公共读接口仅在完全缺少 `Authorization` 头时允许匿名访问。请求一旦携带 Bearer 凭证，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
 
 ### 10.4 Admin API
 
