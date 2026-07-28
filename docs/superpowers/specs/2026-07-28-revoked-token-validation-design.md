@@ -4,11 +4,12 @@
 
 Prove and preserve fail-closed API-token behavior across the CLI API using a
 real persisted token lifecycle. Invalid Bearer credentials must return HTTP
-401 before endpoint business logic runs, while requests without a recognized
-Bearer credential retain the existing anonymous-public-read contract. This
-includes an absent `Authorization` header and unsupported schemes such as
-Basic. Valid credentials without sufficient authorization continue to return
-HTTP 403.
+401 before endpoint business logic runs, including when a valid Web Session is
+also present. A valid Bearer credential overrides the Session identity. When
+Bearer is absent or the Authorization scheme is unsupported, the existing Web
+Session identity is preserved; without a valid Session, public reads remain
+anonymous and `whoami` returns 401. Valid credentials without sufficient
+authorization continue to return HTTP 403.
 
 ## Scope
 
@@ -23,8 +24,10 @@ This change covers the following CLI routes:
 It also covers the authenticated-versus-forbidden boundary on the affected
 restricted read routes. An existing scope-protected CLI route may provide
 supplementary scope-filter evidence only. This change does not add endpoints,
-change response fields, change token storage, add a database migration, or
-change anonymous resource visibility rules.
+change runtime response fields, change token storage, add a database migration,
+or change anonymous resource visibility rules. The OpenAPI correction marks
+the already-nullable `whoami.email` value accurately without changing its JSON
+field presence.
 
 ## Current-State Finding
 
@@ -101,9 +104,13 @@ source-code conclusion is accepted.
 ## Architecture
 
 `ApiTokenAuthenticationFilter` remains the single Bearer-authentication entry
-point. It ignores Basic and other non-Bearer schemes, which therefore reach
-public read routes as anonymous requests; controllers must not duplicate token
-parsing or lifecycle checks.
+point. Spring Security loads an existing Web Session identity before the token
+filter runs. A valid Bearer token replaces that identity; an invalid, empty, or
+malformed Bearer attempt clears it and returns 401. The filter ignores Basic
+and other non-Bearer schemes, preserving the loaded Session identity. If no
+Session exists, those schemes reach public reads anonymously and `whoami`
+returns 401. Controllers must not duplicate token parsing, Session resolution,
+or lifecycle checks.
 
 The regression test will boot the Spring application with MockMvc, real
 `ApiTokenService`, real `ApiTokenRepository`, and real user persistence. CLI
@@ -154,12 +161,15 @@ arguments and assertions for every credential state.
 |---|---:|---:|---:|---:|---:|---|
 | No `Authorization` header | 401 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Anonymous access is preserved only where already public |
 | Basic or another non-Bearer scheme | 401 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Unsupported schemes are not treated as API-token attempts |
+| Valid Web Session, no `Authorization` header | 200 as Session user | 200 as Session user | 200 as Session user | Existing 200/302 as Session user | Existing 200/302 as Session user | Existing browser identity is preserved |
+| Valid Web Session + Basic | 200 as Session user | 200 as Session user | 200 as Session user | Existing 200/302 as Session user | Existing 200/302 as Session user | Non-Bearer schemes do not erase Session identity |
 | Valid active token | 200 | 200 | 200 | Existing 200/302 success | Existing 200/302 success | Principal and roles/scopes are projected |
-| Revoked token | 401 | 401 | 401 | 401 | 401 | Credential cannot degrade to anonymous |
-| Expired token | 401 | 401 | 401 | 401 | 401 | Credential cannot degrade to anonymous |
-| Unknown token | 401 | 401 | 401 | 401 | 401 | Credential cannot degrade to anonymous |
-| Empty Bearer credential | 401 | 401 | 401 | 401 | 401 | Empty authentication attempt is rejected before business logic |
-| Malformed Bearer credential | 401 | 401 | 401 | 401 | 401 | Malformed authentication attempt is rejected before business logic |
+| Valid Web Session + valid active token | 200 as token user | 200 as token user | 200 as token user | Existing 200/302 as token user | Existing 200/302 as token user | Bearer identity overrides Session identity |
+| Valid Web Session + revoked token | 401 | 401 | 401 | 401 | 401 | Credential cannot fall back to Session or anonymous |
+| Valid Web Session + expired token | 401 | 401 | 401 | 401 | 401 | Credential cannot fall back to Session or anonymous |
+| Valid Web Session + unknown token | 401 | 401 | 401 | 401 | 401 | Credential cannot fall back to Session or anonymous |
+| Valid Web Session + empty Bearer credential | 401 | 401 | 401 | 401 | 401 | Empty authentication attempt is rejected before business logic |
+| Valid Web Session + malformed Bearer credential | 401 | 401 | 401 | 401 | 401 | Malformed authentication attempt is rejected before business logic |
 
 The authorization row uses a persisted PRIVATE or NAMESPACE_ONLY fixture and
 the real read-authorization path:
@@ -190,13 +200,14 @@ evidence for the API-token scope filter only.
 Two documentation updates are required:
 
 1. Update `docs/03-authentication-design.md` so the CLI API section uses the
-   current `/api/cli/v1/...` routes and explicitly states the 401/403 and
-   anonymous-access boundary.
+   current `/api/cli/v1/...` routes and explicitly states Bearer-over-Session
+   priority, Session fallback, and the anonymous/401/403 boundary.
 2. Add `docs/api/authentication.openapi.yaml` using OpenAPI 3.0. The document
-   must define Bearer authentication, all affected paths, query/path
-   parameters, success schemas, the common response envelope, HTTP 401 and 403
-   responses, examples, and the rule that absent credentials are allowed only
-   on existing public-read routes.
+   must define Bearer and Web Session authentication, all affected paths,
+   query/path parameters, success schemas, the common response envelope, HTTP
+   401 and 403 responses, examples, credential priority, and the rule that
+   requests without either identity are allowed only on existing public-read
+   routes. `CliWhoAmI.email` remains required but is nullable.
 
 No controller signature or response schema changes are planned. Therefore the
 generated `web/src/api/generated/schema.d.ts` should remain unchanged; if a
@@ -217,7 +228,12 @@ steps rather than collapsing them into one generic download case:
    the real read-authorization path to prove 403 for restricted `resolve`,
    latest download, and versioned download and success for an authorized user.
 6. Update the authentication design and OpenAPI contract.
-7. Identify the published/running image and replay the valid-to-revoked token
+7. Exercise Session-only, Session + Basic, Basic-only, and Session + valid or
+   invalid Bearer independently on all five endpoints; latest and versioned
+   download remain separate cases.
+8. Prove PRIVATE search omission with a non-empty same-keyword PUBLIC result
+   and assert the fixed five-field 403 envelope on each restricted read.
+9. Identify the published/running image and replay the valid-to-revoked token
    lifecycle against that exact digest, or record the external access blocker
    without treating the field contradiction as resolved.
 
@@ -247,8 +263,8 @@ Verification proceeds in this order:
 10. Replay the same valid-to-revoked token lifecycle against the identified
     runtime and record endpoint-level status, request ID, and replica evidence,
     keeping latest and versioned download results separate.
-11. Perform structured security and code review before opening the single final
-    pull request.
+11. Perform structured security and code review before updating the existing
+    single final pull request.
 
 ## Delivery Constraints
 

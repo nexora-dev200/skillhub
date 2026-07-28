@@ -3,12 +3,13 @@ info:
   title: SkillHub CLI Authentication API
   version: 1.0.0
   description: >-
-    Authentication contract for CLI identity and public skill reads. Public read
-    operations treat a request with no recognized Bearer credential as anonymous,
-    including an absent Authorization header or an unsupported scheme such as
-    Basic. Once the Bearer scheme is used, the credential must be valid;
-    malformed, unknown, expired, or revoked Bearer credentials return HTTP 401
-    and never fall back to anonymous access.
+    Authentication contract for CLI identity and public skill reads. A valid
+    Bearer credential overrides a Web Session identity. Once the Bearer scheme
+    is used, the credential must be valid: empty, malformed, unknown, expired,
+    or revoked Bearer credentials return HTTP 401 and never fall back to the
+    Session or anonymous access. An absent Authorization header or an
+    unsupported scheme such as Basic preserves a valid Web Session. Without a
+    Session, public reads use anonymous visibility and whoami returns HTTP 401.
 servers:
   - url: /
 tags:
@@ -20,8 +21,10 @@ paths:
       tags: [CLI Authentication]
       summary: Return the current CLI identity
       operationId: cliWhoAmI
+      description: Requires a valid Bearer credential or Web Session. Bearer takes priority over Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session, but returns 401 when no Session exists.
       security:
         - bearerAuth: []
+        - sessionAuth: []
       responses:
         '200':
           description: Authenticated CLI identity
@@ -36,9 +39,10 @@ paths:
       tags: [CLI Skills]
       summary: Search CLI-installable skills
       operationId: cliSearchSkills
-      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: Valid Bearer overrides Web Session. Invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session; without Session, the request uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - name: q
@@ -67,9 +71,10 @@ paths:
       tags: [CLI Skills]
       summary: Resolve a skill version
       operationId: cliResolveSkill
-      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: Valid Bearer overrides Web Session. Invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session; without Session, the request uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -98,9 +103,10 @@ paths:
       tags: [CLI Skills]
       summary: Download the latest installable skill version
       operationId: cliDownloadLatestSkill
-      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: Valid Bearer overrides Web Session. Invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session; without Session, the request uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -123,9 +129,10 @@ paths:
       tags: [CLI Skills]
       summary: Download an exact installable skill version
       operationId: cliDownloadSkillVersion
-      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: Valid Bearer overrides Web Session. Invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session; without Session, the request uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -150,7 +157,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: SkillHub API token
-      description: API token issued by SkillHub. Invalid lifecycle states all return the same 401 response.
+      description: API token issued by SkillHub. A valid token overrides Web Session; invalid lifecycle states all return the same 401 response without Session fallback.
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Spring Session browser identity. It is preserved when Authorization is absent or uses a non-Bearer scheme, and is overridden by a valid Bearer token.
   parameters:
     Namespace:
       name: namespace
@@ -194,7 +206,7 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     Unauthorized:
-      description: Bearer credential is missing where required, malformed, unknown, expired, revoked, or belongs to an unavailable user.
+      description: No valid supported identity is present where required, or the Bearer credential is empty, malformed, unknown, expired, revoked, or belongs to an unavailable user. Invalid Bearer never falls back to Web Session.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -249,7 +261,7 @@ components:
       properties:
         handle: {type: string, example: user-123}
         displayName: {type: string, example: CLI User}
-        email: {type: string, format: email, example: cli@example.com}
+        email: {type: string, format: email, nullable: true, example: cli@example.com, description: Email address when available; the required field is null when the account has no email.}
     CliSearchEnvelope:
       allOf:
         - $ref: '#/components/schemas/Envelope'

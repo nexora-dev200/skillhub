@@ -8,16 +8,21 @@ import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.domain.user.UserAccountRepository;
 import com.iflytek.skillhub.dto.cli.CliResolveResponse;
 import com.iflytek.skillhub.service.cli.CliSkillAppService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.ByteArrayInputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,20 +32,26 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -59,6 +70,21 @@ class CliTokenLifecycleSecurityIntegrationTest {
         MALFORMED
     }
 
+    private enum EndpointCase {
+        WHOAMI,
+        SEARCH,
+        RESOLVE,
+        LATEST_DOWNLOAD,
+        VERSIONED_DOWNLOAD
+    }
+
+    private enum MixedCredentialState {
+        SESSION_ONLY,
+        SESSION_BASIC,
+        BASIC_ONLY,
+        SESSION_VALID_BEARER
+    }
+
     @Autowired MockMvc mockMvc;
     @Autowired ApiTokenService apiTokenService;
     @Autowired ApiTokenRepository apiTokenRepository;
@@ -67,12 +93,16 @@ class CliTokenLifecycleSecurityIntegrationTest {
     @MockBean CliSkillAppService cliSkillAppService;
 
     private String userId;
+    private String sessionUserId;
 
     @BeforeEach
     void setUp() {
         userId = "token-matrix-" + UUID.randomUUID();
+        sessionUserId = "session-matrix-" + UUID.randomUUID();
         userAccountRepository.save(new UserAccount(
                 userId, "Token Matrix", userId + "@example.com", ""));
+        userAccountRepository.save(new UserAccount(
+                sessionUserId, "Session Matrix", sessionUserId + "@example.com", ""));
         given(cliSkillAppService.search(any(), anyInt(), any(), any()))
                 .willReturn(new CliSkillAppService.CliSearchResult(List.of(), 0, 20));
         given(cliSkillAppService.resolve(anyString(), anyString(), any(), any(), any()))
@@ -100,13 +130,54 @@ class CliTokenLifecycleSecurityIntegrationTest {
                 .andExpect(jsonPath("$.data.handle").value(userId));
     }
 
+    @ParameterizedTest(name = "{0} with {1}")
+    @MethodSource("mixedCredentialMatrix")
+    void sessionAndAuthorizationSchemeMatrix(
+            EndpointCase endpoint,
+            MixedCredentialState credentialState) throws Exception {
+        clearInvocations(cliSkillAppService);
+        String expectedUserId = expectedUserId(credentialState);
+        MockHttpServletRequestBuilder request = withCredentials(requestFor(endpoint), credentialState);
+
+        if (endpoint == EndpointCase.WHOAMI) {
+            if (credentialState == MixedCredentialState.BASIC_ONLY) {
+                assertUnauthorizedEnvelope(request);
+            } else {
+                assertSuccessEnvelope(request)
+                        .andExpect(jsonPath("$.data.handle").value(expectedUserId));
+            }
+            verifyNoInteractions(cliSkillAppService);
+            return;
+        }
+
+        ResultActions result = mockMvc.perform(request).andExpect(status().isOk());
+        if (endpoint == EndpointCase.LATEST_DOWNLOAD
+                || endpoint == EndpointCase.VERSIONED_DOWNLOAD) {
+            result.andExpect(content().contentType("application/zip"));
+        } else {
+            result.andExpect(jsonPath("$", aMapWithSize(5)))
+                    .andExpect(jsonPath("$.code").value(0));
+        }
+        assertProjectedUser(endpoint, expectedUserId);
+    }
+
+    @Test
+    void whoamiReturnsNullEmailForPersistedUserWithoutEmail() throws Exception {
+        String noEmailUserId = "token-no-email-" + UUID.randomUUID();
+        userAccountRepository.save(new UserAccount(noEmailUserId, "No Email User", null, ""));
+        String rawToken = apiTokenService.createToken(
+                noEmailUserId, "no-email-" + UUID.randomUUID(), "[\"skill:read\"]").rawToken();
+
+        assertSuccessEnvelope(withBearer(get("/api/cli/v1/auth/whoami"), rawToken))
+                .andExpect(jsonPath("$.data", hasKey("email")))
+                .andExpect(jsonPath("$.data.email").value(nullValue()));
+    }
+
     @ParameterizedTest(name = "whoami rejects {0}")
     @EnumSource(InvalidCredentialState.class)
     void whoamiRejectsInvalidBearer(InvalidCredentialState state) throws Exception {
         clearInvocations(cliSkillAppService);
-        mockMvc.perform(withInvalidBearer(get("/api/cli/v1/auth/whoami"), state))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+        assertUnauthorizedEnvelope(withInvalidBearer(get("/api/cli/v1/auth/whoami"), state));
         verifyNoInteractions(cliSkillAppService);
     }
 
@@ -128,10 +199,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
     @EnumSource(InvalidCredentialState.class)
     void searchRejectsInvalidBearer(InvalidCredentialState state) throws Exception {
         clearInvocations(cliSkillAppService);
-        mockMvc.perform(withInvalidBearer(
-                        get("/api/cli/v1/skills/search").param("q", "demo").param("limit", "20"), state))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+        assertUnauthorizedEnvelope(withInvalidBearer(
+                get("/api/cli/v1/skills/search").param("q", "demo").param("limit", "20"), state));
         verifyNoInteractions(cliSkillAppService);
     }
 
@@ -152,9 +221,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
     @EnumSource(InvalidCredentialState.class)
     void resolveRejectsInvalidBearer(InvalidCredentialState state) throws Exception {
         clearInvocations(cliSkillAppService);
-        mockMvc.perform(withInvalidBearer(get("/api/cli/v1/skills/global/demo/resolve"), state))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+        assertUnauthorizedEnvelope(withInvalidBearer(
+                get("/api/cli/v1/skills/global/demo/resolve"), state));
         verifyNoInteractions(cliSkillAppService);
     }
 
@@ -176,9 +244,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
     @EnumSource(InvalidCredentialState.class)
     void latestDownloadRejectsInvalidBearer(InvalidCredentialState state) throws Exception {
         clearInvocations(cliSkillAppService);
-        mockMvc.perform(withInvalidBearer(get("/api/cli/v1/skills/global/demo/download"), state))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+        assertUnauthorizedEnvelope(withInvalidBearer(
+                get("/api/cli/v1/skills/global/demo/download"), state));
         verifyNoInteractions(cliSkillAppService);
     }
 
@@ -201,10 +268,8 @@ class CliTokenLifecycleSecurityIntegrationTest {
     @EnumSource(InvalidCredentialState.class)
     void versionedDownloadRejectsInvalidBearer(InvalidCredentialState state) throws Exception {
         clearInvocations(cliSkillAppService);
-        mockMvc.perform(withInvalidBearer(
-                        get("/api/cli/v1/skills/global/demo/versions/1.0.0/download"), state))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(401));
+        assertUnauthorizedEnvelope(withInvalidBearer(
+                get("/api/cli/v1/skills/global/demo/versions/1.0.0/download"), state));
         verifyNoInteractions(cliSkillAppService);
     }
 
@@ -272,7 +337,70 @@ class CliTokenLifecycleSecurityIntegrationTest {
             InvalidCredentialState state) {
         return request
                 .header(HttpHeaders.AUTHORIZATION, authorizationHeader(state))
-                .with(authentication(sessionAuthentication()));
+                .session(session());
+    }
+
+    private static Stream<Arguments> mixedCredentialMatrix() {
+        return Stream.of(EndpointCase.values())
+                .flatMap(endpoint -> Stream.of(MixedCredentialState.values())
+                        .map(state -> Arguments.of(endpoint, state)));
+    }
+
+    private MockHttpServletRequestBuilder requestFor(EndpointCase endpoint) {
+        return switch (endpoint) {
+            case WHOAMI -> get("/api/cli/v1/auth/whoami");
+            case SEARCH -> get("/api/cli/v1/skills/search")
+                    .param("q", "demo")
+                    .param("limit", "20");
+            case RESOLVE -> get("/api/cli/v1/skills/global/demo/resolve");
+            case LATEST_DOWNLOAD -> get("/api/cli/v1/skills/global/demo/download");
+            case VERSIONED_DOWNLOAD ->
+                    get("/api/cli/v1/skills/global/demo/versions/1.0.0/download");
+        };
+    }
+
+    private MockHttpServletRequestBuilder withCredentials(
+            MockHttpServletRequestBuilder request,
+            MixedCredentialState state) {
+        return switch (state) {
+            case SESSION_ONLY -> request.session(session());
+            case SESSION_BASIC -> request.session(session())
+                    .header(HttpHeaders.AUTHORIZATION, "Basic dGVzdDp0ZXN0");
+            case BASIC_ONLY -> request.header(HttpHeaders.AUTHORIZATION, "Basic dGVzdDp0ZXN0");
+            case SESSION_VALID_BEARER -> withBearer(request.session(session()), createActiveToken());
+        };
+    }
+
+    private String expectedUserId(MixedCredentialState state) {
+        return switch (state) {
+            case SESSION_ONLY, SESSION_BASIC -> sessionUserId;
+            case BASIC_ONLY -> null;
+            case SESSION_VALID_BEARER -> userId;
+        };
+    }
+
+    private void assertProjectedUser(EndpointCase endpoint, String expectedUserId) {
+        if (endpoint == EndpointCase.SEARCH) {
+            ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+            verify(cliSkillAppService).search(any(), anyInt(), userCaptor.capture(), any());
+            assertEquals(expectedUserId, userCaptor.getValue());
+            return;
+        }
+        if (endpoint == EndpointCase.RESOLVE) {
+            ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+            verify(cliSkillAppService).resolve(anyString(), anyString(), any(), userCaptor.capture(), any());
+            assertEquals(expectedUserId, userCaptor.getValue());
+            return;
+        }
+
+        ArgumentCaptor<HttpServletRequest> requestCaptor = ArgumentCaptor.forClass(HttpServletRequest.class);
+        if (endpoint == EndpointCase.LATEST_DOWNLOAD) {
+            verify(cliSkillAppService).downloadLatest(anyString(), anyString(), requestCaptor.capture());
+        } else {
+            verify(cliSkillAppService).downloadVersion(
+                    anyString(), anyString(), anyString(), requestCaptor.capture());
+        }
+        assertEquals(expectedUserId, requestCaptor.getValue().getAttribute("userId"));
     }
 
     private MockHttpServletRequestBuilder withBearer(
@@ -310,9 +438,24 @@ class CliTokenLifecycleSecurityIntegrationTest {
                 userId, "matrix-" + UUID.randomUUID(), "[\"skill:read\"]");
     }
 
+    private MockHttpSession session() {
+        SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+        securityContext.setAuthentication(sessionAuthentication());
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(
+                HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                securityContext);
+        return session;
+    }
+
     private UsernamePasswordAuthenticationToken sessionAuthentication() {
         PlatformPrincipal principal = new PlatformPrincipal(
-                userId, "Session User", userId + "@example.com", "", "session", Set.of("USER"));
+                sessionUserId,
+                "Session User",
+                sessionUserId + "@example.com",
+                "",
+                "session",
+                Set.of("USER"));
         return new UsernamePasswordAuthenticationToken(principal, null, List.of());
     }
 

@@ -28,6 +28,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -47,6 +48,7 @@ class CliRestrictedReadAuthorizationIntegrationTest {
 
     private String namespaceSlug;
     private String skillSlug;
+    private String publicSkillSlug;
     private String version;
     private String ownerToken;
     private String outsiderToken;
@@ -57,7 +59,8 @@ class CliRestrictedReadAuthorizationIntegrationTest {
         String ownerId = "private-owner-" + suffix;
         String outsiderId = "private-outsider-" + suffix;
         namespaceSlug = "private-ns-" + suffix;
-        skillSlug = "private-skill-" + suffix;
+        skillSlug = Long.toUnsignedString(UUID.randomUUID().getMostSignificantBits());
+        publicSkillSlug = "public-skill-" + suffix;
         version = "1.0.0";
 
         userAccountRepository.save(new UserAccount(
@@ -94,45 +97,77 @@ class CliRestrictedReadAuthorizationIntegrationTest {
                 "",
                 SkillVisibility.PRIVATE.name(),
                 skill.getStatus().name()));
+
+        Skill publicSkill = skillRepository.save(new Skill(
+                namespace.getId(), publicSkillSlug, ownerId, SkillVisibility.PUBLIC));
+        SkillVersion publicPublished = new SkillVersion(publicSkill.getId(), version, ownerId);
+        publicPublished.setStatus(SkillVersionStatus.PUBLISHED);
+        publicPublished.setPublishedAt(Instant.parse("2026-07-28T00:00:00Z"));
+        publicPublished.setDownloadReady(true);
+        publicPublished = skillVersionRepository.save(publicPublished);
+        publicSkill.setLatestVersionId(publicPublished.getId());
+        skillRepository.save(publicSkill);
+        skillRepository.flush();
+        skillVersionRepository.flush();
+        skillSearchDocumentRepository.saveAndFlush(new SkillSearchDocumentEntity(
+                publicSkill.getId(),
+                namespace.getId(),
+                namespaceSlug,
+                ownerId,
+                skillSlug,
+                "Public match for " + publicSkillSlug,
+                "public",
+                skillSlug,
+                "",
+                SkillVisibility.PUBLIC.name(),
+                publicSkill.getStatus().name()));
     }
 
     @Test
-    void outsiderSearchOmitsPersistedPrivateSkill() throws Exception {
+    void outsiderSearchReturnsMatchingPublicSkillAndOmitsPrivateSkill() throws Exception {
         mockMvc.perform(withBearer(
-                        get("/api/cli/v1/skills/search").param("limit", "20"),
+                        get("/api/cli/v1/skills/search")
+                                .param("q", skillSlug)
+                                .param("limit", "20"),
                         outsiderToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", aMapWithSize(5)))
                 .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.items[*].slug", hasItem(publicSkillSlug)))
                 .andExpect(jsonPath("$.data.items[*].slug", not(hasItem(skillSlug))));
     }
 
     @Test
     void outsiderCannotResolvePrivateSkill() throws Exception {
-        mockMvc.perform(withBearer(
-                        get("/api/cli/v1/skills/{namespace}/{slug}/resolve", namespaceSlug, skillSlug),
-                        outsiderToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
+        assertForbiddenEnvelope(withBearer(
+                get("/api/cli/v1/skills/{namespace}/{slug}/resolve", namespaceSlug, skillSlug),
+                outsiderToken));
     }
 
     @Test
     void outsiderCannotDownloadLatestPrivateSkill() throws Exception {
-        mockMvc.perform(withBearer(
-                        get("/api/cli/v1/skills/{namespace}/{slug}/download", namespaceSlug, skillSlug),
-                        outsiderToken))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
+        assertForbiddenEnvelope(withBearer(
+                get("/api/cli/v1/skills/{namespace}/{slug}/download", namespaceSlug, skillSlug),
+                outsiderToken));
     }
 
     @Test
     void outsiderCannotDownloadVersionedPrivateSkill() throws Exception {
-        mockMvc.perform(withBearer(
-                        get("/api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download",
-                                namespaceSlug, skillSlug, version),
-                        outsiderToken))
+        assertForbiddenEnvelope(withBearer(
+                get("/api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download",
+                        namespaceSlug, skillSlug, version),
+                outsiderToken));
+    }
+
+    private void assertForbiddenEnvelope(MockHttpServletRequestBuilder request) throws Exception {
+        mockMvc.perform(request)
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
+                .andExpect(jsonPath("$", aMapWithSize(5)))
+                .andExpect(jsonPath("$.code").value(403))
+                .andExpect(jsonPath("$.msg").isString())
+                .andExpect(jsonPath("$.data").value(nullValue()))
+                .andExpect(jsonPath("$.timestamp").isString())
+                .andExpect(jsonPath("$.requestId").isString());
     }
 
     @Test

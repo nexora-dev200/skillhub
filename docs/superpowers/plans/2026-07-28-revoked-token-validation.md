@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Lock the CLI API's fail-closed Bearer behavior with persisted token lifecycle tests, prove 401/403 semantics on every affected read endpoint, publish the authentication OpenAPI contract, and reconcile source behavior with the actual runtime artifact.
+**Goal:** Lock the CLI API's fail-closed Bearer behavior and Web Session fallback with persisted lifecycle and mixed-credential tests, prove 401/403 semantics on every affected read endpoint, publish the authentication OpenAPI contract, and reconcile source behavior with the actual runtime artifact.
 
-**Architecture:** Keep `ApiTokenAuthenticationFilter` as the sole Bearer authentication entry point. Use one Spring Boot/MockMvc class with real token and user persistence plus deterministic controller-service stubs for the credential-state matrix, and a second Spring Boot/MockMvc class with real query/download authorization and a persisted PRIVATE skill for resource-level 403 checks. Production authentication code remains unchanged unless the unmodified-source matrix reproduces a failure; any such failure stops this plan for systematic root-cause analysis before a minimal fix is planned.
+**Architecture:** Keep `ApiTokenAuthenticationFilter` as the sole Bearer authentication entry point while preserving Spring Security's existing Web Session identity. Valid Bearer replaces Session; invalid Bearer fails closed without Session fallback; absent or non-Bearer Authorization preserves Session and otherwise leaves public reads anonymous. Use one Spring Boot/MockMvc class with real token and user persistence plus deterministic controller-service stubs for the credential-state matrix, and a second Spring Boot/MockMvc class with real query/download authorization plus persisted PRIVATE and matching PUBLIC skills for authorization checks. Production authentication code remains unchanged unless the unmodified-source matrix reproduces a failure; any such failure stops this plan for systematic root-cause analysis before a minimal fix is planned.
 
 **Tech Stack:** Java 21, Spring Boot 3.2, Spring Security, Spring Data JPA/H2, MockMvc, JUnit 5 parameterized tests, Mockito, OpenAPI 3.0 YAML, Docker/OCI image inspection.
 
@@ -14,7 +14,7 @@
 
 - Create `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliTokenLifecycleSecurityIntegrationTest.java`: persisted valid/revoked/expired/unknown/empty/malformed credential matrix for each CLI endpoint.
 - Create `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliRestrictedReadAuthorizationIntegrationTest.java`: real PRIVATE-skill search omission and read authorization through resolve, latest download, and versioned download.
-- Modify `docs/03-authentication-design.md`: current CLI route table and explicit anonymous/401/403 rules.
+- Modify `docs/03-authentication-design.md`: current CLI route table, Web Session/Bearer priority, and explicit anonymous/401/403 rules.
 - Create `docs/api/authentication.openapi.yaml`: OpenAPI 3.0 contract for whoami, search, resolve, latest download, and versioned download.
 - Do not modify `server/skillhub-auth/src/main/**` unless Task 5 records a failing unmodified-source assertion and a separate systematic-debugging plan amendment identifies the root cause.
 
@@ -689,13 +689,13 @@ Use this content in section 10.3:
 
 | 接口 | 凭证规则 | 授权与错误语义 |
 |------|---------|---------------|
-| `GET /api/cli/v1/auth/whoami` | 必须提供有效 Bearer Token | 缺失、未知、过期、撤销或 malformed token 返回 401 |
-| `GET /api/cli/v1/skills/search` | 可匿名；提供 Bearer 时必须有效 | 匿名仅返回公开可安装 skill；坏凭证返回 401，不得降级匿名 |
-| `GET /api/cli/v1/skills/{namespace}/{slug}/resolve` | 可匿名读取公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
-| `GET /api/cli/v1/skills/{namespace}/{slug}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
-| `GET /api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download` | 可匿名下载公开资源；提供 Bearer 时必须有效 | 坏凭证返回 401；有效身份无资源权限返回 403 |
+| `GET /api/cli/v1/auth/whoami` | 有效 Web Session 或有效 Bearer Token | 无有效身份返回 401；坏 Bearer 即使存在 Session 也返回 401 |
+| `GET /api/cli/v1/skills/search` | Session 可用；无 Session 时可匿名；提供 Bearer 时必须有效 | 匿名仅返回公开可安装 skill；有效 Bearer 覆盖 Session；坏 Bearer 返回 401，不得降级 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/resolve` | Session 可用；无 Session 时可匿名读取公开资源；提供 Bearer 时必须有效 | 有效 Bearer 覆盖 Session；坏 Bearer 返回 401；有效身份无资源权限返回 403 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/download` | Session 可用；无 Session 时可匿名下载公开资源；提供 Bearer 时必须有效 | 有效 Bearer 覆盖 Session；坏 Bearer 返回 401；有效身份无资源权限返回 403 |
+| `GET /api/cli/v1/skills/{namespace}/{slug}/versions/{version}/download` | Session 可用；无 Session 时可匿名下载公开资源；提供 Bearer 时必须有效 | 有效 Bearer 覆盖 Session；坏 Bearer 返回 401；有效身份无资源权限返回 403 |
 
-共享 API token 过滤器只识别 Bearer scheme。公共读接口在未提供可识别的 Bearer 凭证时允许匿名访问：这既包括完全缺少 `Authorization` 头，也包括 Basic 或其他非 Bearer scheme；`whoami` 因自身要求认证，在这些情况下仍返回 401。请求一旦使用 Bearer scheme，空值、格式错误、未知、过期、已撤销、用户缺失或用户禁用均由共享认证过滤器返回 401，不能降级为匿名身份。身份已验证但 token scope 或资源可见性不足时返回 403；服务端不向客户端区分 token 不存在、过期或已撤销。
+Spring Security 先加载 Web Session 身份，共享 API token 过滤器随后只处理 Bearer scheme。有效 Bearer 覆盖 Session；坏 Bearer 清除当前身份并立即返回 401，不回退 Session 或匿名。没有 Authorization 或使用 Basic/其他非 Bearer scheme 时保留 Session；如果 Session 也不存在，公共读匿名而 `whoami` 返回 401。身份已验证但 token scope 或资源权限不足时返回 403。`whoami.email` 字段始终存在，没有邮箱时为 `null`。
 ```
 
 - [ ] **Step 2: Create the complete OpenAPI 3.0 document**
@@ -708,12 +708,11 @@ info:
   title: SkillHub CLI Authentication API
   version: 1.0.0
   description: >-
-    Authentication contract for CLI identity and public skill reads. Public read
-    operations treat a request with no recognized Bearer credential as anonymous,
-    including an absent Authorization header or an unsupported scheme such as
-    Basic. Once the Bearer scheme is used, the credential must be valid;
-    malformed, unknown, expired, or revoked Bearer credentials return HTTP 401
-    and never fall back to anonymous access.
+    Authentication contract for CLI identity and public skill reads. Valid
+    Bearer overrides Web Session. Invalid Bearer returns HTTP 401 without
+    Session fallback. An absent Authorization header or unsupported scheme such
+    as Basic preserves Session; without Session, public reads are anonymous and
+    whoami returns HTTP 401.
 servers:
   - url: /
 tags:
@@ -725,8 +724,10 @@ paths:
       tags: [CLI Authentication]
       summary: Return the current CLI identity
       operationId: cliWhoAmI
+      description: Valid Bearer overrides Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer Authorization header preserves Session.
       security:
         - bearerAuth: []
+        - sessionAuth: []
       responses:
         '200':
           description: Authenticated CLI identity
@@ -741,9 +742,10 @@ paths:
       tags: [CLI Skills]
       summary: Search CLI-installable skills
       operationId: cliSearchSkills
-      description: An absent Bearer credential, including an unsupported non-Bearer Authorization scheme, uses anonymous public visibility. A supplied invalid Bearer credential returns 401.
+      description: Valid Bearer overrides Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer header preserves Session, otherwise this route uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - name: q
@@ -772,8 +774,10 @@ paths:
       tags: [CLI Skills]
       summary: Resolve a skill version
       operationId: cliResolveSkill
+      description: Valid Bearer overrides Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer header preserves Session, otherwise this route uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -802,8 +806,10 @@ paths:
       tags: [CLI Skills]
       summary: Download the latest installable skill version
       operationId: cliDownloadLatestSkill
+      description: Valid Bearer overrides Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer header preserves Session, otherwise this route uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -826,8 +832,10 @@ paths:
       tags: [CLI Skills]
       summary: Download an exact installable skill version
       operationId: cliDownloadSkillVersion
+      description: Valid Bearer overrides Session; invalid Bearer returns 401 without Session fallback. An absent or non-Bearer header preserves Session, otherwise this route uses anonymous public visibility.
       security:
         - {}
+        - sessionAuth: []
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/Namespace'
@@ -852,7 +860,12 @@ components:
       type: http
       scheme: bearer
       bearerFormat: SkillHub API token
-      description: API token issued by SkillHub. Invalid lifecycle states all return the same 401 response.
+      description: API token issued by SkillHub. Valid Bearer overrides Session; invalid lifecycle states return the same 401 response without Session fallback.
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: SESSION
+      description: Spring Session browser identity, preserved when Authorization is absent or uses a non-Bearer scheme.
   parameters:
     Namespace:
       name: namespace
@@ -896,7 +909,7 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
     Unauthorized:
-      description: Bearer credential is missing where required, malformed, unknown, expired, revoked, or belongs to an unavailable user.
+      description: No valid supported identity is present where required, or the Bearer credential is invalid. Invalid Bearer never falls back to Web Session.
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorEnvelope'}
@@ -951,7 +964,7 @@ components:
       properties:
         handle: {type: string, example: user-123}
         displayName: {type: string, example: CLI User}
-        email: {type: string, format: email, example: cli@example.com}
+        email: {type: string, format: email, nullable: true, example: cli@example.com}
     CliSearchEnvelope:
       allOf:
         - $ref: '#/components/schemas/Envelope'
@@ -1056,7 +1069,111 @@ Expected after revocation: 401 on every endpoint. If behavior differs, preserve 
 
 If no affected runtime URL, host/replica access, or authorization to create/revoke a test token is available, explicitly escalate to the human owner in the active issue. Name the missing authority and request the exact evidence still required: deployed version, immutable server digest or build SHA, all replica identities, and same-token valid-to-revoked replay. State that repository tests do not close the field contradiction and therefore cannot justify closing the defect.
 
-### Task 8: Quality gates and implementation review handoff
+### Task 8: Preserve Web Session fallback and harden the reviewed contracts
+
+**Files:**
+- Modify: `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliTokenLifecycleSecurityIntegrationTest.java`
+- Modify: `server/skillhub-app/src/test/java/com/iflytek/skillhub/controller/cli/CliRestrictedReadAuthorizationIntegrationTest.java`
+- Modify: `docs/03-authentication-design.md`
+- Modify: `docs/api/authentication.openapi.yaml`
+- Modify: `docs/superpowers/specs/2026-07-28-revoked-token-validation-design.md`
+
+- [ ] **Step 1: Add the five-endpoint Web Session and mixed-credential matrix**
+
+Add independent arguments for `whoami`, search, resolve, latest download, and
+versioned download. For each endpoint exercise Session-only, Session + Basic,
+Basic-only, and Session + valid Bearer. Persist distinct Session and token
+users, assert Session identity is retained when Bearer is absent or the scheme
+is Basic, assert public reads are anonymous for Basic-only, and assert valid
+Bearer identity replaces Session identity. Existing revoked, expired, unknown,
+empty, and malformed Bearer cases must attach a real mock HTTP Session and
+continue to return the fixed five-field 401 envelope before controller service
+logic runs.
+
+Run a reversible filter mutation that prevents valid Bearer replacement of an
+existing Session principal, then run:
+
+```bash
+cd server && ./mvnw -pl skillhub-app -am \
+  -Dtest=CliTokenLifecycleSecurityIntegrationTest#sessionAndAuthorizationSchemeMatrix \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Expected RED: Session + valid Bearer exposes the Session user instead of the
+token user. Restore production source immediately and rerun the same command.
+Expected GREEN: all 20 endpoint/credential arguments pass without a production
+source diff.
+
+- [ ] **Step 2: Lock the nullable whoami email contract**
+
+Persist an active user whose email is `null`, issue its token through
+`ApiTokenService`, call `GET /api/cli/v1/auth/whoami`, and assert the `email`
+key is present with a JSON null value inside the standard five-field envelope.
+
+```bash
+cd server && ./mvnw -pl skillhub-app -am \
+  -Dtest=CliTokenLifecycleSecurityIntegrationTest#whoamiReturnsNullEmailForPersistedUserWithoutEmail \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Expected: PASS against existing production behavior; this is a response-shape
+characterization test. Update `CliWhoAmI.email` in OpenAPI to remain required
+while becoming `nullable: true`.
+
+- [ ] **Step 3: Make PRIVATE search omission a positive and negative proof**
+
+Use a unique numeric `skillSlug` as `q`, persist an installable PUBLIC skill
+whose search document contains the same keyword, and keep the existing
+installable PRIVATE skill. Assert the PUBLIC slug is returned and the PRIVATE
+slug is omitted for the outsider token.
+
+```bash
+cd server && ./mvnw -pl skillhub-app -am \
+  -Dtest=CliRestrictedReadAuthorizationIntegrationTest#outsiderSearchReturnsMatchingPublicSkillAndOmitsPrivateSkill \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Expected RED before the PUBLIC fixture is persisted: the expected PUBLIC slug
+is absent. Expected GREEN after the fixture is added: the same non-empty result
+contains PUBLIC and omits PRIVATE.
+
+- [ ] **Step 4: Assert the fixed five-field 403 envelope on every restricted read**
+
+Replace status/code-only assertions for restricted resolve, latest download,
+and versioned download with a shared assertion for exactly `code`, `msg`,
+`data`, `timestamp`, and `requestId`; require `code=403`, `data=null`, and
+string timestamps/request IDs. Keep the three routes as separate test methods.
+
+```bash
+cd server && ./mvnw -pl skillhub-app -am \
+  -Dtest=CliRestrictedReadAuthorizationIntegrationTest#outsiderCannotResolvePrivateSkill,CliRestrictedReadAuthorizationIntegrationTest#outsiderCannotDownloadLatestPrivateSkill,CliRestrictedReadAuthorizationIntegrationTest#outsiderCannotDownloadVersionedPrivateSkill \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+Expected: all three pass through the real access-denied path.
+
+- [ ] **Step 5: Align authentication design and OpenAPI priority rules**
+
+Document these exact rules: valid Bearer overrides Web Session; any Bearer
+attempt that is empty, malformed, unknown, expired, revoked, or tied to an
+unavailable user returns 401 without Session fallback; no Authorization header
+or a non-Bearer scheme preserves a valid Session; without a Session, public
+reads use anonymous visibility and `whoami` returns 401. Add cookie
+`sessionAuth` to OpenAPI and list it as an alternative on all five operations.
+OpenAPI descriptions must state the precedence because security alternatives
+cannot encode it alone.
+
+- [ ] **Step 6: Confirm the review correction did not change production auth**
+
+```bash
+git diff --name-only origin/main...HEAD
+git diff --exit-code origin/main...HEAD -- server/skillhub-auth/src/main server/skillhub-app/src/main
+```
+
+Expected: only tests and documentation changed; the production-code diff
+command exits 0.
+
+### Task 9: Quality gates and implementation review handoff
 
 **Files:**
 - Verify all changed files; do not create a PR in this stage.
@@ -1111,6 +1228,11 @@ Expected: only the approved spec/plan, two test classes, authentication design, 
 
 Provide the branch, focused commands, complete matrix result, 403 fixture result, docs path, runtime identity/replay evidence or explicit external blocker, and full gate output to the project tester. After tester passes, request structured reviewer/security review. Address any findings on the same branch and rerun affected gates.
 
-- [ ] **Step 7: Report completion without creating a PR**
+- [ ] **Step 7: Update the existing single PR and report completion**
 
-Post the implementation result to the active issue thread. Include commit SHAs, endpoint-by-state matrix, RED mutation evidence, GREEN results, quality gates, OpenAPI path, production-code decision, and runtime identity/replay status. Do not create a PR, do not change issue status, and do not merge `main` during this stage.
+Commit and push to the existing `fix/auth-revoked-token-validation` branch so
+PR #609 updates in place. Post the implementation result to the active issue
+thread. Include commit SHAs, endpoint-by-state matrix, RED mutation evidence,
+GREEN results, quality gates, OpenAPI path, production-code decision, and
+runtime identity/replay status. Do not create a second PR, do not change issue
+status, and do not merge `main` during this stage.
