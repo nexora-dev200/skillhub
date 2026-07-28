@@ -35,6 +35,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Verify Kubernetes PostgreSQL data-directory compatibility
+        run: bash scripts/tests/k8s-postgres-storage-test.sh
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
