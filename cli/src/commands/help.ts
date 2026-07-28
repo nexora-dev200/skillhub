@@ -38,7 +38,9 @@ export const commands = {
       'skillhub install pdf-parser',
       'skillhub install team/my-skill',
       'skillhub install @team/my-skill',
-      'skillhub install team--my-skill'
+      'skillhub install team--my-skill',
+      'skillhub install pdf-parser --scope user',
+      'skillhub install pdf-parser --scope project --agent codex'
     ]
   },
   list: {

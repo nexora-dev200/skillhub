@@ -159,7 +159,7 @@ describe('publish --dry-run', () => {
     expect(result.stderr).toContain('authentication')
   })
 
-  test('--dry-run reports scope error on 403', async () => {
+  test('--dry-run uses a neutral fallback on an unstructured 403', async () => {
     const env = await createTempHome()
     registry = await startFakeRegistry({ token: 'sk_ok', failures: { validate: 'forbidden' } })
     await login(env, registry.url)
@@ -171,6 +171,7 @@ describe('publish --dry-run', () => {
     })
 
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain('scope')
+    expect(result.stderr).toContain('access denied')
+    expect(result.stderr).not.toContain('scope')
   })
 })
