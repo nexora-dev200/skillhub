@@ -92,6 +92,17 @@ describe('SkillHubClient', () => {
     await err.toHaveProperty('exitCode', EXIT.generic)
   })
 
+  test('download() retains its fallback while classifying 502 as a network error', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 502 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    await expect(client.download('ns', 'slug')).rejects.toMatchObject({
+      message: 'download failed with status 502',
+      exitCode: EXIT.network,
+      details: { registry: 'http://registry.test' }
+    })
+  })
+
   test('download() throws network error on fetch failure', async () => {
     const fetchImpl = (async () => { throw new TypeError('fetch failed') }) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
@@ -179,6 +190,27 @@ describe('SkillHubClient', () => {
 
   // --- handleJsonResponse() non-2xx classification ---
 
+  test('whoami() preserves public fields and ignores unknown fields on a structured 401', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 401,
+      msg: 'token has been revoked',
+      requestId: 'req-401',
+      detail: 'internal token state',
+      stack: 'internal stack trace'
+    }, { status: 401 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    const error = await client.whoami().catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(CliError)
+    expect((error as CliError).message).toBe('token has been revoked')
+    expect((error as CliError).exitCode).toBe(EXIT.auth)
+    expect((error as CliError).details).toEqual({
+      registry: 'http://registry.test',
+      requestId: 'req-401',
+      next: 'run `skillhub login`'
+    })
+  })
+
   test('search() preserves a public 403 message and request ID', async () => {
     const fetchImpl = (async () => Response.json({
       code: 403,
@@ -262,6 +294,17 @@ describe('SkillHubClient', () => {
     }
   })
 
+  test('whoami() uses the resource fallback on an unstructured 404', async () => {
+    const fetchImpl = (async () => new Response(null, { status: 404 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    await expect(client.whoami()).rejects.toMatchObject({
+      message: 'resource not found',
+      exitCode: EXIT.generic,
+      details: { registry: 'http://registry.test' }
+    })
+  })
+
   test('download() preserves a structured 403 message and request ID', async () => {
     const fetchImpl = (async () => Response.json({
       code: 403,
@@ -313,20 +356,63 @@ describe('SkillHubClient', () => {
     })
   })
 
-  test('whoami() throws generic error on 500', async () => {
-    const fetchImpl = (async () => new Response(null, { status: 500 })) as unknown as typeof fetch
+  test('whoami() preserves public fields on a structured 500', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 500,
+      msg: 'registry operation failed',
+      requestId: 'req-500',
+      detail: 'internal database error'
+    }, { status: 500 })) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
-    const err = expect(client.whoami()).rejects
-    await err.toBeInstanceOf(CliError)
-    await err.toHaveProperty('exitCode', EXIT.generic)
+
+    await expect(client.whoami()).rejects.toMatchObject({
+      message: 'registry operation failed',
+      exitCode: EXIT.generic,
+      details: {
+        registry: 'http://registry.test',
+        requestId: 'req-500'
+      }
+    })
   })
 
-  test('search() throws network error on 502', async () => {
+  test('whoami() does not expose a raw non-JSON 500 body', async () => {
+    const fetchImpl = (async () => new Response('internal stack trace', { status: 500 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    await expect(client.whoami()).rejects.toMatchObject({
+      message: 'registry returned 500',
+      exitCode: EXIT.generic,
+      details: { registry: 'http://registry.test' }
+    })
+  })
+
+  test('search() preserves public fields and network classification on a structured 502', async () => {
+    const fetchImpl = (async () => Response.json({
+      code: 502,
+      msg: 'registry upstream unavailable',
+      requestId: 'req-502'
+    }, { status: 502 })) as unknown as typeof fetch
+    const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
+
+    await expect(client.search('test', 20)).rejects.toMatchObject({
+      message: 'registry upstream unavailable',
+      exitCode: EXIT.network,
+      details: {
+        registry: 'http://registry.test',
+        requestId: 'req-502'
+      }
+    })
+  })
+
+  test('search() uses the network fallback on an unstructured 502', async () => {
     const fetchImpl = (async () => new Response(null, { status: 502 })) as unknown as typeof fetch
     const client = new SkillHubClient('http://registry.test', 'token', fetchImpl)
-    const err = expect(client.search('test', 20)).rejects
-    await err.toBeInstanceOf(CliError)
-    await err.toHaveProperty('exitCode', EXIT.network)
+
+    await expect(client.search('test', 20)).rejects.toMatchObject({
+      message: 'registry returned 502',
+      exitCode: EXIT.network,
+      details: { registry: 'http://registry.test' }
+    })
   })
 
   // --- deleteRemote() (P1) ---

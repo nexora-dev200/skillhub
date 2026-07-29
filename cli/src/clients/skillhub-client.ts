@@ -179,7 +179,9 @@ export class SkillHubClient {
     } else if (response.status === 404) {
       fallback = kind === 'download' ? 'skill or version not found' : 'resource not found'
     } else if (response.status === 502 || response.status === 503) {
-      fallback = `registry returned ${response.status}`
+      fallback = kind === 'download'
+        ? `download failed with status ${response.status}`
+        : `registry returned ${response.status}`
       exitCode = EXIT.network
     } else {
       fallback = kind === 'download'

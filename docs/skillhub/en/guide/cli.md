@@ -125,15 +125,24 @@ Output format: `namespace/slug  version  summary`
 
 ## Install Skills
 
+Install coordinates accept a bare slug (resolved to `global` by default) and
+three equivalent explicit namespace forms. When an explicit coordinate and
+`--namespace` are both present, they must match.
+
 ```bash
 # Install to auto-detected Agent directory
 skillhub install pdf-parser
+
+# Equivalent namespace coordinates
+skillhub install team/my-skill
+skillhub install @team/my-skill
+skillhub install team--my-skill
 
 # Choose install scope explicitly
 skillhub install pdf-parser --scope user
 skillhub install pdf-parser --scope project --agent codex
 
-# Specify namespace (default: global)
+# Specify a namespace for a bare slug
 skillhub install pdf-parser --namespace myspace
 
 # Specify version

@@ -125,15 +125,23 @@ skillhub search pdf --json
 
 ## 安装技能
 
+安装坐标支持裸 slug（默认解析到 `global`）和三种等价的显式 namespace
+形式。显式坐标与 `--namespace` 同时出现时，两者必须一致。
+
 ```bash
 # 安装到自动探测的 Agent 目录
 skillhub install pdf-parser
+
+# 等价的 namespace 坐标
+skillhub install team/my-skill
+skillhub install @team/my-skill
+skillhub install team--my-skill
 
 # 显式指定安装范围
 skillhub install pdf-parser --scope user
 skillhub install pdf-parser --scope project --agent codex
 
-# 指定 namespace（默认 global）
+# 为裸 slug 指定 namespace
 skillhub install pdf-parser --namespace myspace
 
 # 指定版本

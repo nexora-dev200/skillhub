@@ -16,14 +16,14 @@ revalidation did not recreate historical RED states; it reran the current
 GREEN gates with the repository-pinned Bun 1.3.13:
 
 - Focused namespace/error/help regression: 142 tests passed.
-- Complete CLI regression: 373 tests passed with
-  `bun test --max-concurrency=1` (peak RSS 170224 KiB).
+- Complete CLI regression: 378 tests passed with
+  `bun test --max-concurrency=1` (peak RSS 152128 KiB).
 - Typecheck, lint, and build passed.
 - The packed `@astron-team/skillhub@0.1.9` artifact contained `dist/index.js`,
   `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`.
-- Packed Node artifact smoke passed for `version`, `help install`, and
-  `remove --help`; the install help listed all three namespaced coordinate
-  forms.
+- Packed Node artifact smoke passed for `version`, `help install`, all three
+  namespaced coordinate forms, coordinate/`--namespace` conflict handling, and
+  structured 403 message/request-ID rendering.
 - The Chinese and English VitePress documentation build passed.
 
 ---
