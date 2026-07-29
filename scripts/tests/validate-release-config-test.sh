@@ -36,6 +36,7 @@ POSTGRES_USER=skillhub
 POSTGRES_PASSWORD=strong-postgres-password
 SESSION_COOKIE_SECURE=true
 BOOTSTRAP_ADMIN_ENABLED=false
+SKILLHUB_TRUST_FORWARDED_PROTO=false
 SKILLHUB_STORAGE_PROVIDER=s3
 SKILLHUB_STORAGE_S3_ENDPOINT=https://storage.example.com
 SKILLHUB_STORAGE_S3_BUCKET=skillhub
@@ -79,6 +80,11 @@ expect_fail "$placeholder_env" "SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET still uses 
 short_env="$tmp/short.env"
 write_env "$short_env" "too-short"
 expect_fail "$short_env" "SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET must be at least 32 characters"
+
+invalid_forwarded_proto_env="$tmp/invalid-forwarded-proto.env"
+write_env "$invalid_forwarded_proto_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' "SKILLHUB_TRUST_FORWARDED_PROTO=yes" >>"$invalid_forwarded_proto_env"
+expect_fail "$invalid_forwarded_proto_env" "SKILLHUB_TRUST_FORWARDED_PROTO must be true or false"
 
 draft_env="$tmp/draft.env"
 while IFS= read -r line || [[ -n "$line" ]]; do

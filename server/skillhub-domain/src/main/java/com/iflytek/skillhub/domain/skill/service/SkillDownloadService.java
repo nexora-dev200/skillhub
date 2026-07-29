@@ -4,6 +4,7 @@ import com.iflytek.skillhub.domain.event.SkillDownloadedEvent;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.namespace.NamespaceStatus;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.*;
@@ -284,10 +285,18 @@ public class SkillDownloadService {
         if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
             throw new DomainForbiddenException("error.skill.access.denied", skill.getSlug());
         }
+        if (namespace.getStatus() == NamespaceStatus.ARCHIVED
+                && !isNamespaceMember(namespace.getId(), currentUserId, userNsRoles)) {
+            throw new DomainForbiddenException("error.namespace.archived", namespace.getSlug());
+        }
     }
 
     private boolean isAnonymousDownloadAllowed(Skill skill) {
         return skill.getVisibility() == SkillVisibility.PUBLIC;
+    }
+
+    private boolean isNamespaceMember(Long namespaceId, String currentUserId, Map<Long, NamespaceRole> userNsRoles) {
+        return currentUserId != null && userNsRoles != null && userNsRoles.containsKey(namespaceId);
     }
 
     private Skill resolveVisibleSkill(Long namespaceId, String slug, String currentUserId) {
@@ -306,7 +315,7 @@ public class SkillDownloadService {
 
     /**
      * Asserts that the version can be downloaded.
-     * - PUBLISHED: anyone with skill access can download
+     * - PUBLISHED: must be installable before public download
      * - UPLOADED/PENDING_REVIEW: only skill owner or namespace admin can download
      */
     private void assertDownloadableVersion(Skill skill,
@@ -315,7 +324,9 @@ public class SkillDownloadService {
                                            Map<Long, NamespaceRole> userNsRoles) {
         switch (version.getStatus()) {
             case PUBLISHED -> {
-                // Anyone with skill access can download published versions
+                if (!SkillInstallability.isInstallableVersion(version)) {
+                    throw new DomainBadRequestException("error.skill.version.notDownloadable", version.getVersion());
+                }
             }
             case UPLOADED, PENDING_REVIEW -> {
                 if (!canManageSkillDraft(skill, currentUserId, userNsRoles)) {

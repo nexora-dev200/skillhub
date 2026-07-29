@@ -1,6 +1,7 @@
 package com.iflytek.skillhub.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iflytek.skillhub.auth.token.ApiTokenAccessDeniedException;
 import com.iflytek.skillhub.dto.ApiResponse;
 import com.iflytek.skillhub.dto.ApiResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,14 +39,25 @@ public class ApiAccessDeniedHandler implements AccessDeniedHandler {
     public void handle(HttpServletRequest request,
                        HttpServletResponse response,
                        AccessDeniedException accessDeniedException) throws IOException {
+        ApiTokenAccessDeniedException apiTokenException =
+                accessDeniedException instanceof ApiTokenAccessDeniedException typedException
+                        ? typedException
+                        : null;
         logger.info(
-                "Forbidden API request [requestId={}, method={}, path={}, reason={}]",
+                "Forbidden API request [requestId={}, method={}, path={}, reason={}, detail={}]",
                 MDC.get("requestId"),
                 request.getMethod(),
                 sensitiveLogSanitizer.sanitizeRequestTarget(request),
-                accessDeniedException.getClass().getSimpleName()
+                accessDeniedException.getClass().getSimpleName(),
+                apiTokenException != null ? apiTokenException.getMessage() : null
         );
-        ApiResponse<Void> body = apiResponseFactory.error(403, "error.forbidden");
+        ApiResponse<Void> body = apiTokenException != null
+                ? apiResponseFactory.error(
+                        403,
+                        apiTokenException.getMessageCode(),
+                        apiTokenException.getMessageArgs()
+                )
+                : apiResponseFactory.error(403, "error.forbidden");
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), body);

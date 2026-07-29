@@ -127,8 +127,27 @@ vi.mock('@/features/skill/markdown-renderer', () => ({
 }))
 
 vi.mock('@/features/skill/file-preview-dialog', () => ({
-  FilePreviewDialog: ({ open, node }: { open: boolean; node: { path: string } | null }) => (
-    open && node ? <div role="dialog">preview:{node.path}</div> : null
+  FilePreviewDialog: ({
+    open,
+    node,
+    onLinkClick,
+  }: {
+    open: boolean
+    node: { path: string } | null
+    onLinkClick?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void
+  }) => (
+    open && node
+      ? (
+          <div role="dialog">
+            preview:{node.path}
+            {onLinkClick && (
+              <a href="nested.md" onClick={(event) => onLinkClick('nested.md', event)}>
+                Nested
+              </a>
+            )}
+          </div>
+        )
+      : null
   ),
 }))
 
@@ -487,6 +506,25 @@ describe('SkillDetailPage', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Usage' }))
 
     expect(screen.getByRole('dialog').textContent).toContain('preview:docs/usage.md')
+    expect(toastMocks.error).not.toHaveBeenCalled()
+  })
+
+  it('resolves links inside previewed markdown files against the previewed file path', () => {
+    useSkillFilesMock.mockReturnValue({
+      data: [
+        createSkillFile('README.md'),
+        createSkillFile('docs/usage.md'),
+        createSkillFile('docs/nested.md'),
+      ],
+    })
+
+    render(<SkillDetailPage />)
+    fireEvent.click(screen.getByRole('link', { name: 'Usage' }))
+    expect(screen.getByRole('dialog').textContent).toContain('preview:docs/usage.md')
+
+    fireEvent.click(screen.getByRole('link', { name: 'Nested' }))
+
+    expect(screen.getByRole('dialog').textContent).toContain('preview:docs/nested.md')
     expect(toastMocks.error).not.toHaveBeenCalled()
   })
 

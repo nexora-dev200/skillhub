@@ -1,6 +1,7 @@
 package com.iflytek.skillhub.controller;
 
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
+import com.iflytek.skillhub.auth.local.LocalCredentialRepository;
 import com.iflytek.skillhub.auth.repository.UserRoleBindingRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceMemberRepository;
 import com.iflytek.skillhub.domain.user.UserAccount;
@@ -64,6 +65,9 @@ class AuthControllerTest {
     @MockBean
     private UserRoleBindingRepository userRoleBindingRepository;
 
+    @MockBean
+    private LocalCredentialRepository localCredentialRepository;
+
     @Test
     void meShouldReturnUnauthorizedForAnonymousRequest() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me"))
@@ -77,6 +81,7 @@ class AuthControllerTest {
         given(userAccountRepository.findById("user-42"))
             .willReturn(java.util.Optional.of(new UserAccount("user-42", "tester", "tester@example.com", "https://example.com/avatar.png")));
         given(userRoleBindingRepository.findByUserId("user-42")).willReturn(List.of());
+        given(localCredentialRepository.existsByUserId("user-42")).willReturn(false);
 
         PlatformPrincipal principal = new PlatformPrincipal(
             "user-42",
@@ -102,6 +107,7 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.data.userId").value("user-42"))
             .andExpect(jsonPath("$.data.displayName").value("tester"))
             .andExpect(jsonPath("$.data.oauthProvider").value("github"))
+            .andExpect(jsonPath("$.data.canChangePassword").value(false))
             .andExpect(jsonPath("$.data.platformRoles[0]").value("USER"))
             .andExpect(jsonPath("$.timestamp").isNotEmpty())
             .andExpect(jsonPath("$.requestId").isNotEmpty());
@@ -115,6 +121,7 @@ class AuthControllerTest {
         var user = new UserAccount("user-42", "UpdatedName", "tester@example.com", "https://example.com/avatar.png");
         given(userAccountRepository.findById("user-42")).willReturn(java.util.Optional.of(user));
         given(userRoleBindingRepository.findByUserId("user-42")).willReturn(List.of());
+        given(localCredentialRepository.existsByUserId("user-42")).willReturn(true);
 
         PlatformPrincipal principal = new PlatformPrincipal(
             "user-42",
@@ -134,7 +141,8 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/v1/auth/me").with(authentication(auth)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
-            .andExpect(jsonPath("$.data.displayName").value("UpdatedName"));  // should return DB value
+            .andExpect(jsonPath("$.data.displayName").value("UpdatedName"))  // should return DB value
+            .andExpect(jsonPath("$.data.canChangePassword").value(true));
     }
 
     @Test
@@ -142,13 +150,9 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/v1/auth/providers"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
-            .andExpect(jsonPath("$.data.length()").value(3))
-            .andExpect(jsonPath("$.data[*].id", hasItems("github", "gitee", "gitlab")))
-            .andExpect(jsonPath("$.data[*].authorizationUrl", hasItems(
-                "/oauth2/authorization/github",
-                "/oauth2/authorization/gitee",
-                "/oauth2/authorization/gitlab"
-            )))
+            .andExpect(jsonPath("$.data.length()").value(1))
+            .andExpect(jsonPath("$.data[*].id", hasItems("github")))
+            .andExpect(jsonPath("$.data[*].authorizationUrl", hasItems("/oauth2/authorization/github")))
             .andExpect(jsonPath("$.timestamp").isNotEmpty())
             .andExpect(jsonPath("$.requestId").isNotEmpty());
     }
@@ -159,8 +163,7 @@ class AuthControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
             .andExpect(jsonPath("$.data[*].authorizationUrl", hasItems(
-                "/oauth2/authorization/github?returnTo=%2Fdashboard%2Fpublish",
-                "/oauth2/authorization/gitee?returnTo=%2Fdashboard%2Fpublish"
+                "/oauth2/authorization/github?returnTo=%2Fdashboard%2Fpublish"
             )));
     }
 
@@ -169,7 +172,8 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/v1/auth/methods").param("returnTo", "/dashboard/publish"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(0))
-            .andExpect(jsonPath("$.data[*].id", hasItems("local-password", "oauth-github", "oauth-gitee")))
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[*].id", hasItems("local-password", "oauth-github")))
             .andExpect(jsonPath("$.data[?(@.id=='local-password')].methodType").value(hasItems("PASSWORD")))
             .andExpect(jsonPath("$.data[?(@.id=='oauth-github')].actionUrl")
                 .value(hasItems("/oauth2/authorization/github?returnTo=%2Fdashboard%2Fpublish")));

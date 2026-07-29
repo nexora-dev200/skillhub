@@ -300,8 +300,12 @@ export function SkillDetailPage() {
     setPreviewDialogOpen(true)
   }
 
-  const handleOverviewLinkClick = (href: string, event: MouseEvent<HTMLAnchorElement>) => {
-    const resolution = resolvePackageRelativeLink(href, documentationPath, files)
+  const handlePackageMarkdownLinkClick = (
+    href: string,
+    event: MouseEvent<HTMLAnchorElement>,
+    currentFilePath: string | null | undefined,
+  ) => {
+    const resolution = resolvePackageRelativeLink(href, currentFilePath, files)
 
     if (resolution.status === 'ignored') {
       return
@@ -316,6 +320,14 @@ export function SkillDetailPage() {
     }
 
     toast.error(t('skillDetail.packageLinkMissingTitle'), t('skillDetail.packageLinkMissingDescription'))
+  }
+
+  const handleOverviewLinkClick = (href: string, event: MouseEvent<HTMLAnchorElement>) => {
+    handlePackageMarkdownLinkClick(href, event, documentationPath)
+  }
+
+  const handlePreviewLinkClick = (href: string, event: MouseEvent<HTMLAnchorElement>) => {
+    handlePackageMarkdownLinkClick(href, event, previewNode?.path)
   }
 
   // Download a single file from the skill version
@@ -1652,6 +1664,7 @@ export function SkillDetailPage() {
         isLoading={isLoadingPreview}
         error={previewError}
         onDownload={handleDownloadFile}
+        onLinkClick={handlePreviewLinkClick}
       />
     </div>
   )
