@@ -8,6 +8,24 @@
 
 **Tech Stack:** TypeScript, Bun test/build, cac, npm package tarballs.
 
+## Completion record
+
+Completed in PR #608 and revalidated after merging `origin/main` on 2026-07-29.
+The checklist below reflects the delivered implementation. The maintainer
+revalidation did not recreate historical RED states; it reran the current
+GREEN gates with the repository-pinned Bun 1.3.13:
+
+- Focused namespace/error/help regression: 142 tests passed.
+- Complete CLI regression: 373 tests passed with
+  `bun test --max-concurrency=1` (peak RSS 170224 KiB).
+- Typecheck, lint, and build passed.
+- The packed `@astron-team/skillhub@0.1.9` artifact contained `dist/index.js`,
+  `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`.
+- Packed Node artifact smoke passed for `version`, `help install`, and
+  `remove --help`; the install help listed all three namespaced coordinate
+  forms.
+- The Chinese and English VitePress documentation build passed.
+
 ---
 
 ### Task 1: Establish release artifact baseline
@@ -16,7 +34,7 @@
 - Inspect: `cli/package.json`
 - Inspect: npm package `@astron-team/skillhub@0.1.9`
 
-- [ ] **Step 1: Read published metadata and download the package**
+- [x] **Step 1: Read published metadata and download the package**
 
 Run:
 
@@ -28,7 +46,7 @@ npm pack @astron-team/skillhub@0.1.9 --pack-destination /tmp/skillhub-npm-019-is
 Expected: version `0.1.9`, a tarball with `dist/index.js`, `README.md`,
 `LICENSE`, and `package.json`.
 
-- [ ] **Step 2: Confirm the published bundle contains both bug signatures**
+- [x] **Step 2: Confirm the published bundle contains both bug signatures**
 
 Run:
 
@@ -45,14 +63,14 @@ parser but also the misleading 403 fallback.
 - Modify: `cli/test/unit/shared/skill-name-parser.test.ts`
 - Modify: `cli/src/shared/skill-name-parser.ts`
 
-- [ ] **Step 1: Replace permissive edge tests with the public coordinate matrix**
+- [x] **Step 1: Replace permissive edge tests with the public coordinate matrix**
 
 Add table-driven assertions for `my-skill`, `team/my-skill`,
 `@team/my-skill`, and `team--my-skill`. Add resolver assertions for an explicit
 namespace on a bare slug, a matching coordinate namespace, and a conflicting
 namespace. Add malformed-input assertions for empty or incomplete coordinates.
 
-- [ ] **Step 2: Run the parser test and verify RED**
+- [x] **Step 2: Run the parser test and verify RED**
 
 Run:
 
@@ -62,14 +80,14 @@ cd cli && bun test test/unit/shared/skill-name-parser.test.ts
 
 Expected: failures for slash forms, malformed input, and the missing resolver.
 
-- [ ] **Step 3: Implement the minimal parser and resolver**
+- [x] **Step 3: Implement the minimal parser and resolver**
 
 Keep `ParsedSkillName` unchanged. Add `resolveSkillName(skillName,
 explicitNamespace?)` returning `ParsedSkillName`. It calls one internal parser,
 applies `global` only to bare slugs, accepts a matching explicit namespace, and
 throws `CliError(..., EXIT.usage)` on malformed input or conflict.
 
-- [ ] **Step 4: Run the parser test and verify GREEN**
+- [x] **Step 4: Run the parser test and verify GREEN**
 
 Run:
 
@@ -88,7 +106,7 @@ Expected: all parser tests pass with no warnings.
 - Modify: `cli/test/unit/commands/install-command.test.ts`
 - Modify: `cli/test/integration/install-command.test.ts`
 
-- [ ] **Step 1: Add failing command and integration tests**
+- [x] **Step 1: Add failing command and integration tests**
 
 Capture `installSkill` options in the unit test and assert a namespaced
 coordinate passes `namespace: 'team'` and `slug: 'my-skill'`. In the integration
@@ -102,7 +120,7 @@ Assert exit 0, JSON namespace `team`, and fake-registry resolve state
 `{ namespace: 'team', slug: 'my-skill' }`. Add a conflicting
 `--namespace other` case that exits with usage code 5 before registry access.
 
-- [ ] **Step 2: Run the focused command tests and verify RED**
+- [x] **Step 2: Run the focused command tests and verify RED**
 
 Run:
 
@@ -113,7 +131,7 @@ cd cli && bun test test/unit/commands/install-command.test.ts test/integration/i
 Expected: the namespaced integration case resolves `global` or fails, and the
 conflict case does not produce the expected usage error.
 
-- [ ] **Step 3: Use `resolveSkillName` and remove the cac default**
+- [x] **Step 3: Use `resolveSkillName` and remove the cac default**
 
 Change install/remove to call:
 
@@ -127,7 +145,7 @@ Change install's option declaration to:
 .option('--namespace <slug>', 'Namespace for a bare skill slug')
 ```
 
-- [ ] **Step 4: Run the focused command tests and verify GREEN**
+- [x] **Step 4: Run the focused command tests and verify GREEN**
 
 Run the same Bun test command. Expected: all focused command tests pass.
 
@@ -139,7 +157,7 @@ Run the same Bun test command. Expected: all focused command tests pass.
 - Modify: `cli/src/clients/skillhub-client.ts`
 - Modify: `cli/src/shared/output.ts`
 
-- [ ] **Step 1: Add failing response and output tests**
+- [x] **Step 1: Add failing response and output tests**
 
 Add client tests for:
 
@@ -155,7 +173,7 @@ Assert message `token has been revoked`, auth exit code, and details containing
 404 with structured fields. Add a download 403 structured-response test. Add a
 human output assertion for `Request ID: req-403`.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -166,7 +184,7 @@ cd cli && bun test test/unit/clients/skillhub-client.test.ts test/unit/shared/ou
 Expected: structured messages/request IDs are discarded and human output omits
 the request ID.
 
-- [ ] **Step 3: Implement one safe response-error converter**
+- [x] **Step 3: Implement one safe response-error converter**
 
 Inside `SkillHubClient`, add a private method that reads non-success bodies once,
 parses only object-shaped JSON, accepts only non-empty string `msg` and
@@ -180,7 +198,7 @@ if (typeof cliError.details.requestId === 'string') {
 }
 ```
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run the same focused Bun test command. Expected: all client/output tests pass.
 
@@ -193,12 +211,12 @@ Run the same focused Bun test command. Expected: all client/output tests pass.
 - Modify: `cli/package.json`
 - Modify: `cli/test/integration/help-command.test.ts`
 
-- [ ] **Step 1: Add a failing help assertion**
+- [x] **Step 1: Add a failing help assertion**
 
 Assert `skillhub help install` includes `@team/my-skill`,
 `team/my-skill`, and `team--my-skill` examples.
 
-- [ ] **Step 2: Run the help test and verify RED**
+- [x] **Step 2: Run the help test and verify RED**
 
 Run:
 
@@ -208,14 +226,14 @@ cd cli && bun test test/integration/help-command.test.ts
 
 Expected: the coordinate examples are absent.
 
-- [ ] **Step 3: Update help, README, and release notes**
+- [x] **Step 3: Update help, README, and release notes**
 
 Use `<coordinate>` in install usage. Document all accepted forms and the
 same-namespace/conflict rule. Add an Unreleased changelog entry covering
 coordinate normalization and structured 403 messages/request IDs. Include
 `CHANGELOG.md` in the npm package `files` list.
 
-- [ ] **Step 4: Run the help test and verify GREEN**
+- [x] **Step 4: Run the help test and verify GREEN**
 
 Run the same Bun test command. Expected: all help tests pass.
 
@@ -226,7 +244,7 @@ Run the same Bun test command. Expected: all help tests pass.
 - Produce locally: `cli/dist/index.js`
 - Produce locally: npm tarball under `/tmp`
 
-- [ ] **Step 1: Run the complete CLI quality gate**
+- [x] **Step 1: Run the complete CLI quality gate**
 
 Run:
 
@@ -239,7 +257,7 @@ cd cli && bun run build
 
 Expected: every command exits 0 with no errors or warnings.
 
-- [ ] **Step 2: Pack and inspect the candidate artifact**
+- [x] **Step 2: Pack and inspect the candidate artifact**
 
 Run:
 
@@ -251,14 +269,14 @@ tar -tf /tmp/skillhub-cli-issue-606/astron-team-skillhub-0.1.9.tgz
 Expected: the package contains the built executable, README, changelog,
 license, and package metadata.
 
-- [ ] **Step 3: Run packed-bundle smoke checks**
+- [x] **Step 3: Run packed-bundle smoke checks**
 
 Extract the tarball to a temporary directory and run the built executable's
 `version` and `help install` commands. Expected: version reports 0.1.9 and help
 shows every coordinate form. Run the relevant unit/integration suites against
 source to verify request paths and structured errors.
 
-- [ ] **Step 4: Review the diff and commit**
+- [x] **Step 4: Review the diff and commit**
 
 Run:
 
@@ -282,14 +300,14 @@ git commit -m "fix(cli): normalize namespace coordinates and errors (#606)"
 **Files:**
 - Review: committed diff against `origin/main`
 
-- [ ] **Step 1: Run tester and reviewer gates**
+- [x] **Step 1: Run tester and reviewer gates**
 
 The tester must confirm focused and full CLI gates plus package smoke evidence.
 The reviewer must inspect coordinate compatibility, error disclosure, test
 coverage, docs, commit metadata, and absence of unrelated changes. Resolve all
 blocking findings before continuing.
 
-- [ ] **Step 2: Push only the assigned branch**
+- [x] **Step 2: Push only the assigned branch**
 
 Run:
 
@@ -299,7 +317,7 @@ git push -u origin fix/cli-namespace-errors
 
 Expected: only the assigned branch is created or updated remotely.
 
-- [ ] **Step 3: Create one PR linked to the issue**
+- [x] **Step 3: Create one PR linked to the issue**
 
 Create one PR titled `fix(cli): normalize namespace coordinates and errors`
 with `Related to #606` in the body, complete test/package evidence, docs and

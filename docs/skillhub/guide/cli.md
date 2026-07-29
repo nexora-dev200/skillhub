@@ -83,6 +83,8 @@ skillhub login --token sk_xxx --registry https://skillhub.example.com
 
 `login` 会验证 token 有效性，然后将 token 存储到 `~/.skillhub/credentials.json`，同时将 registry 写入 `~/.skillhub/config.json`。
 
+API Token 请求被拒绝时，CLI 会显示服务端返回的具体原因和 `Request ID`。排查问题时可使用该 ID 对照服务端日志；非 API Token 的授权失败仍只显示通用信息。
+
 ### 查看当前身份
 
 ```bash
@@ -478,12 +480,17 @@ skillhub search <query> [--registry <url>] [--limit <n>] [--json]
 ### install
 
 ```bash
-skillhub install <slug> [options]
+skillhub install <coordinate> [options]
 ```
+
+`<coordinate>` 支持裸 slug（`my-skill`，解析为 `global/my-skill`）以及
+`team/my-skill`、`@team/my-skill`、`team--my-skill` 三种等价的显式
+namespace 形式。裸 slug 可通过 `--namespace team` 选择非 global namespace；
+显式坐标可以同时传入相同的 `--namespace`，但冲突值会作为用法错误被拒绝。
 
 选项：
 - `--scope <user|project>` — 安装范围（不传时：TTY 模式下交互式询问，非 TTY 模式沿用现有探测逻辑）
-- `--namespace <slug>` — namespace（默认 `global`）
+- `--namespace <slug>` — 为裸 slug 指定 namespace
 - `--version <v>` — 版本（默认最新版本）
 - `--agent <profile>` — Agent 配置（可重复）
 - `--dir <path>` — 自定义安装目录（与 `--scope`、`--agent` 互斥）

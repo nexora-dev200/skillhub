@@ -83,6 +83,8 @@ skillhub login --token sk_xxx --registry https://skillhub.example.com
 
 `login` validates the token, stores it in `~/.skillhub/credentials.json`, and writes the registry to `~/.skillhub/config.json`.
 
+When an API-token request is denied, the CLI shows the safe reason returned by the server and its `Request ID`. Use that ID to correlate the failure with server logs. Other authorization failures continue to use a generic message.
+
 ### Check Current Identity
 
 ```bash
@@ -478,12 +480,18 @@ Search published skills.
 ### install
 
 ```bash
-skillhub install <slug> [options]
+skillhub install <coordinate> [options]
 ```
+
+`<coordinate>` accepts a bare slug (`my-skill`, resolved as `global/my-skill`)
+or any of the equivalent explicit namespace forms: `team/my-skill`,
+`@team/my-skill`, and `team--my-skill`. Use `--namespace team` to select a
+non-global namespace for a bare slug. An explicit coordinate may be combined
+with the same `--namespace`; a conflicting value is rejected as a usage error.
 
 Options:
 - `--scope <user|project>` — Install scope (omit for interactive prompt in TTY, or fall back to existing detection in non-TTY)
-- `--namespace <slug>` — Namespace (default: `global`)
+- `--namespace <slug>` — Namespace for a bare slug
 - `--version <v>` — Version (default: latest)
 - `--agent <profile>` — Agent profile (repeatable)
 - `--dir <path>` — Custom installation directory (mutually exclusive with `--scope` and `--agent`)
