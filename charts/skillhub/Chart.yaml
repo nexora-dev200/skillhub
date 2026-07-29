@@ -3,7 +3,7 @@ name: skillhub
 description: Self-hosted, open-source agent skill registry for enterprises.
 type: application
 version: 0.1.0
-appVersion: 0.2.13
+appVersion: 0.2.14
 keywords:
   - skillhub
   - ai

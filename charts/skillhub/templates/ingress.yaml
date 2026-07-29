@@ -30,6 +30,27 @@ spec:
                 name: {{ include "skillhub.fullname" $ }}-server
                 port:
                   number: {{ $.Values.server.service.port }}
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "skillhub.fullname" $ }}-server
+                port:
+                  number: {{ $.Values.server.service.port }}
+          - path: /login/oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "skillhub.fullname" $ }}-server
+                port:
+                  number: {{ $.Values.server.service.port }}
+          - path: /.well-known
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "skillhub.fullname" $ }}-server
+                port:
+                  number: {{ $.Values.server.service.port }}
           {{- range $path := $host.paths }}
           - path: {{ $path.path | quote }}
             pathType: {{ $path.pathType }}

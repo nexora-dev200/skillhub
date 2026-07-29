@@ -5,6 +5,7 @@ import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
 import org.redisson.config.SentinelServersConfig;
 import org.redisson.config.SingleServerConfig;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
@@ -18,14 +19,20 @@ import java.util.List;
 public class RedissonConfig {
 
     @Bean(destroyMethod = "shutdown")
-    public RedissonClient redissonClient(RedisProperties redisProperties) {
-        return Redisson.create(createConfig(redisProperties));
+    public RedissonClient redissonClient(
+            RedisProperties redisProperties,
+            @Value("${skillhub.redis.sentinel.check-sentinels-list:true}") boolean checkSentinelsList) {
+        return Redisson.create(createConfig(redisProperties, checkSentinelsList));
     }
 
     static Config createConfig(RedisProperties redisProperties) {
+        return createConfig(redisProperties, true);
+    }
+
+    static Config createConfig(RedisProperties redisProperties, boolean checkSentinelsList) {
         Config config = new Config();
         if (hasSentinelConfiguration(redisProperties)) {
-            configureSentinelServers(config, redisProperties);
+            configureSentinelServers(config, redisProperties, checkSentinelsList);
             return config;
         }
 
@@ -38,13 +45,14 @@ public class RedissonConfig {
         return config;
     }
 
-    private static void configureSentinelServers(Config config, RedisProperties redisProperties) {
+    private static void configureSentinelServers(
+            Config config,
+            RedisProperties redisProperties,
+            boolean checkSentinelsList) {
         SentinelServersConfig sentinelServersConfig = config.useSentinelServers()
                 .setMasterName(redisProperties.getSentinel().getMaster())
                 .setDatabase(redisProperties.getDatabase())
-                // K8s headless DNS 场景下，客户端通过 pod FQDN 连接 sentinel，
-                // 与 sentinel 自身上报的地址格式不同，跳过地址一致性检查避免误报连接失败
-                .setCheckSentinelsList(false);
+                .setCheckSentinelsList(checkSentinelsList);
         List<String> nodes = redisProperties.getSentinel().getNodes();
         nodes.stream()
                 .map(String::trim)

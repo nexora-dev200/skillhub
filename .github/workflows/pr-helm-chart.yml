@@ -106,7 +106,7 @@ jobs:
             args: >-
               --set s3.enabled=true
               --set s3.bucket=test-bucket
-              --set s3.endpoint=s3.amazonaws.com
+              --set s3.endpoint=https://s3.amazonaws.com
               --set s3.region=us-east-1
           - name: external-secret
             description: 外部 Secret

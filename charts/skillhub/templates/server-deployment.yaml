@@ -100,6 +100,10 @@ spec:
               value: {{ .Values.redis.sentinel.masterSet | default "mymaster" | quote }}
             - name: SPRING_DATA_REDIS_SENTINEL_NODES
               value: {{ include "skillhub.redis.sentinel.nodes" . | quote }}
+            # Bitnami Sentinel pods advertise pod-local addresses that can differ from
+            # the headless-service FQDNs used by clients inside Kubernetes.
+            - name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST
+              value: "false"
             {{- else if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled }}
             - name: SPRING_DATA_REDIS_SENTINEL_MASTER
               value: {{ .Values.externalRedis.sentinel.masterSet | default "mymaster" | quote }}

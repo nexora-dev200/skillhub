@@ -123,7 +123,7 @@ class RedissonConfigTest {
     }
 
     @Test
-    void createConfig_sentinelCheckSentinelsListDisabled() throws Exception {
+    void createConfig_keepsSentinelMembershipCheckEnabledByDefault() throws Exception {
         RedisProperties properties = new RedisProperties();
         RedisProperties.Sentinel sentinel = new RedisProperties.Sentinel();
         sentinel.setMaster("mymaster");
@@ -131,6 +131,20 @@ class RedissonConfigTest {
         properties.setSentinel(sentinel);
 
         Config config = RedissonConfig.createConfig(properties);
+        SentinelServersConfig sentinelConfig = sentinelConfig(config);
+
+        assertThat(sentinelConfig.isCheckSentinelsList()).isTrue();
+    }
+
+    @Test
+    void createConfig_canDisableSentinelMembershipCheckForKubernetes() throws Exception {
+        RedisProperties properties = new RedisProperties();
+        RedisProperties.Sentinel sentinel = new RedisProperties.Sentinel();
+        sentinel.setMaster("mymaster");
+        sentinel.setNodes(List.of("redis-sentinel-1:26379"));
+        properties.setSentinel(sentinel);
+
+        Config config = RedissonConfig.createConfig(properties, false);
         SentinelServersConfig sentinelConfig = sentinelConfig(config);
 
         assertThat(sentinelConfig.isCheckSentinelsList()).isFalse();

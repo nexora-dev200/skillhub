@@ -102,6 +102,8 @@ grep -Fq 'value: "mymaster"' "$TMP_DIR/sentinel.yaml"
 grep -Fq '.svc.cluster.local:26379' "$TMP_DIR/sentinel.yaml"
 grep -Fq 'name: SPRING_DATA_REDIS_PASSWORD' "$TMP_DIR/sentinel.yaml"
 grep -Fq 'name: SPRING_DATA_REDIS_SENTINEL_PASSWORD' "$TMP_DIR/sentinel.yaml"
+grep -A1 -F 'name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST' "$TMP_DIR/sentinel.yaml" \
+  | grep -Fq 'value: "false"'
 
 render external-sentinel "$CHART_DIR" \
   --set postgresql.enabled=false \
@@ -115,6 +117,9 @@ render external-sentinel "$CHART_DIR" \
 grep -Fq 'value: "sentinel-a"' "$TMP_DIR/external-sentinel.yaml"
 grep -Fq 'name: SPRING_DATA_REDIS_PASSWORD' "$TMP_DIR/external-sentinel.yaml"
 grep -Fq 'name: SPRING_DATA_REDIS_SENTINEL_PASSWORD' "$TMP_DIR/external-sentinel.yaml"
+if grep -Fq 'name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST' "$TMP_DIR/external-sentinel.yaml"; then
+  fail "external Sentinel must preserve Redisson address consistency checks by default"
+fi
 
 render special "$CHART_DIR" \
   --set-string 'bootstrapAdmin.displayName=Ops: Admin' \
@@ -131,6 +136,16 @@ render tls "$CHART_DIR" \
   --set-json 'ingress.tls=[{"hosts":["skills.example.com"],"secretName":"skills-tls"}]' \
   --show-only templates/configmap.yaml >"$TMP_DIR/tls.yaml"
 grep -Fq 'session-cookie-secure: "true"' "$TMP_DIR/tls.yaml"
+render tls "$CHART_DIR" \
+  --set ingress.enabled=true \
+  --set-json 'ingress.tls=[{"hosts":["skills.example.com"],"secretName":"skills-tls"}]' \
+  --show-only templates/ingress.yaml >"$TMP_DIR/tls-ingress.yaml"
+for server_path in /api /oauth2 /login/oauth2 /.well-known; do
+  grep -Fq -- "- path: $server_path" "$TMP_DIR/tls-ingress.yaml"
+done
+if [[ $(grep -Fc 'name: tls-skillhub-server' "$TMP_DIR/tls-ingress.yaml") -ne 4 ]]; then
+  fail "API and OAuth ingress paths must route directly to the SkillHub server"
+fi
 
 render legacy-ingress "$CHART_DIR" \
   --set ingress.enabled=true \
@@ -203,6 +218,11 @@ assert_rejected old-sentinel-service-switch --set redis.sentinel.service.enabled
 assert_rejected invalid-fullname --set fullnameOverride=INVALID_NAME
 assert_rejected old-ingress-host --set ingress.host=old.example.com
 assert_rejected old-ingress-tls-object --set ingress.tls.enabled=true
+assert_rejected reserved-oauth-ingress-path \
+  --set ingress.enabled=true \
+  --set-json 'ingress.hosts=[{"host":"skills.example.com","paths":[{"path":"/oauth2","pathType":"Prefix"}]}]'
+assert_rejected invalid-s3-endpoint --set s3.endpoint=s3.amazonaws.com
+assert_rejected invalid-s3-public-endpoint --set s3.publicEndpoint=cdn.example.com
 assert_rejected empty-ingress-hosts --set-json 'ingress.hosts=[]'
 assert_rejected cert-manager-without-tls \
   --set ingress.enabled=true \

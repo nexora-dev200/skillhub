@@ -114,8 +114,8 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "bucket": { "type": "string", "minLength": 1 },
-        "endpoint": { "type": "string" },
-        "publicEndpoint": { "type": "string" },
+        "endpoint": { "type": "string", "pattern": "^(|https?://.+)$" },
+        "publicEndpoint": { "type": "string", "pattern": "^(|https?://.+)$" },
         "region": { "type": "string", "minLength": 1 },
         "forcePathStyle": { "type": "boolean" },
         "disableChunkedEncoding": { "type": "boolean" },

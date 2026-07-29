@@ -181,7 +181,7 @@ global:
 
 images:
   registry: registry.example.com/library
-  tag: v0.2.13
+  tag: v0.2.14
   pullPolicy: IfNotPresent
 
 server:
@@ -271,7 +271,9 @@ standalone → replication、Redis standalone/replication → Sentinel 等切换
 ### Redis Sentinel
 
 内置 Sentinel 使用 Bitnami Redis 的同一份密码同时保护 Redis 数据节点和
-Sentinel。节点地址由副本数自动生成，不需要手动配置：
+Sentinel。节点地址由副本数自动生成，不需要手动配置。由于 Bitnami Sentinel
+上报的 Pod 地址可能与客户端连接的 Headless Service FQDN 不同，Chart 仅在该
+内置模式下关闭 Redisson 的 Sentinel 地址一致性检查：
 
 ```bash
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
@@ -282,7 +284,9 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 
 外部 Sentinel 必须提供至少一个 `host:port` 节点。Redis 数据密码和 Sentinel
 密码可以不同；使用 `existingSecret` 时分别对应 `redis-password` 和
-`redis-sentinel-password`：
+`redis-sentinel-password`。外部 Sentinel 默认保留 Redisson 地址一致性检查；
+只有已确认服务发现会改写节点地址时，才通过 `server.extraEnv` 显式设置
+`SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST=false`：
 
 ```bash
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
@@ -292,6 +296,15 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
   --set externalRedis.sentinel.enabled=true \
   --set externalRedis.sentinel.password=sentinel-password \
   --set-json 'externalRedis.sentinel.nodes=["sentinel-0.example.com:26379","sentinel-1.example.com:26379"]'
+```
+
+确需关闭检查时，在 values 文件中显式记录该兼容例外：
+
+```yaml
+server:
+  extraEnv:
+    - name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST
+      value: "false"
 ```
 
 ### 存储配置
@@ -327,8 +340,8 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 |------|------|--------|
 | `s3.enabled` | 启用 S3 | `false` |
 | `s3.bucket` | Bucket 名称 | `skillhub-storage` |
-| `s3.endpoint` | S3 端点 | `""` |
-| `s3.publicEndpoint` | S3 公网访问端点 | `""` |
+| `s3.endpoint` | S3 端点，非空时必须是绝对 HTTP(S) URL | `""` |
+| `s3.publicEndpoint` | S3 公网访问端点，非空时必须是绝对 HTTP(S) URL | `""` |
 | `s3.region` | 区域 | `us-east-1` |
 | `s3.forcePathStyle` | 强制 path-style 访问 | `true` |
 | `s3.disableChunkedEncoding` | 禁用 aws-chunked 编码 | `false` |
@@ -341,7 +354,7 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
   -f values-production.yaml \
   --set s3.enabled=true \
   --set s3.bucket=your-bucket \
-  --set s3.endpoint=s3.amazonaws.com \
+  --set s3.endpoint=https://s3.amazonaws.com \
   --set s3.region=us-east-1 \
   --set s3.accessKey=your-access-key \
   --set s3.secretKey=your-secret-key
@@ -374,9 +387,11 @@ ingress:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":6443}]'
 ```
 
-`hosts` 是至少包含一个条目的对象数组。Chart 自动将 `/api` 转发给 Server，
-`hosts[].paths` 中的路径转发给 Web，因此 `/api` 是保留路径。`tls` 同样是数组，
-可为不同证书分别配置域名；TLS 域名会写入 cert-manager Certificate SAN：
+`hosts` 是至少包含一个条目的对象数组。Chart 自动将 `/api`、`/oauth2`、
+`/login/oauth2` 和 `/.well-known` 直接转发给 Server，确保 TLS 终止后的 OAuth
+回调协议保持正确；`hosts[].paths` 中的其他路径转发给 Web，因此上述四个前缀
+均为保留路径。`tls` 同样是数组，可为不同证书分别配置域名；TLS 域名会写入
+cert-manager Certificate SAN：
 
 ```yaml
 ingress:
@@ -409,6 +424,13 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 
 每个 HPA 至少需要一个非零 CPU 或内存利用率目标。本地存储的 Server HPA 同样
 要求 RWX；也可以启用 S3 来避免共享 PVC。
+
+## 发布
+
+`.github/workflows/publish-chart.yml` 在 GitHub Release 发布后或手动
+`workflow_dispatch` 时运行。Release tag 必须使用 `vX.Y.Z`、`chart-vX.Y.Z` 或
+`helm-vX.Y.Z`；手动运行时显式输入 `X.Y.Z`。工作流按该版本打包 Chart，并推送到
+`oci://ghcr.io/iflytek/charts`，同时保留构建 artifact。
 
 ## 卸载
 
