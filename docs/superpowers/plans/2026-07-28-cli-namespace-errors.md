@@ -16,8 +16,8 @@ revalidation did not recreate historical RED states; it reran the current
 GREEN gates with the repository-pinned Bun 1.3.13:
 
 - Focused namespace/error/help regression: 142 tests passed.
-- Complete CLI regression: 378 tests passed with
-  `bun test --max-concurrency=1` (peak RSS 152128 KiB).
+- Complete CLI regression: 379 tests passed with
+  `bun test --max-concurrency=1` (peak RSS 180452 KiB).
 - Typecheck, lint, and build passed.
 - The packed `@astron-team/skillhub@0.1.9` artifact contained `dist/index.js`,
   `README.md`, `CHANGELOG.md`, `LICENSE`, and `package.json`.
