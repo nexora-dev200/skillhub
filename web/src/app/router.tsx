@@ -4,6 +4,7 @@ import { Layout } from './layout'
 import { getCurrentUser } from '@/api/client'
 import { RoleGuard } from '@/shared/components/role-guard'
 import { createRequireAuth } from '@/shared/lib/auth-route'
+import { clearDynamicImportReloadGuard, recoverFromDynamicImportError } from '@/shared/lib/dynamic-import-recovery'
 import { normalizeSearchQuery } from '@/shared/lib/search-query'
 
 /**
@@ -25,7 +26,15 @@ function createLazyRouteComponent<TModule extends Record<string, unknown>>(
   // Lazy route modules are wrapped in a uniform suspense fallback so route transitions behave
   // consistently across public and dashboard pages.
   const LazyComponent = lazy(async () => {
-    const module = await importer()
+    const module = await importer().catch((error) => {
+      if (recoverFromDynamicImportError(error)) {
+        return new Promise<never>(() => {})
+      }
+      throw error
+    })
+    // Router resolution can finish before React.lazy imports the route module. Only clear the
+    // one-time reload guard after the chunk itself has loaded successfully.
+    clearDynamicImportReloadGuard()
     return { default: module[exportName] as ComponentType<Record<string, unknown>> }
   })
 
@@ -199,9 +208,10 @@ const searchRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'search',
   component: SearchPage,
-  validateSearch: (search: Record<string, unknown>): { q: string; label?: string; sort: string; page: number; starredOnly: boolean } => {
+  validateSearch: (search: Record<string, unknown>): { q: string; namespace?: string; label?: string; sort: string; page: number; starredOnly: boolean } => {
     return {
       q: normalizeSearchQuery(typeof search.q === 'string' ? search.q : ''),
+      namespace: typeof search.namespace === 'string' && search.namespace ? search.namespace.replace(/^@/, '') : undefined,
       label: typeof search.label === 'string' && search.label ? search.label : undefined,
       sort: (search.sort as string) || 'newest',
       page: Number(search.page) || 0,
@@ -253,6 +263,12 @@ const dashboardSkillsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'dashboard/skills',
   beforeLoad: requireAuth,
+  validateSearch: (search: Record<string, unknown>): { page?: number; q?: string; namespace?: string; filter?: string } => ({
+    page: typeof search.page === 'number' ? search.page : undefined,
+    q: typeof search.q === 'string' && search.q ? search.q : undefined,
+    namespace: typeof search.namespace === 'string' && search.namespace ? search.namespace : undefined,
+    filter: typeof search.filter === 'string' && search.filter ? search.filter : undefined,
+  }),
   component: MySkillsPage,
 })
 
@@ -299,6 +315,9 @@ const dashboardReviewsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'dashboard/reviews',
   beforeLoad: requireAuth,
+  validateSearch: (search: Record<string, unknown>): { type?: 'skill' | 'profile' } => ({
+    type: search.type === 'skill' || search.type === 'profile' ? search.type : undefined,
+  }),
   component: ReviewsPage,
 })
 

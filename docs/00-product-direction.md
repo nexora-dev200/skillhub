@@ -74,7 +74,7 @@ ClawHub CLI 使用单一 slug 模型，slug 校验规则为 `[a-z0-9]([a-z0-9-]*
 
 - `SKILL.md` 格式兼容（frontmatter + markdown body）
 - 技能包目录结构约定（SKILL.md + references/ + scripts/ + assets/）
-- 四级目录优先级（`.agent/skills` → `~/.agent/skills` → `.claude/skills` → `~/.claude/skills`）
+- 四级目录优先级（`.agents/skills` → `~/.agents/skills` → `.claude/skills` → `~/.claude/skills`）
 - 目录名作为 lookup key（安装后目录名 = skill slug）
 - AGENTS.md `<skill>` 描述块格式兼容
 - 目标：skillhub CLI 安装的技能可被 OpenSkills/Claude 兼容客户端发现和使用

@@ -6,6 +6,7 @@ DEV_WEB_PID := $(DEV_DIR)/web.pid
 DEV_SERVER_LOG := $(DEV_DIR)/server.log
 DEV_WEB_LOG := $(DEV_DIR)/web.log
 DEV_WEB_URL := http://localhost:3000
+DEV_WEB_HOST ?= 127.0.0.1
 DEV_API_URL := http://localhost:8080
 DEV_SCANNER_URL := http://localhost:8000
 STAGING_API_URL := http://localhost:8080
@@ -48,7 +49,7 @@ dev-all: ## 一键启动本地开发环境（依赖 + scanner + 后端 + 前端�
 		echo "Frontend already running with PID $$(cat $(DEV_WEB_PID))"; \
 	else \
 		echo "Starting frontend..."; \
-		$(DEV_PROCESS) start --pid-file $(DEV_WEB_PID) --log-file $(DEV_WEB_LOG) --cwd web -- pnpm exec vite --host 0.0.0.0 --strictPort >/dev/null; \
+		$(DEV_PROCESS) start --pid-file $(DEV_WEB_PID) --log-file $(DEV_WEB_LOG) --cwd web -- pnpm exec vite --host $(DEV_WEB_HOST) --strictPort >/dev/null; \
 	fi
 	@echo "Waiting for backend on $(DEV_API_URL) ..."
 	@backend_ready=0; \
@@ -126,7 +127,7 @@ dev-all: ## 一键启动本地开发环境（依赖 + scanner + 后端 + 前端�
 	@echo "  Frontend: $(DEV_WEB_LOG)"
 
 dev-server: ## 启动后端开发服务器
-	cd server && /bin/sh -lc '$(DEV_SERVER_PREPARE) && exec $(DEV_SERVER_CMD)'
+	cd server && /bin/sh -lc '$(DEV_SERVER_PREPARE) && exec env $(DEV_SERVER_SCANNER_ENV) $(DEV_SERVER_CMD)'
 
 dev-server-restart: ## 重启后端开发服务器
 	@mkdir -p $(DEV_DIR)
@@ -237,7 +238,7 @@ web-install-ci: ## 以 CI 方式安装前端依赖
 	cd web && CI=true pnpm install --frozen-lockfile
 
 dev-web: ## 启动前端开发服务器
-	cd web && pnpm run dev
+	cd web && pnpm exec vite --host $(DEV_WEB_HOST)
 
 build-frontend: web-deps ## 构建前端
 	cd web && pnpm run build
@@ -278,13 +279,13 @@ lint-cli: ## CLI 代码检查
 typecheck-cli: ## CLI 类型检查
 	cd cli && bun run typecheck
 
-publish-cli: ## 发布 CLI（patch 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli: ## 发布 CLI（patch 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh patch
 
-publish-cli-minor: ## 发布 CLI（minor 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli-minor: ## 发布 CLI（minor 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh minor
 
-publish-cli-major: ## 发布 CLI（major 版本）- bump + tag + push，触发 CI 自动发布
+publish-cli-major: ## 发布 CLI（major 版本）- 本地 build+test → 推 release 分支 → 开 PR，合并后手动 tag 触发 CI
 	./scripts/publish-cli.sh major
 
 db-reset: ## 重置数据库

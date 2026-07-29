@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const JS_BUILD_TARGET = 'es2020'
 const LEGACY_BROWSER_TARGETS = ['chrome83', 'edge83', 'firefox78', 'safari14']
 
 export default defineConfig({
@@ -12,16 +13,18 @@ export default defineConfig({
     },
   },
   build: {
-    target: LEGACY_BROWSER_TARGETS,
+    target: JS_BUILD_TARGET,
     cssTarget: LEGACY_BROWSER_TARGETS,
   },
   optimizeDeps: {
     esbuildOptions: {
-      target: LEGACY_BROWSER_TARGETS,
+      target: JS_BUILD_TARGET,
     },
   },
   test: {
     exclude: ['**/node_modules/**', '**/e2e/**'],
+    testTimeout: 30000,
+    hookTimeout: 30000,
   },
   server: {
     port: 3000,

@@ -83,6 +83,8 @@ skillhub login --token sk_xxx --registry https://skillhub.example.com
 
 `login` 会验证 token 有效性，然后将 token 存储到 `~/.skillhub/credentials.json`，同时将 registry 写入 `~/.skillhub/config.json`。
 
+API Token 请求被拒绝时，CLI 会显示服务端返回的具体原因和 `Request ID`。排查问题时可使用该 ID 对照服务端日志；非 API Token 的授权失败仍只显示通用信息。
+
 ### 查看当前身份
 
 ```bash
@@ -123,11 +125,23 @@ skillhub search pdf --json
 
 ## 安装技能
 
+安装坐标支持裸 slug（默认解析到 `global`）和三种等价的显式 namespace
+形式。显式坐标与 `--namespace` 同时出现时，两者必须一致。
+
 ```bash
 # 安装到自动探测的 Agent 目录
 skillhub install pdf-parser
 
-# 指定 namespace（默认 global）
+# 等价的 namespace 坐标
+skillhub install team/my-skill
+skillhub install @team/my-skill
+skillhub install team--my-skill
+
+# 显式指定安装范围
+skillhub install pdf-parser --scope user
+skillhub install pdf-parser --scope project --agent codex
+
+# 为裸 slug 指定 namespace
 skillhub install pdf-parser --namespace myspace
 
 # 指定版本
@@ -150,18 +164,21 @@ skillhub install pdf-parser --force
 
 CLI 按以下逻辑确定安装位置：
 
-1. 指定 `--dir`：安装到该目录，agent 标记为 `custom`
-2. 指定 `--agent`：安装到对应 Agent 的 skills 目录
-3. 未指定：自动扫描当前目录，探测已存在的 Agent 配置目录
-   - 探测到 1 个 Agent → 直接安装
-   - 探测到多个 Agent → 交互式选择（TTY 模式）或报错（非交互模式）
-   - 未探测到 → 回退到 `<cwd>/.agents/skills/`
+1. 指定 `--dir`：安装到该目录，agent 标记为 `custom`。`--dir` 与 `--scope`、`--agent` 互斥。
+2. 指定 `--scope user|project`：探测限定在该 scope 内。
+   - 同时指定 `--agent <profile>`：直接安装到该 profile 对应 scope 的 skills 目录。
+   - 未指定 `--agent`：只探测该 scope 下已存在的 skills 目录。在交互式 user scope 下，始终额外提供 `generic` 目标（`<home>/.agents/skills/`），可单独选择或与已探测目标同时选择。
+   - 该 scope 下未探测到 → fallback：`--scope user` 回退到 `<home>/.agents/skills/`，`--scope project` 回退到 `<cwd>/.agents/skills/`。
+3. 指定 `--agent`（无 `--scope`）：安装到对应 Agent 的 skills 目录（沿用现有行为，不变）。
+4. 三者均未指定：
+   - **交互模式**（stdin 和 stdout 都是 TTY 且未传 `--json`）：先交互式询问 user 还是 project scope，再按 `--scope` 规则继续。
+   - **非交互模式**：自动扫描当前目录探测已存在的 Agent 配置目录。1 个 → 直接安装；多个 → 报错；未探测到 → 回退到 `<cwd>/.agents/skills/`。
 
-> `--dir` 和 `--agent` 不能同时使用。
+> `--dir` 不能与 `--scope` 或 `--agent` 同时使用。
 
 ### 安装路径
 
-每个 Agent 有项目级和用户级两个 skills 目录：
+每个 Agent 有项目级和用户级两个 skills 目录。`--scope user|project` 决定使用哪一个。
 
 | Agent | 项目级路径 | 用户级路径 |
 |-------|-----------|-----------|
@@ -169,9 +186,9 @@ CLI 按以下逻辑确定安装位置：
 | `codex` | `<project>/.codex/skills/` | `~/.codex/skills/` |
 | `cursor` | `<project>/.cursor/skills/` | `~/.cursor/skills/` |
 | `github-copilot` | `<project>/.github-copilot/skills/` | `~/.github-copilot/skills/` |
-| `gemini-cli` | `<project>/.gemini-cli/skills/` | `~/.gemini-cli/skills/` |
+| `gemini-cli` | `<project>/.gemini/skills/` | `~/.gemini/skills/` |
 | `windsurf` | `<project>/.windsurf/skills/` | `~/.windsurf/skills/` |
-| `kiro-cli` | `<project>/.kiro-cli/skills/` | `~/.kiro-cli/skills/` |
+| `kiro-cli` | `<project>/.kiro/skills/` | `~/.kiro/skills/` |
 | `roo` | `<project>/.roo/skills/` | `~/.roo/skills/` |
 | `trae` | `<project>/.trae/skills/` | `~/.trae/skills/` |
 | `trae-cn` | `<project>/.trae-cn/skills/` | `~/.trae-cn/skills/` |
@@ -179,8 +196,9 @@ CLI 按以下逻辑确定安装位置：
 | `openclaw` | `<project>/.openclaw/skills/` | `~/.openclaw/skills/` |
 | `opencode` | `<project>/.opencode/skills/` | `~/.opencode/skills/` |
 | `kilo` | `<project>/.kilo/skills/` | `~/.kilo/skills/` |
+| _fallback_ | `<project>/.agents/skills/` | `~/.agents/skills/` |
 
-对于不在列表中的 Agent，使用 `--dir` 指定安装路径。
+对于自定义路径或不在列表中的 Agent 目录，使用 `--dir` 显式指定安装路径。交互式 user scope 下会与已探测 Agent 目标一同提供 `generic` 目标；当 `--scope user|project` 找不到匹配的 agent 目录时，CLI 会回退到上表的 `_fallback_` 行。
 
 ### 安装后的文件结构
 
@@ -228,8 +246,16 @@ skillhub list --json
 ### 删除技能
 
 ```bash
-# 删除所有本地安装目标
+# 裸 slug 删除所有 namespace 中的同名本地安装
 skillhub remove pdf-parser
+
+# 显式 namespace 坐标只删除该 namespace
+skillhub remove myspace/pdf-parser
+skillhub remove @myspace/pdf-parser
+skillhub remove myspace--pdf-parser
+
+# 使用 namespace 参数进行等价的精确本地删除
+skillhub remove pdf-parser --namespace myspace
 
 # 只删除指定 Agent 的安装
 skillhub remove pdf-parser --agent codex
@@ -462,14 +488,20 @@ skillhub search <query> [--registry <url>] [--limit <n>] [--json]
 ### install
 
 ```bash
-skillhub install <slug> [options]
+skillhub install <coordinate> [options]
 ```
 
+`<coordinate>` 支持裸 slug（`my-skill`，解析为 `global/my-skill`）以及
+`team/my-skill`、`@team/my-skill`、`team--my-skill` 三种等价的显式
+namespace 形式。裸 slug 可通过 `--namespace team` 选择非 global namespace；
+显式坐标可以同时传入相同的 `--namespace`，但冲突值会作为用法错误被拒绝。
+
 选项：
-- `--namespace <slug>` — namespace（默认 `global`）
+- `--scope <user|project>` — 安装范围（不传时：TTY 模式下交互式询问，非 TTY 模式沿用现有探测逻辑）
+- `--namespace <slug>` — 为裸 slug 指定 namespace
 - `--version <v>` — 版本（默认最新版本）
 - `--agent <profile>` — Agent 配置（可重复）
-- `--dir <path>` — 自定义安装目录
+- `--dir <path>` — 自定义安装目录（与 `--scope`、`--agent` 互斥）
 - `--force` — 覆盖已存在的安装
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token
@@ -490,7 +522,7 @@ skillhub list [options]
 ### remove
 
 ```bash
-skillhub remove <slug> [options]
+skillhub remove <coordinate> [options]
 ```
 
 选项：
@@ -498,10 +530,14 @@ skillhub remove <slug> [options]
 - `--all` — 删除所有目标
 - `--remote` — 删除远程技能
 - `--hard` — 跳过远程删除确认
-- `--namespace <slug>` — 远程删除的 namespace
+- `--namespace <slug>` — 本地或远程删除的 namespace
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token
 - `--json` — JSON 输出
+
+显式命名空间坐标（`team/my-skill`、`@team/my-skill`、`team--my-skill`）或
+`--namespace team` 只删除该 namespace 中的本地安装。为保持兼容，裸 slug
+会删除当前 registry 中所有 namespace 下的同名本地安装。
 
 ### doctor
 

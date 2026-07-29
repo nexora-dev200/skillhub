@@ -83,6 +83,8 @@ skillhub login --token sk_xxx --registry https://skillhub.example.com
 
 `login` validates the token, stores it in `~/.skillhub/credentials.json`, and writes the registry to `~/.skillhub/config.json`.
 
+When an API-token request is denied, the CLI shows the safe reason returned by the server and its `Request ID`. Use that ID to correlate the failure with server logs. Other authorization failures continue to use a generic message.
+
 ### Check Current Identity
 
 ```bash
@@ -123,11 +125,24 @@ Output format: `namespace/slug  version  summary`
 
 ## Install Skills
 
+Install coordinates accept a bare slug (resolved to `global` by default) and
+three equivalent explicit namespace forms. When an explicit coordinate and
+`--namespace` are both present, they must match.
+
 ```bash
 # Install to auto-detected Agent directory
 skillhub install pdf-parser
 
-# Specify namespace (default: global)
+# Equivalent namespace coordinates
+skillhub install team/my-skill
+skillhub install @team/my-skill
+skillhub install team--my-skill
+
+# Choose install scope explicitly
+skillhub install pdf-parser --scope user
+skillhub install pdf-parser --scope project --agent codex
+
+# Specify a namespace for a bare slug
 skillhub install pdf-parser --namespace myspace
 
 # Specify version
@@ -150,18 +165,21 @@ skillhub install pdf-parser --force
 
 The CLI determines the installation location using the following logic:
 
-1. If `--dir` is specified: Install to that directory, agent marked as `custom`
-2. If `--agent` is specified: Install to the corresponding Agent's skills directory
-3. If neither is specified: Auto-scan current directory to detect existing Agent config directories
-   - 1 Agent detected → Install directly
-   - Multiple Agents detected → Interactive selection (TTY mode) or error (non-interactive mode)
-   - No Agent detected → Fallback to `<cwd>/.agents/skills/`
+1. If `--dir` is specified: Install to that directory, agent marked as `custom`. `--dir` is mutually exclusive with `--scope` and `--agent`.
+2. If `--scope user|project` is specified: Limit detection to the chosen scope.
+   - With `--agent <profile>`: Install to that profile's user or project skills directory directly.
+   - Without `--agent`: Detect existing skills directories within the chosen scope only. In interactive user scope, the `generic` target (`<home>/.agents/skills/`) is always also offered and can be selected alone or together with detected targets.
+   - No detected directory in the chosen scope → Fallback to `<home>/.agents/skills/` for `--scope user` or `<cwd>/.agents/skills/` for `--scope project`.
+3. If `--agent` is specified (no `--scope`): Install to the corresponding Agent's skills directory (existing behaviour, unchanged).
+4. If none of the above is specified:
+   - **Interactive mode** (stdin and stdout are both TTY, no `--json`): Prompt for `user` or `project` scope first, then continue per the `--scope` rule above.
+   - **Non-interactive mode**: Auto-scan current directory to detect existing Agent config directories. 1 Agent detected → install directly; multiple → error; none detected → fallback to `<cwd>/.agents/skills/`.
 
-> `--dir` and `--agent` cannot be used together.
+> `--dir` cannot be combined with `--scope` or `--agent`.
 
 ### Install Paths
 
-Each Agent has both project-level and user-level skills directories:
+Each Agent has both project-level and user-level skills directories. Use `--scope user|project` to control which one is used.
 
 | Agent | Project-level Path | User-level Path |
 |-------|-------------------|-----------------|
@@ -169,9 +187,9 @@ Each Agent has both project-level and user-level skills directories:
 | `codex` | `<project>/.codex/skills/` | `~/.codex/skills/` |
 | `cursor` | `<project>/.cursor/skills/` | `~/.cursor/skills/` |
 | `github-copilot` | `<project>/.github-copilot/skills/` | `~/.github-copilot/skills/` |
-| `gemini-cli` | `<project>/.gemini-cli/skills/` | `~/.gemini-cli/skills/` |
+| `gemini-cli` | `<project>/.gemini/skills/` | `~/.gemini/skills/` |
 | `windsurf` | `<project>/.windsurf/skills/` | `~/.windsurf/skills/` |
-| `kiro-cli` | `<project>/.kiro-cli/skills/` | `~/.kiro-cli/skills/` |
+| `kiro-cli` | `<project>/.kiro/skills/` | `~/.kiro/skills/` |
 | `roo` | `<project>/.roo/skills/` | `~/.roo/skills/` |
 | `trae` | `<project>/.trae/skills/` | `~/.trae/skills/` |
 | `trae-cn` | `<project>/.trae-cn/skills/` | `~/.trae-cn/skills/` |
@@ -179,8 +197,9 @@ Each Agent has both project-level and user-level skills directories:
 | `openclaw` | `<project>/.openclaw/skills/` | `~/.openclaw/skills/` |
 | `opencode` | `<project>/.opencode/skills/` | `~/.opencode/skills/` |
 | `kilo` | `<project>/.kilo/skills/` | `~/.kilo/skills/` |
+| _fallback_ | `<project>/.agents/skills/` | `~/.agents/skills/` |
 
-For Agents not in the list, use `--dir` to specify the installation path.
+For a custom path or an unsupported Agent directory, use `--dir` to specify the installation path. In interactive user scope, the `generic` target is offered alongside detected Agent targets. When `--scope user|project` finds no matching agent directory, the CLI falls back to the `_fallback_` row above.
 
 ### File Structure After Installation
 
@@ -228,8 +247,16 @@ skillhub list --json
 ### Remove Skills
 
 ```bash
-# Remove all local installation targets
+# A bare slug removes same-named local installations across namespaces
 skillhub remove pdf-parser
+
+# An explicit namespaced coordinate removes only that namespace
+skillhub remove myspace/pdf-parser
+skillhub remove @myspace/pdf-parser
+skillhub remove myspace--pdf-parser
+
+# Equivalent precise local removal with an explicit namespace
+skillhub remove pdf-parser --namespace myspace
 
 # Remove only specific Agent's installation
 skillhub remove pdf-parser --agent codex
@@ -462,14 +489,21 @@ Search published skills.
 ### install
 
 ```bash
-skillhub install <slug> [options]
+skillhub install <coordinate> [options]
 ```
 
+`<coordinate>` accepts a bare slug (`my-skill`, resolved as `global/my-skill`)
+or any of the equivalent explicit namespace forms: `team/my-skill`,
+`@team/my-skill`, and `team--my-skill`. Use `--namespace team` to select a
+non-global namespace for a bare slug. An explicit coordinate may be combined
+with the same `--namespace`; a conflicting value is rejected as a usage error.
+
 Options:
-- `--namespace <slug>` — Namespace (default: `global`)
+- `--scope <user|project>` — Install scope (omit for interactive prompt in TTY, or fall back to existing detection in non-TTY)
+- `--namespace <slug>` — Namespace for a bare slug
 - `--version <v>` — Version (default: latest)
 - `--agent <profile>` — Agent profile (repeatable)
-- `--dir <path>` — Custom installation directory
+- `--dir <path>` — Custom installation directory (mutually exclusive with `--scope` and `--agent`)
 - `--force` — Overwrite existing installation
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token
@@ -490,7 +524,7 @@ Options:
 ### remove
 
 ```bash
-skillhub remove <slug> [options]
+skillhub remove <coordinate> [options]
 ```
 
 Options:
@@ -498,10 +532,15 @@ Options:
 - `--all` — Remove all targets
 - `--remote` — Remove remote skill
 - `--hard` — Skip remote deletion confirmation
-- `--namespace <slug>` — Namespace for remote deletion
+- `--namespace <slug>` — Namespace for local or remote deletion
 - `--registry <url>` — Registry URL
 - `--token <token>` — API token
 - `--json` — JSON output
+
+An explicit namespaced coordinate (`team/my-skill`, `@team/my-skill`, or
+`team--my-skill`) or `--namespace team` removes local installations only from
+that namespace. For compatibility, a bare slug removes same-named local
+installations across all namespaces in the current registry.
 
 ### doctor
 
