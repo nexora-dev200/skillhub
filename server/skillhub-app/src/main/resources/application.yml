@@ -39,14 +39,10 @@ spring:
       maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
   data:
     redis:
-      mode: ${SPRING_DATA_REDIS_MODE:standalone} # standalone or cluster
       host: ${SPRING_DATA_REDIS_HOST:${REDIS_HOST:localhost}}
       port: ${SPRING_DATA_REDIS_PORT:${REDIS_PORT:6379}}
       password: ${SPRING_DATA_REDIS_PASSWORD:${REDIS_PASSWORD:}}
       database: ${SPRING_DATA_REDIS_DATABASE:0}
-      cluster:
-        nodes: ${SPRING_DATA_REDIS_CLUSTER_NODES:}
-        max-redirects: ${SPRING_DATA_REDIS_CLUSTER_MAX_REDIRECTS:3}
   session:
     store-type: redis
     redis:
