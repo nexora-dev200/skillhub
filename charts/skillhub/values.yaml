@@ -105,6 +105,11 @@ postgresql:
 
   architecture: standalone
 
+  # Bitnami's current chart defaults to a mutable latest tag. Pin the image
+  # digest so installs and rollbacks remain reproducible.
+  image:
+    digest: "sha256:52e4eae10959a7ef4810f2d0c9ce656e9337090fd2427d8d15d2e1335ba4f8fb"
+
   auth:
     postgresPassword: ""
     database: skillhub
@@ -165,6 +170,8 @@ postgresql:
 
   metrics:
     enabled: true
+    image:
+      digest: "sha256:fbd5fbc3f350c793efef777b0710f17019e8dd7812fc7c7396b13aa5130f3bd9"
     serviceMonitor:
       enabled: false
 
@@ -183,6 +190,10 @@ redis:
   enabled: true
 
   architecture: standalone
+
+  # Keep the bundled Redis runtime immutable for repeatable upgrades.
+  image:
+    digest: "sha256:5ff436b8a0dbe3808f03c7b682865cd30ddb1f08c1a8d17970ebf475f5689722"
 
   auth:
     enabled: true
@@ -228,6 +239,8 @@ redis:
   sentinel:
     enabled: false
     masterSet: mymaster
+    image:
+      digest: "sha256:667bfef3e22ce9910bdcf304b1b7c659cfc15390a2d473187eb3caac2537d0e6"
     service:
       ports:
         sentinel: 26379
@@ -236,6 +249,8 @@ redis:
 
   metrics:
     enabled: true
+    image:
+      digest: "sha256:0468a9a14ebd96953f967f9f3e8673c3eb1ad1dd54d379fef15c3f3ee714c99e"
     serviceMonitor:
       enabled: false
 

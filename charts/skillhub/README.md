@@ -54,6 +54,16 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 > `ingress.tls[]`。旧的 `ingress.host`、`ingress.tls.enabled` 与
 > `ingress.tls.secretName` 不再接受，升级前必须改成本文 Ingress 示例中的数组结构。
 
+合并或发布前，可在一个空的测试 Kubernetes 集群中运行可重复的安装/升级 smoke：
+
+```bash
+bash charts/skillhub/tests/install-upgrade-smoke.sh
+```
+
+脚本验证 `install -> Ready -> HTTP health -> upgrade -> Ready`，并确认 Secret 数据、
+PVC UID 与绑定 PV 在升级前后保持不变。默认清理自己创建的 namespace；设置
+`KEEP_HELM_SMOKE=true` 可保留现场用于排查。
+
 ### 高可用模式
 
 ```bash
@@ -134,6 +144,11 @@ redis:
 可预测密码，而是在任何随机密码缺失时终止渲染并指出具体配置项。敏感值应放在
 受保护的 values、External Secrets、Sealed Secrets 或密钥注入插件中。
 
+内置 PostgreSQL、Redis、Sentinel 及 metrics exporter 镜像默认使用不可变 digest，
+避免 Bitnami 子 Chart 的 `latest` 默认值造成不可复现的安装和回滚。覆盖私有镜像
+仓库或 tag 时，必须同时把对应的 `image.digest` 设为空，或改成私有仓库中该镜像
+的真实 digest；digest 非空时会优先于 tag。
+
 ## 配置参考
 
 ### 副本数配置
@@ -207,27 +222,32 @@ postgresql:
     registry: registry.example.com
     repository: library/postgresql
     tag: 18.4.0
+    digest: ""
   metrics:
     image:
       registry: registry.example.com
       repository: library/postgres-exporter
       tag: 0.20.1
+      digest: ""
 
 redis:
   image:
     registry: registry.example.com
     repository: library/redis
     tag: 8.8.0
+    digest: ""
   sentinel:
     image:
       registry: registry.example.com
       repository: library/redis-sentinel
       tag: 8.8.0
+      digest: ""
   metrics:
     image:
       registry: registry.example.com
       repository: library/redis-exporter
       tag: 1.86.0
+      digest: ""
 ```
 
 `global.security.allowInsecureImages` 是 Bitnami 对自定义镜像仓库和镜像名称的校验

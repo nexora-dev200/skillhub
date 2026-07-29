@@ -27,6 +27,13 @@ render verify "$CHART_DIR" >"$TMP_DIR/default.yaml"
 grep -Fq 'name: POSTGRESQL_MAX_CONNECTIONS' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-postgresql"' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-redis-master"' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/postgresql@sha256:52e4eae10959a7ef4810f2d0c9ce656e9337090fd2427d8d15d2e1335ba4f8fb' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/postgres-exporter@sha256:fbd5fbc3f350c793efef777b0710f17019e8dd7812fc7c7396b13aa5130f3bd9' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/redis@sha256:5ff436b8a0dbe3808f03c7b682865cd30ddb1f08c1a8d17970ebf475f5689722' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/redis-exporter@sha256:0468a9a14ebd96953f967f9f3e8673c3eb1ad1dd54d379fef15c3f3ee714c99e' "$TMP_DIR/default.yaml"
+if grep -Eq 'image:.*:latest([@"[:space:]]|$)' "$TMP_DIR/default.yaml"; then
+  fail "default workloads must not use mutable latest image tags"
+fi
 grep -Fq 'fsGroup: 101' "$TMP_DIR/default.yaml"
 grep -Fq 'fsGroupChangePolicy: OnRootMismatch' "$TMP_DIR/default.yaml"
 grep -Fq 'type: Recreate' "$TMP_DIR/default.yaml"
@@ -104,6 +111,13 @@ grep -Fq 'name: SPRING_DATA_REDIS_PASSWORD' "$TMP_DIR/sentinel.yaml"
 grep -Fq 'name: SPRING_DATA_REDIS_SENTINEL_PASSWORD' "$TMP_DIR/sentinel.yaml"
 grep -A1 -F 'name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST' "$TMP_DIR/sentinel.yaml" \
   | grep -Fq 'value: "false"'
+render sentinel-full "$CHART_DIR" \
+  --set redis.architecture=replication \
+  --set redis.sentinel.enabled=true >"$TMP_DIR/sentinel-full.yaml"
+grep -Fq 'bitnami/redis-sentinel@sha256:667bfef3e22ce9910bdcf304b1b7c659cfc15390a2d473187eb3caac2537d0e6' "$TMP_DIR/sentinel-full.yaml"
+if grep -Eq 'image:.*:latest([@"[:space:]]|$)' "$TMP_DIR/sentinel-full.yaml"; then
+  fail "Sentinel workloads must not use mutable latest image tags"
+fi
 
 render external-sentinel "$CHART_DIR" \
   --set postgresql.enabled=false \
@@ -221,8 +235,13 @@ assert_rejected old-ingress-tls-object --set ingress.tls.enabled=true
 assert_rejected reserved-oauth-ingress-path \
   --set ingress.enabled=true \
   --set-json 'ingress.hosts=[{"host":"skills.example.com","paths":[{"path":"/oauth2","pathType":"Prefix"}]}]'
+assert_rejected reserved-oauth-ingress-child-path \
+  --set ingress.enabled=true \
+  --set-json 'ingress.hosts=[{"host":"skills.example.com","paths":[{"path":"/login/oauth2/code/github","pathType":"Prefix"}]}]'
 assert_rejected invalid-s3-endpoint --set s3.endpoint=s3.amazonaws.com
 assert_rejected invalid-s3-public-endpoint --set s3.publicEndpoint=cdn.example.com
+assert_rejected invalid-s3-empty-authority --set-string 's3.endpoint=https://?'
+assert_rejected invalid-s3-whitespace-authority --set-string 's3.publicEndpoint=https:// '
 assert_rejected empty-ingress-hosts --set-json 'ingress.hosts=[]'
 assert_rejected cert-manager-without-tls \
   --set ingress.enabled=true \

@@ -1,4 +1,5 @@
 {{- /* Cross-field validation that JSON Schema cannot express reliably. */ -}}
+{{- $absoluteHttpUrlPattern := "^https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)(:[0-9]{1,5})?([/?#][^[:space:]]*)?$" -}}
 {{- if not .Values.server.enabled -}}
 {{- fail "server.enabled=false is unsupported because the bundled web component requires the SkillHub server" -}}
 {{- end -}}
@@ -17,7 +18,7 @@
 {{- end -}}
 {{- range $host := .Values.ingress.hosts -}}
 {{- range $path := $host.paths -}}
-{{- if regexMatch "^/(api|oauth2|login/oauth2|\\.well-known)(?:/|$)" $path.path -}}
+{{- if regexMatch "^/(api|oauth2|login/oauth2|\\.well-known)(/|$)" $path.path -}}
 {{- fail "ingress.hosts[].paths reserves /api, /oauth2, /login/oauth2 and /.well-known for the SkillHub server" -}}
 {{- end -}}
 {{- end -}}
@@ -61,10 +62,10 @@
 {{- if and (not .Values.redis.enabled) .Values.externalRedis.sentinel.enabled (not .Values.externalRedis.sentinel.nodes) -}}
 {{- fail "external Redis Sentinel requires at least one externalRedis.sentinel.nodes entry" -}}
 {{- end -}}
-{{- if and .Values.s3.endpoint (not (regexMatch "^https?://.+" .Values.s3.endpoint)) -}}
+{{- if and .Values.s3.endpoint (not (regexMatch $absoluteHttpUrlPattern .Values.s3.endpoint)) -}}
 {{- fail "s3.endpoint must be an absolute HTTP(S) URL" -}}
 {{- end -}}
-{{- if and .Values.s3.publicEndpoint (not (regexMatch "^https?://.+" .Values.s3.publicEndpoint)) -}}
+{{- if and .Values.s3.publicEndpoint (not (regexMatch $absoluteHttpUrlPattern .Values.s3.publicEndpoint)) -}}
 {{- fail "s3.publicEndpoint must be an absolute HTTP(S) URL" -}}
 {{- end -}}
 

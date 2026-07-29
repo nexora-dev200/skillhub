@@ -114,8 +114,8 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "bucket": { "type": "string", "minLength": 1 },
-        "endpoint": { "type": "string", "pattern": "^(|https?://.+)$" },
-        "publicEndpoint": { "type": "string", "pattern": "^(|https?://.+)$" },
+        "endpoint": { "type": "string", "pattern": "^(|https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)(:[0-9]{1,5})?([/?#]\\S*)?)$" },
+        "publicEndpoint": { "type": "string", "pattern": "^(|https?://(\\[[0-9A-Fa-f:.]+\\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)(:[0-9]{1,5})?([/?#]\\S*)?)$" },
         "region": { "type": "string", "minLength": 1 },
         "forcePathStyle": { "type": "boolean" },
         "disableChunkedEncoding": { "type": "boolean" },
