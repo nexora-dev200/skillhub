@@ -176,15 +176,23 @@ jobs:
           fi
 
       - name: Schema validation (kubeconform)
-        uses: docker://ghcr.io/yannh/kubeconform:latest
+        uses: docker://ghcr.io/yannh/kubeconform@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e # v0.8.0
         with:
           entrypoint: '/kubeconform'
           args: "-strict -summary -output text -schema-location default -schema-location https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json charts/skillhub/rendered.yaml"
 
   install-upgrade:
-    name: Install and Upgrade Smoke
+    name: Install and Upgrade Smoke (${{ matrix.scenario }})
     if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario:
+          - default
+          - sentinel
+          - s3
+          - ingress-tls
 
     steps:
       - name: Check out repository
@@ -204,4 +212,6 @@ jobs:
           wait: 120s
 
       - name: Run install and upgrade smoke
+        env:
+          HELM_SMOKE_SCENARIO: ${{ matrix.scenario }}
         run: bash charts/skillhub/tests/install-upgrade-smoke.sh

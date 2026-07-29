@@ -39,6 +39,7 @@ redis:
 ```
 
 ```bash
+helm dependency build ./charts/skillhub
 kubectl create namespace skillhub
 
 helm -n skillhub upgrade -i skillhub ./charts/skillhub \
@@ -57,12 +58,16 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 合并或发布前，可在一个空的测试 Kubernetes 集群中运行可重复的安装/升级 smoke：
 
 ```bash
-bash charts/skillhub/tests/install-upgrade-smoke.sh
+for scenario in default sentinel s3 ingress-tls; do
+  HELM_SMOKE_SCENARIO="$scenario" \
+    bash charts/skillhub/tests/install-upgrade-smoke.sh
+done
 ```
 
 脚本验证 `install -> Ready -> HTTP health -> upgrade -> Ready`，并确认 Secret 数据、
-PVC UID 与绑定 PV 在升级前后保持不变。默认清理自己创建的 namespace；设置
-`KEEP_HELM_SMOKE=true` 可保留现场用于排查。
+PVC UID 与绑定 PV 在升级前后保持不变。四个场景分别覆盖默认依赖、Redis
+Sentinel、实际 MinIO S3 连接，以及由 Kubernetes API 接受的 TLS Ingress 路由。
+默认清理自己创建的 namespace；设置 `KEEP_HELM_SMOKE=true` 可保留现场用于排查。
 
 ### 高可用模式
 
@@ -144,10 +149,11 @@ redis:
 可预测密码，而是在任何随机密码缺失时终止渲染并指出具体配置项。敏感值应放在
 受保护的 values、External Secrets、Sealed Secrets 或密钥注入插件中。
 
-内置 PostgreSQL、Redis、Sentinel 及 metrics exporter 镜像默认使用不可变 digest，
-避免 Bitnami 子 Chart 的 `latest` 默认值造成不可复现的安装和回滚。覆盖私有镜像
-仓库或 tag 时，必须同时把对应的 `image.digest` 设为空，或改成私有仓库中该镜像
-的真实 digest；digest 非空时会优先于 tag。
+内置 PostgreSQL、Redis、Sentinel 及 metrics exporter 镜像默认使用不可变的
+多架构 manifest digest，避免 Bitnami 子 Chart 的 `latest` 默认值造成不可复现的
+安装和回滚，同时保留 amd64/arm64 支持。覆盖私有镜像仓库或 tag 时，必须同时把
+对应的 `image.digest` 设为空，或改成私有仓库中该镜像的真实 digest；digest
+非空时会优先于 tag。
 
 ## 配置参考
 

@@ -27,10 +27,10 @@ render verify "$CHART_DIR" >"$TMP_DIR/default.yaml"
 grep -Fq 'name: POSTGRESQL_MAX_CONNECTIONS' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-postgresql"' "$TMP_DIR/default.yaml"
 grep -Fq 'value: "verify-redis-master"' "$TMP_DIR/default.yaml"
-grep -Fq 'bitnami/postgresql@sha256:52e4eae10959a7ef4810f2d0c9ce656e9337090fd2427d8d15d2e1335ba4f8fb' "$TMP_DIR/default.yaml"
-grep -Fq 'bitnami/postgres-exporter@sha256:fbd5fbc3f350c793efef777b0710f17019e8dd7812fc7c7396b13aa5130f3bd9' "$TMP_DIR/default.yaml"
-grep -Fq 'bitnami/redis@sha256:5ff436b8a0dbe3808f03c7b682865cd30ddb1f08c1a8d17970ebf475f5689722' "$TMP_DIR/default.yaml"
-grep -Fq 'bitnami/redis-exporter@sha256:0468a9a14ebd96953f967f9f3e8673c3eb1ad1dd54d379fef15c3f3ee714c99e' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/postgresql@sha256:db2312d9b243afa8c3b3f5496e478d17d0dff9791d06f3b93b9567abd86ae92f' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/postgres-exporter@sha256:53ab72a1b940d7637e91619f1000da9ebef14bc7dad74321a78731d65c79f55b' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/redis@sha256:08863c2c3f4e051fb6139b38fa223e9c13be5033326a59bead182860d899bf98' "$TMP_DIR/default.yaml"
+grep -Fq 'bitnami/redis-exporter@sha256:fb1dae6add1e1104989d086d9407f7d65f58968550aa5fddea20637a758c0773' "$TMP_DIR/default.yaml"
 if grep -Eq 'image:.*:latest([@"[:space:]]|$)' "$TMP_DIR/default.yaml"; then
   fail "default workloads must not use mutable latest image tags"
 fi
@@ -114,7 +114,7 @@ grep -A1 -F 'name: SKILLHUB_REDIS_SENTINEL_CHECK_SENTINELS_LIST' "$TMP_DIR/senti
 render sentinel-full "$CHART_DIR" \
   --set redis.architecture=replication \
   --set redis.sentinel.enabled=true >"$TMP_DIR/sentinel-full.yaml"
-grep -Fq 'bitnami/redis-sentinel@sha256:667bfef3e22ce9910bdcf304b1b7c659cfc15390a2d473187eb3caac2537d0e6' "$TMP_DIR/sentinel-full.yaml"
+grep -Fq 'bitnami/redis-sentinel@sha256:ae75dd69c192a632bdeb21baa6721080be5b12347e52add922036398b47631da' "$TMP_DIR/sentinel-full.yaml"
 if grep -Eq 'image:.*:latest([@"[:space:]]|$)' "$TMP_DIR/sentinel-full.yaml"; then
   fail "Sentinel workloads must not use mutable latest image tags"
 fi
