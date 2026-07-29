@@ -15,6 +15,9 @@
 [![Java](https://img.shields.io/badge/java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/projects/jdk/21/)
 [![React](https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 
+[![GitHub Stars](https://img.shields.io/github/stars/iflytek/skillhub?style=social)](https://github.com/iflytek/skillhub/stargazers)
+[![GitHub Watchers](https://img.shields.io/github/watchers/iflytek/skillhub?style=social)](https://github.com/iflytek/skillhub/watchers)
+
 </div>
 
 <div align="center">
@@ -34,6 +37,8 @@ governed place to share agent skills. Publish a skill package, push
 it to a namespace, and let others find it through search or
 install it via CLI. Built for on-premise deployment behind your
 firewall, with the same polish you'd expect from a public registry.
+
+> ⭐ If SkillHub fits your team, **star** the repo to help other teams find it, and **Watch → Custom → Releases** to get notified when a new version ships.
 
 ## Documentation
 
@@ -442,6 +447,13 @@ namespace `my-space` plus skill slug `my-skill`.
 
 📖 **[Complete Hermes Agent Integration Guide →](./docs/hermes-integration-en.md)**
 
+### [HarnessClaw Engine](https://github.com/harnessclaw/harnessclaw-engine)
+
+[HarnessClaw Engine](https://github.com/harnessclaw/harnessclaw-engine) is a Go LLM programming assistant engine that exposes its capabilities over WebSocket. It loads skills from `SKILL.md` files with YAML frontmatter and parameter substitution, scanning each configured directory for `skill-name/SKILL.md` (default `~/.harnessclaw/workspace/skills/`, with earlier directories taking priority on name conflicts). Install a SkillHub package straight into that directory with the CLI's `--dir` option, no registry adapter required:
+
+```bash
+npx clawhub --dir ~/.harnessclaw/workspace/skills install my-skill
+```
 ### [AstronClaw](https://agent.xfyun.cn/astron-claw)
 
 [AstronClaw](https://agent.xfyun.cn/astron-claw) is a cloud AI assistant built on OpenClaw's core capabilities, providing 24/7 online service through enterprise platforms like WeChat Work, DingTalk, and Feishu. It features a built-in skill system with over 130 official skills. You can connect it to a self-hosted SkillHub registry to enable one-click skill installation, search repository, dialogue-based automatic installation, and even custom skills management within your organization.
