@@ -22,7 +22,26 @@ The build writes deterministic, uncompressed ZIPs and `artifacts.json` to
 `builtin-skills/dist/`. The artifact index records each ZIP's SHA-256 for the release step; runtime
 manifest integration is maintained separately from the reviewed source collection.
 
-Do not copy a new upstream Skill directly into this directory. First pin an upstream commit,
-confirm redistribution terms, inspect every bundled file, add a realistic case to `evals.json`,
-and complete the same package and security review recorded in
-`docs/23-builtin-skills-first-round-test-report.md`.
+## Share a Skill with the Community
+
+A Skill shared with the community may be considered for the curated starter collection.
+To protect contributors and users, it should:
+
+- solve a clear, recurring task and add useful coverage to the starter collection;
+- identify its author, source, and terms that permit redistribution;
+- declare required tools, network access, credentials, and supported environments;
+- avoid hidden downloads, embedded secrets, and unconfirmed destructive or external actions;
+- pass package validation, security review, and at least one realistic usage test.
+
+You can start by
+[opening an issue](https://github.com/iflytek/skillhub/issues/new/choose) with the source
+URL and the problem the Skill solves. A complete pull request should:
+
+1. add the reviewed package under `builtin-skills/skills/<slug>/`, including `SKILL.md`,
+   `LICENSE.txt`, and `NOTICE.md`;
+2. record the pinned upstream commit and provenance in `catalog.json`;
+3. add a realistic regression case to `evals.json`;
+4. run `make test-builtin-skills`.
+
+Do not copy an upstream Skill into this directory without reviewing every bundled file and
+confirming that its license permits redistribution.
