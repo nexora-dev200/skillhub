@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useParams, useNavigate, useRouterState, useSearch } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -16,6 +16,7 @@ import {
   getOverviewCollapseMaxHeight,
   OVERVIEW_COLLAPSE_DESKTOP_MAX_HEIGHT,
   shouldCollapseOverview,
+  shouldReleaseOverviewLayoutQuiet,
 } from '@/features/skill/overview-collapse'
 import { resolveSkillActionErrorTitle } from '@/features/skill/skill-action-error'
 import { isPrecheckConfirmationMessage, extractPrecheckWarnings } from '@/features/publish/publish-error-utils'
@@ -34,6 +35,7 @@ import { getSkillLabelSearch, getSkillSquareSearch, normalizeSkillDetailReturnTo
 import { formatCompactCount } from '@/shared/lib/number-format'
 import { resolveDocumentationFilePath } from '@/shared/lib/skill-documentation'
 import { getHeadlineVersion, getOwnerPreviewVersion, getPublishedVersion } from '@/shared/lib/skill-lifecycle'
+import { navigateAfterOverlays } from '@/shared/lib/navigate-after-overlays'
 import { NamespaceBadge } from '@/shared/components/namespace-badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/shared/ui/tabs'
 import { Button } from '@/shared/ui/button'
@@ -149,6 +151,8 @@ export function SkillDetailPage() {
   const [fileBrowserOpen, setFileBrowserOpen] = useState(true)
   const overviewContentRef = useRef<HTMLDivElement | null>(null)
   const overviewSectionRef = useRef<HTMLDivElement | null>(null)
+  const overviewLayoutQuietRef = useRef(false)
+  const overviewQuietGenerationRef = useRef(0)
   const { namespace, slug } = useParams({ from: '/space/$namespace/$slug' })
   const { user, hasRole } = useAuth()
   const detailQueriesEnabled = isSkillDetailQueriesEnabled(skillDeleted)
@@ -205,7 +209,7 @@ export function SkillDetailPage() {
     }
 
     const updateOverviewState = () => {
-      if (!overviewContentRef.current) {
+      if (!overviewContentRef.current || overviewLayoutQuietRef.current) {
         return
       }
 
@@ -216,11 +220,13 @@ export function SkillDetailPage() {
         window.innerHeight,
       )
 
-      setOverviewMaxHeight(nextMaxHeight)
-      setIsOverviewCollapsible(nextCollapsible)
+      // Bail out when ResizeObserver/layout noise repeats the same values to avoid
+      // re-render storms that race with body portals (Select, DropdownMenu, Dialog).
+      setOverviewMaxHeight((current) => (current === nextMaxHeight ? current : nextMaxHeight))
+      setIsOverviewCollapsible((current) => (current === nextCollapsible ? current : nextCollapsible))
 
       if (!nextCollapsible) {
-        setIsOverviewExpanded(false)
+        setIsOverviewExpanded((current) => (current ? false : current))
       }
     }
 
@@ -238,19 +244,32 @@ export function SkillDetailPage() {
     return () => {
       window.removeEventListener('resize', updateOverviewState)
       resizeObserver?.disconnect()
+      overviewQuietGenerationRef.current += 1
+      overviewLayoutQuietRef.current = false
     }
   }, [readme])
 
   const handleToggleOverview = () => {
-    if (!isOverviewExpanded) {
-      setIsOverviewExpanded(true)
-      return
-    }
-
-    setIsOverviewExpanded(false)
-    requestAnimationFrame(() => {
-      overviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Quiet ResizeObserver for the expand/collapse commit (no max-height transition).
+    const quietGeneration = overviewQuietGenerationRef.current + 1
+    overviewQuietGenerationRef.current = quietGeneration
+    overviewLayoutQuietRef.current = true
+    const expanding = !isOverviewExpanded
+    startTransition(() => {
+      setIsOverviewExpanded(expanding)
     })
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (shouldReleaseOverviewLayoutQuiet(overviewQuietGenerationRef.current, quietGeneration)) {
+          overviewLayoutQuietRef.current = false
+        }
+      })
+    })
+    if (!expanding) {
+      requestAnimationFrame(() => {
+        overviewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
   }
 
   const refreshSkill = () => {
@@ -300,7 +319,7 @@ export function SkillDetailPage() {
     setPreviewDialogOpen(true)
   }
 
-  const handlePackageMarkdownLinkClick = (
+  const handlePackageMarkdownLinkClick = useCallback((
     href: string,
     event: MouseEvent<HTMLAnchorElement>,
     currentFilePath: string | null | undefined,
@@ -320,15 +339,15 @@ export function SkillDetailPage() {
     }
 
     toast.error(t('skillDetail.packageLinkMissingTitle'), t('skillDetail.packageLinkMissingDescription'))
-  }
+  }, [files, t])
 
-  const handleOverviewLinkClick = (href: string, event: MouseEvent<HTMLAnchorElement>) => {
+  const handleOverviewLinkClick = useCallback((href: string, event: MouseEvent<HTMLAnchorElement>) => {
     handlePackageMarkdownLinkClick(href, event, documentationPath)
-  }
+  }, [documentationPath, handlePackageMarkdownLinkClick])
 
-  const handlePreviewLinkClick = (href: string, event: MouseEvent<HTMLAnchorElement>) => {
+  const handlePreviewLinkClick = useCallback((href: string, event: MouseEvent<HTMLAnchorElement>) => {
     handlePackageMarkdownLinkClick(href, event, previewNode?.path)
-  }
+  }, [handlePackageMarkdownLinkClick, previewNode?.path])
 
   // Download a single file from the skill version
   const handleDownloadFile = () => {
@@ -547,7 +566,9 @@ export function SkillDetailPage() {
         t('skillDetail.deleteSkillSuccessDescription', { skill: skill.displayName }),
       )
       setDeleteSkillInputOpen(false)
-      navigate({ to: resolveDeletedSkillReturnTo(search.returnTo) })
+      navigateAfterOverlays(() => {
+        navigate({ to: resolveDeletedSkillReturnTo(search.returnTo) })
+      })
       queryClient.removeQueries({ queryKey: ['skills', namespace, slug] })
       queryClient.invalidateQueries({ queryKey: ['skills', 'my'] })
     } catch (error) {
@@ -584,7 +605,9 @@ export function SkillDetailPage() {
         t('skillDetail.withdrawReviewSuccessDescription', { version: withdrawVersionTarget }),
       )
       setWithdrawVersionTarget(null)
-      navigate({ to: '/dashboard/skills' })
+      navigateAfterOverlays(() => {
+        navigate({ to: '/dashboard/skills' })
+      })
     } catch (error) {
       toast.error(t('skillDetail.withdrawReviewErrorTitle'), error instanceof Error ? error.message : '')
       throw error
@@ -886,7 +909,7 @@ export function SkillDetailPage() {
                 <div ref={overviewSectionRef} className="space-y-4">
                   <div
                     className={cn(
-                      'relative overflow-hidden transition-[max-height] duration-300 ease-out',
+                      'relative overflow-hidden',
                       !isOverviewExpanded && isOverviewCollapsible && 'rounded-2xl',
                     )}
                     style={!isOverviewExpanded && isOverviewCollapsible ? { maxHeight: `${overviewMaxHeight}px` } : undefined}
