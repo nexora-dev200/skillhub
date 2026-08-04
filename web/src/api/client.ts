@@ -1,4 +1,5 @@
 import createClient from 'openapi-fetch'
+import { BASE_PATH } from '@/shared/lib/base-path'
 import type { paths } from './generated/schema'
 import type {
   ChangePasswordRequest,
@@ -82,7 +83,20 @@ function getRuntimeConfig(): RuntimeConfig {
 }
 
 function getApiBaseUrl(): string {
-  return getRuntimeConfig().apiBaseUrl ?? ''
+  const configured = getRuntimeConfig().apiBaseUrl
+  if (configured) {
+    return configured
+  }
+  // Default the API prefix to the deployment base path so that setting only
+  // SKILLHUB_WEB_BASE_PATH (e.g. /skillhub/) still routes API calls to
+  // /skillhub/api/... instead of /api/... behind a sub-path-only reverse proxy.
+  // BASE_PATH is import.meta.env.BASE_URL (substituted at container start) and
+  // always ends with '/'; drop it so requests are /skillhub/api, not /skillhub//api.
+  return BASE_PATH === '/' ? '' : BASE_PATH.replace(/\/+$/, '')
+}
+
+export function getAppBaseUrl(): string {
+  return getRuntimeConfig().appBaseUrl ?? ''
 }
 
 function parseBooleanFlag(value: string | undefined): boolean {
@@ -381,7 +395,7 @@ export const authApi = {
   },
 
   async logout(): Promise<void> {
-    const response = await fetch('/api/v1/auth/logout', {
+    const response = await fetch(buildApiUrl('/api/v1/auth/logout'), {
       method: 'POST',
       headers: withCsrf(),
     })

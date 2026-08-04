@@ -369,6 +369,12 @@ web:
     registry: ""
     tag: ""
 
+  # Sub-path deployment. Leave empty to keep a fixed-base image's baked base (or
+  # root for a placeholder-base image). Set to a sub-path such as "/portal/" to
+  # serve the app under a prefix; keep apiBaseUrl aligned (e.g. "/portal").
+  basePath: ""
+  apiBaseUrl: ""
+
   service:
     enabled: true
     type: ClusterIP

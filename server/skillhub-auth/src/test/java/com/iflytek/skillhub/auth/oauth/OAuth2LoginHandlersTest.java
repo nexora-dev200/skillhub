@@ -72,6 +72,42 @@ class OAuth2LoginHandlersTest {
         assertThat(securityContext.getAuthentication().getPrincipal()).isEqualTo(principal);
     }
 
+    @Test
+    void successHandler_appliesSubPathPrefixExactlyOnce() throws Exception {
+        OAuthLoginFlowService oauthLoginFlowService = mock(OAuthLoginFlowService.class);
+        OAuth2LoginSuccessHandler handler = new OAuth2LoginSuccessHandler(
+                new com.iflytek.skillhub.auth.session.PlatformSessionService(),
+                oauthLoginFlowService
+        );
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        // X-Forwarded-Prefix is reflected into the context path under forward-headers-strategy=framework.
+        request.setContextPath("/skillhub");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        HttpSession session = request.getSession(true);
+        session.setAttribute(OAuthLoginRedirectSupport.SESSION_RETURN_TO_ATTRIBUTE, "/dashboard/publish");
+
+        var principal = new com.iflytek.skillhub.auth.rbac.PlatformPrincipal(
+                "user-1", "User", "user@example.com", null, "github", Set.of()
+        );
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                new DefaultOAuth2User(List.of(), Map.of("platformPrincipal", principal, "login", "user"), "login"),
+                null,
+                List.of()
+        );
+        org.mockito.Mockito.when(oauthLoginFlowService.consumeReturnTo(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    HttpSession currentSession = invocation.getArgument(0);
+                    Object value = currentSession.getAttribute(OAuthLoginRedirectSupport.SESSION_RETURN_TO_ATTRIBUTE);
+                    currentSession.removeAttribute(OAuthLoginRedirectSupport.SESSION_RETURN_TO_ATTRIBUTE);
+                    return value;
+                });
+
+        handler.onAuthenticationSuccess(request, response, authentication);
+
+        // Prefix applied exactly once by the redirect strategy — not doubled.
+        assertThat(response.getRedirectedUrl()).isEqualTo("/skillhub/dashboard/publish");
+    }
+
     /**
      * Regression test: when an unauthenticated client hits a protected API endpoint, Spring Security
      * caches that request. With {@code SavedRequestAwareAuthenticationSuccessHandler} the post-login

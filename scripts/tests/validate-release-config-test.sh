@@ -75,6 +75,98 @@ write_env "$disabled_builtin_skills_env" "release-download-secret-32-bytes-minim
 printf '%s\n' "SKILLHUB_BUILTIN_SKILLS_ENABLED=false" >>"$disabled_builtin_skills_env"
 "$SCRIPT" "$disabled_builtin_skills_env" >/dev/null
 
+relative_api_base_env="$tmp/relative-api-base.env"
+write_env "$relative_api_base_env" "release-download-secret-32-bytes-minimum"
+printf 'SKILLHUB_WEB_API_BASE_URL=/skillhub\n' >>"$relative_api_base_env"
+"$SCRIPT" "$relative_api_base_env" >/dev/null
+
+sub_path_env="$tmp/sub-path.env"
+write_env "$sub_path_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' \
+  'SKILLHUB_WEB_BASE_PATH=/skillhub/' \
+  'SKILLHUB_WEB_API_BASE_URL=/skillhub' \
+  'SKILLHUB_PUBLIC_BASE_URL=https://skillhub.example.com/skillhub' \
+  >"$tmp/sub-path-overrides"
+cat "$tmp/sub-path-overrides" >>"$sub_path_env"
+"$SCRIPT" "$sub_path_env" >/dev/null
+
+missing_public_sub_path_env="$tmp/missing-public-sub-path.env"
+write_env "$missing_public_sub_path_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' \
+  'SKILLHUB_WEB_BASE_PATH=/skillhub/' \
+  'SKILLHUB_WEB_API_BASE_URL=/skillhub' \
+  >>"$missing_public_sub_path_env"
+expect_fail "$missing_public_sub_path_env" "SKILLHUB_PUBLIC_BASE_URL path"
+
+# A public URL that merely ends with the base path but serves it under a different path
+# (/other/skillhub) must be rejected: suffix match is not enough, the path must be exact.
+wrong_public_path_env="$tmp/wrong-public-path.env"
+write_env "$wrong_public_path_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' \
+  'SKILLHUB_WEB_BASE_PATH=/skillhub/' \
+  'SKILLHUB_WEB_API_BASE_URL=/skillhub' \
+  'SKILLHUB_PUBLIC_BASE_URL=https://skillhub.example.com/other/skillhub' \
+  >>"$wrong_public_path_env"
+expect_fail "$wrong_public_path_env" "must equal SKILLHUB_WEB_BASE_PATH without its trailing slash"
+
+# A query or fragment in SKILLHUB_PUBLIC_BASE_URL corrupts concatenated URLs
+# (e.g. ${SKILLHUB_PUBLIC_BASE_URL}/cli/auth). Reject it independently of the
+# base path, so even a root deployment (no SKILLHUB_WEB_BASE_PATH) is covered.
+public_query_env="$tmp/public-query.env"
+write_env "$public_query_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' 'SKILLHUB_PUBLIC_BASE_URL=https://skillhub.example.com/skillhub?ref=1' \
+  >>"$public_query_env"
+expect_fail "$public_query_env" "must not contain a query"
+
+public_fragment_env="$tmp/public-fragment.env"
+write_env "$public_fragment_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' 'SKILLHUB_PUBLIC_BASE_URL=https://skillhub.example.com#frag' \
+  >>"$public_fragment_env"
+expect_fail "$public_fragment_env" "must not contain a query"
+
+# A scheme with no host (https://) passes a naive prefix check but concatenates
+# into an invalid URL like https:///cli/auth. Must be rejected.
+public_no_host_env="$tmp/public-no-host.env"
+write_env "$public_no_host_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' 'SKILLHUB_PUBLIC_BASE_URL=https://' >>"$public_no_host_env"
+expect_fail "$public_no_host_env" "must include a host"
+
+# Base path format must be rejected here, matching the runtime entrypoint check,
+# rather than passing config validation and only failing at container start.
+dot_segment_base_env="$tmp/dot-segment-base.env"
+write_env "$dot_segment_base_env" "release-download-secret-32-bytes-minimum"
+printf 'SKILLHUB_WEB_BASE_PATH=/foo/../bar/\n' >>"$dot_segment_base_env"
+expect_fail "$dot_segment_base_env" "must not contain '.' or '..' path segments"
+
+double_slash_base_env="$tmp/double-slash-base.env"
+write_env "$double_slash_base_env" "release-download-secret-32-bytes-minimum"
+printf 'SKILLHUB_WEB_BASE_PATH=/foo//bar/\n' >>"$double_slash_base_env"
+expect_fail "$double_slash_base_env" "SKILLHUB_WEB_BASE_PATH contains unsupported characters"
+
+missing_trailing_base_env="$tmp/missing-trailing-base.env"
+write_env "$missing_trailing_base_env" "release-download-secret-32-bytes-minimum"
+printf 'SKILLHUB_WEB_BASE_PATH=/skillhub\n' >>"$missing_trailing_base_env"
+expect_fail "$missing_trailing_base_env" "must be '/' or start and end with '/'"
+
+# A base path whose first segment collides with a server Nginx location (/api/,
+# /oauth2/, ...) must be rejected: it would shadow the real route and break the app.
+for reserved in /api/ /oauth2/ /login/ /assets/ /registry/ /nginx-health/ /.well-known/ /runtime-config.js/ /api/nested/; do
+  reserved_base_env="$tmp/reserved-base.env"
+  write_env "$reserved_base_env" "release-download-secret-32-bytes-minimum"
+  printf 'SKILLHUB_WEB_BASE_PATH=%s\n' "$reserved" >>"$reserved_base_env"
+  expect_fail "$reserved_base_env" "reserved by the SkillHub server"
+done
+
+# A same-origin API base that disagrees with the web base path routes to the wrong prefix.
+mismatch_api_base_env="$tmp/mismatch-api-base.env"
+write_env "$mismatch_api_base_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' \
+  'SKILLHUB_WEB_BASE_PATH=/skillhub/' \
+  'SKILLHUB_WEB_API_BASE_URL=/other' \
+  'SKILLHUB_PUBLIC_BASE_URL=https://skillhub.example.com/skillhub' \
+  >>"$mismatch_api_base_env"
+expect_fail "$mismatch_api_base_env" "must equal SKILLHUB_WEB_BASE_PATH without its trailing slash"
+
 missing_env="$tmp/missing.env"
 write_env "$missing_env" "" no
 expect_fail "$missing_env" "SKILLHUB_DOWNLOAD_ANON_COOKIE_SECRET is required"
