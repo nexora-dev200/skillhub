@@ -2,6 +2,7 @@ package com.iflytek.skillhub.service;
 
 import com.iflytek.skillhub.SkillhubApplication;
 import com.iflytek.skillhub.TestRedisConfig;
+import com.iflytek.skillhub.auth.rbac.RbacService;
 import com.iflytek.skillhub.domain.label.LabelDefinition;
 import com.iflytek.skillhub.domain.label.LabelDefinitionRepository;
 import com.iflytek.skillhub.domain.label.LabelTranslation;
@@ -14,6 +15,8 @@ import com.iflytek.skillhub.domain.namespace.NamespaceType;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillRepository;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
+import com.iflytek.skillhub.dto.AdminLabelUpdateRequest;
+import com.iflytek.skillhub.dto.LabelTranslationItemRequest;
 import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentEntity;
 import com.iflytek.skillhub.infra.jpa.SkillSearchDocumentJpaRepository;
 import com.iflytek.skillhub.search.SearchEmbeddingService;
@@ -23,6 +26,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +63,9 @@ class LabelSearchSyncIntegrationTest {
     private SkillLabelAppService skillLabelAppService;
 
     @Autowired
+    private LabelAdminAppService labelAdminAppService;
+
+    @Autowired
     private NamespaceRepository namespaceRepository;
 
     @Autowired
@@ -82,10 +89,14 @@ class LabelSearchSyncIntegrationTest {
     @MockBean
     private SearchEmbeddingService searchEmbeddingService;
 
+    @MockBean
+    private RbacService rbacService;
+
     @BeforeEach
     void setUp() {
         when(searchEmbeddingService.embed(anyString())).thenReturn("");
         when(searchEmbeddingService.similarity(anyString(), anyString())).thenReturn(0.0d);
+        when(rbacService.getUserRoleCodes(anyString())).thenReturn(Set.of("SUPER_ADMIN"));
     }
 
     @Test
@@ -193,6 +204,41 @@ class LabelSearchSyncIntegrationTest {
                 .contains(f.labelDisplayName);
     }
 
+    @Test
+    void updatingLabelTranslations_rebuildsAffectedSkillSearchKeywords() throws Exception {
+        Fixture f = createFixture();
+        String updatedEnglish = "DeepLearning" + UUID.randomUUID().toString().substring(0, 8);
+        String updatedChinese = "深度学习" + UUID.randomUUID().toString().substring(0, 8);
+
+        skillLabelAppService.attachLabel(
+                f.namespaceSlug, f.skillSlug, f.labelSlug, f.ownerId, f.ownerRoles, auditContext());
+        SkillSearchDocumentEntity afterAttach = awaitIndexedDocument(f.skillId);
+        assertThat(afterAttach.getKeywords()).contains(f.labelDisplayName);
+
+        labelAdminAppService.update(
+                f.labelSlug,
+                new AdminLabelUpdateRequest(
+                        LabelType.RECOMMENDED,
+                        true,
+                        0,
+                        List.of(
+                                new LabelTranslationItemRequest("en", updatedEnglish),
+                                new LabelTranslationItemRequest("zh-CN", updatedChinese)
+                        )
+                ),
+                f.ownerId,
+                auditContext()
+        );
+
+        awaitKeywordPresent(f.skillId, updatedEnglish);
+        SkillSearchDocumentEntity afterUpdate = skillSearchDocumentJpaRepository.findBySkillId(f.skillId)
+                .orElseThrow();
+        assertThat(afterUpdate.getKeywords())
+                .contains(updatedEnglish)
+                .contains(updatedChinese)
+                .doesNotContain(f.labelDisplayName);
+    }
+
     private SkillSearchDocumentEntity awaitIndexedDocument(Long skillId) throws InterruptedException {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
         Optional<SkillSearchDocumentEntity> indexed = skillSearchDocumentJpaRepository.findBySkillId(skillId);
@@ -219,6 +265,24 @@ class LabelSearchSyncIntegrationTest {
                 .orElse("<no document>");
         throw new AssertionError(
                 "Expected keyword '" + keyword + "' to be removed from index for skill "
+                        + skillId + " but keywords were: " + keywords);
+    }
+
+    private void awaitKeywordPresent(Long skillId, String keyword) throws InterruptedException {
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
+        while (Instant.now().isBefore(deadline)) {
+            Optional<SkillSearchDocumentEntity> indexed =
+                    skillSearchDocumentJpaRepository.findBySkillId(skillId);
+            if (indexed.isPresent() && indexed.get().getKeywords().contains(keyword)) {
+                return;
+            }
+            Thread.sleep(100L);
+        }
+        String keywords = skillSearchDocumentJpaRepository.findBySkillId(skillId)
+                .map(SkillSearchDocumentEntity::getKeywords)
+                .orElse("<no document>");
+        throw new AssertionError(
+                "Expected keyword '" + keyword + "' to be present in index for skill "
                         + skillId + " but keywords were: " + keywords);
     }
 
