@@ -79,6 +79,10 @@ grep -Fq 'bash scripts/tests/nginx-forwarded-proto-test.sh' "$PR_SCRIPTS_WORKFLO
   || fail "pr-scripts must run nginx-forwarded-proto-test"
 grep -Fq 'bash scripts/tests/smoke-test-admin-mode-test.sh' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run smoke-test-admin-mode-test"
+grep -Fq 'bash scripts/tests/web-base-path-routing-test.sh' "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run web-base-path-routing-test"
+grep -Fq 'bash scripts/tests/web-base-path-nginx-smoke-test.sh' "$PR_SCRIPTS_WORKFLOW" \
+  || fail "pr-scripts must run web-base-path-nginx-smoke-test"
 grep -Fq 'bash scripts/tests/runtime-secret-test.sh' "$PR_SCRIPTS_WORKFLOW" \
   || fail "pr-scripts must run runtime-secret-test"
 grep -Fq 'bash scripts/tests/dev-web-host-test.sh' "$PR_SCRIPTS_WORKFLOW" \

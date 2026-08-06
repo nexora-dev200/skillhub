@@ -235,6 +235,7 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 
 # 阿里云镜像（国内推荐）
 curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- up --aliyun --public-url https://skillhub.your-company.com --version latest
+
 ```
 
 ### 配置参数说明
@@ -248,6 +249,10 @@ curl -fsSL https://imageless.oss-cn-beijing.aliyuncs.com/runtime.sh | sh -s -- u
 | `--no-scanner` | 禁用安全扫描服务 | `--no-scanner` |
 
 > **重要**：生产环境请务必配置 `--public-url`，确保 CLI 安装命令和 Agent 设置指引显示正确的地址。
+
+如果通过 `/skillhub/` 这类子路径对外发布，需要让公网地址和前端基础路径保持一致。
+请在 `.env.release` 中设置 `SKILLHUB_PUBLIC_BASE_URL=https://skill.example.com/skillhub`、
+`SKILLHUB_WEB_BASE_PATH=/skillhub/` 和 `SKILLHUB_WEB_API_BASE_URL=/skillhub`。
 
 ### 使用 Kubernetes
 

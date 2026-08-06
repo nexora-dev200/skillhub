@@ -246,6 +246,11 @@ Sentinel 配置优先于 Cluster 和单机 `host`/`port`。在 Kubernetes 等 Se
 - `SKILLHUB_TRUST_FORWARDED_PROTO` 默认保持 `false`。只有 Web 容器仅能经由可信
   TLS 终止代理访问，且该代理会覆盖客户端传入的 `X-Forwarded-Proto` 时才设为
   `true`；否则客户端可伪造协议并影响 OAuth 回调、重定向和安全 Cookie 判断
+- 如果通过网关部署在 `/skillhub/` 等子路径，需同时配置：
+  - `SKILLHUB_WEB_BASE_PATH=/skillhub/`
+  - `SKILLHUB_WEB_API_BASE_URL=/skillhub`
+  - `SKILLHUB_PUBLIC_BASE_URL=https://example.com/skillhub`
+  网关可以在转发到 Web 容器前将该前缀重写掉，但公网 URL 仍必须保留前缀，确保 OAuth、CLI 和 registry 链接正确。
 - 如果要开放真实登录，再补充 `OAUTH2_GITHUB_CLIENT_ID` / `OAUTH2_GITHUB_CLIENT_SECRET`
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 
@@ -298,7 +303,7 @@ override 或部署平台环境变量把上述 `SPRING_SECURITY_*` 变量注入 `
    - 配置公网 HTTPS 入口，确保最终访问域名已经确定
    - 打开 `80` / `443`，避免直接暴露 `5432` / `6379`
 2. 填写 `.env.release`
-   - `SKILLHUB_PUBLIC_BASE_URL` 填最终 HTTPS 域名，且不要带尾部 `/`
+   - `SKILLHUB_PUBLIC_BASE_URL` 填最终 HTTPS 域名，且不要带尾部 `/`；子路径部署时必须包含外部路径前缀
    - `SKILLHUB_STORAGE_PROVIDER=s3`
    - 按云厂商 OSS / S3 兼容参数填写 `SKILLHUB_STORAGE_S3_*`
    - 设置非默认的 `POSTGRES_PASSWORD`

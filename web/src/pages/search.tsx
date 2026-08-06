@@ -12,6 +12,7 @@ import { Pagination } from '@/shared/components/pagination'
 import { useSearchSkills } from '@/shared/hooks/use-skill-queries'
 import { useVisibleLabels } from '@/shared/hooks/use-label-queries'
 import { useMyStars } from '@/shared/hooks/use-user-queries'
+import { toRouterPath } from '@/shared/lib/base-path'
 import { formatNamespaceSearchInput, normalizeSearchQuery, parseNamespaceSearchInput } from '@/shared/lib/search-query'
 import { Button } from '@/shared/ui/button'
 import { APP_SHELL_PAGE_CLASS_NAME } from '@/app/page-shell-style'
@@ -187,7 +188,7 @@ export function SearchPage() {
       navigate({
         to: '/login',
         search: {
-          returnTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+          returnTo: toRouterPath(window.location.pathname, window.location.search, window.location.hash),
         },
       })
       return
@@ -197,7 +198,10 @@ export function SearchPage() {
   }
 
   const handleSkillClick = (namespace: string, slug: string) => {
-    navigate({ to: `/space/${namespace}/${encodeURIComponent(slug)}`, search: { returnTo: `${window.location.pathname}${window.location.search}` } })
+    navigate({
+      to: `/space/${namespace}/${encodeURIComponent(slug)}`,
+      search: { returnTo: toRouterPath(window.location.pathname, window.location.search) },
+    })
   }
 
   const filteredStarredSkills = starredOnly

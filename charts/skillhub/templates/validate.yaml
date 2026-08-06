@@ -24,6 +24,37 @@
 {{- end -}}
 {{- end -}}
 
+{{- if .Values.publicBaseUrl -}}
+{{- if not (regexMatch $absoluteHttpUrlPattern .Values.publicBaseUrl) -}}
+{{- fail (printf "publicBaseUrl must be an absolute http(s) URL with a host (e.g. https://skills.example.com): %s" .Values.publicBaseUrl) -}}
+{{- end -}}
+{{- if regexMatch "[?#]" .Values.publicBaseUrl -}}
+{{- fail (printf "publicBaseUrl must not contain a query ('?') or fragment ('#'); it is concatenated with paths like /cli/auth and /.well-known/clawhub.json: %s" .Values.publicBaseUrl) -}}
+{{- end -}}
+{{- end -}}
+
+{{- $webBasePath := .Values.web.basePath | default "" -}}
+{{- if and (ne $webBasePath "") (ne $webBasePath "/") -}}
+{{- if not (regexMatch "^(/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)+/$" $webBasePath) -}}
+{{- fail (printf "web.basePath must be '/' or a normalized sub-path that starts and ends with '/' and has no '.'/'..' or empty segments (matches the runtime and release-config checks): %s" $webBasePath) -}}
+{{- end -}}
+{{- $firstSegment := index (splitList "/" $webBasePath) 1 -}}
+{{- if has $firstSegment (list "api" "oauth2" "login" "assets" "registry" "nginx-health" ".well-known" "runtime-config.js") -}}
+{{- fail (printf "web.basePath must not start with a segment reserved by the SkillHub server (%s); it would shadow the server's own Nginx location: %s" $firstSegment $webBasePath) -}}
+{{- end -}}
+{{- $suffix := trimSuffix "/" $webBasePath -}}
+{{- if .Values.publicBaseUrl -}}
+{{- $publicPath := trimSuffix "/" (regexReplaceAll "^[a-zA-Z][a-zA-Z0-9+.-]*://[^/]+" .Values.publicBaseUrl "") -}}
+{{- if ne $publicPath $suffix -}}
+{{- fail (printf "publicBaseUrl path (%s) must equal web.basePath without its trailing slash (%s) so CLI, install, and Quick Start URLs keep the prefix" $publicPath $suffix) -}}
+{{- end -}}
+{{- end -}}
+{{- $apiBase := .Values.web.apiBaseUrl | default "" -}}
+{{- if and (ne $apiBase "") (not (regexMatch "^https?://" $apiBase)) (ne $apiBase $suffix) -}}
+{{- fail (printf "web.apiBaseUrl (%s) must equal web.basePath without its trailing slash (%s) for same-origin sub-path routing, or be an absolute URL for a separate API host" $apiBase $suffix) -}}
+{{- end -}}
+{{- end -}}
+
 {{- range $name := list "server" "web" "scanner" -}}
 {{- $component := index $.Values $name -}}
 {{- $enabled := true -}}

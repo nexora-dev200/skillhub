@@ -7,6 +7,7 @@ import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import { buildGlobalReviewsPath, canAccessReviewCenter } from '@/features/review/review-paths'
 import { clearSessionScopedQueries } from '@/features/notification/notification-session'
 import { canViewGovernanceCenter } from '@/shared/lib/governance-access'
+import { withBasePath } from '@/shared/lib/base-path'
 import { cn } from '@/shared/lib/utils'
 
 interface User {
@@ -81,7 +82,7 @@ export function UserMenu({ user, triggerClassName }: UserMenuProps) {
       // Always clear cache and redirect, even if API call fails
       clearSessionScopedQueries(queryClient)
       queryClient.setQueryData(['auth', 'me'], null)
-      window.location.href = '/'
+      window.location.href = withBasePath('/')
     }
   }
 

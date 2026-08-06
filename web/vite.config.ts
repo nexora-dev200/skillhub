@@ -1,11 +1,13 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { validateBasePath } from './base-path-config'
 
 const JS_BUILD_TARGET = 'es2020'
 const LEGACY_BROWSER_TARGETS = ['chrome83', 'edge83', 'firefox78', 'safari14']
 
 export default defineConfig({
+  base: validateBasePath(process.env.VITE_BASE_PATH ?? '/'),
   plugins: [react()],
   resolve: {
     alias: {

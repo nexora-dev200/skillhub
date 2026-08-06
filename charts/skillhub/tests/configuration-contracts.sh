@@ -318,4 +318,47 @@ if helm template missing-credentials "$CHART_DIR" >"$TMP_DIR/missing-credentials
   fail "default rendering without stable credentials should have been rejected"
 fi
 
+# Sub-path deployment: base path and API prefix must flow from values into the
+# config map and be injected into the web deployment.
+grep -Fq 'web-base-path: ""' "$TMP_DIR/default.yaml" \
+  || fail "default config map web-base-path must be empty so a fixed-base image is honored"
+
+render subpath "$CHART_DIR" \
+  --set web.basePath=/portal/ \
+  --set web.apiBaseUrl=/portal >"$TMP_DIR/subpath.yaml"
+grep -Fq 'web-base-path: "/portal/"' "$TMP_DIR/subpath.yaml" \
+  || fail "config map must expose the configured web base path"
+grep -Fq 'web-api-base-url: "/portal"' "$TMP_DIR/subpath.yaml" \
+  || fail "config map must expose the configured web API base url"
+grep -Fq 'name: SKILLHUB_WEB_BASE_PATH' "$TMP_DIR/subpath.yaml" \
+  || fail "web deployment must set SKILLHUB_WEB_BASE_PATH"
+grep -Fq 'key: web-base-path' "$TMP_DIR/subpath.yaml" \
+  || fail "web deployment must source SKILLHUB_WEB_BASE_PATH from the config map"
+grep -Fq 'key: web-api-base-url' "$TMP_DIR/subpath.yaml" \
+  || fail "web deployment must source SKILLHUB_WEB_API_BASE_URL from the config map"
+
+# A sub-path base must be consistent with publicBaseUrl and be a normalized path.
+assert_rejected subpath-public-mismatch \
+  --set web.basePath=/portal/ \
+  --set-string publicBaseUrl=https://skills.example.com
+assert_rejected subpath-dot-segment --set web.basePath=/foo/../bar/
+assert_rejected subpath-missing-trailing --set-string web.basePath=/portal
+assert_rejected subpath-api-base-mismatch \
+  --set web.basePath=/portal/ \
+  --set-string web.apiBaseUrl=/other \
+  --set-string publicBaseUrl=https://skills.example.com/portal
+# A base path whose first segment is reserved by the server would shadow the
+# server's own Nginx location and break the app.
+assert_rejected subpath-reserved-api --set-string web.basePath=/api/
+assert_rejected subpath-reserved-assets --set-string web.basePath=/assets/
+assert_rejected subpath-reserved-well-known --set-string web.basePath=/.well-known/
+assert_rejected subpath-reserved-nested --set-string web.basePath=/api/nested/
+
+# publicBaseUrl is concatenated with paths (/cli/auth, /.well-known/clawhub.json),
+# so a query or fragment corrupts the generated URLs. Reject it independently of
+# web.basePath (these cases use the default root deployment).
+assert_rejected public-base-url-query --set-string publicBaseUrl=https://skills.example.com/skillhub?ref=1
+assert_rejected public-base-url-fragment --set-string publicBaseUrl=https://skills.example.com#frag
+assert_rejected public-base-url-no-host --set-string publicBaseUrl=https://
+
 echo "Helm configuration contract tests passed"
