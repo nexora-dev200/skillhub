@@ -4147,6 +4147,24 @@ export interface components {
             timestamp?: string;
             requestId?: string;
         };
+        ComplianceEvidenceResponse: {
+            type?: string;
+            path?: string;
+            url?: string;
+            sha256?: string;
+        };
+        ComplianceMappingResponse: {
+            standard?: string;
+            version?: string;
+            controlId?: string;
+            title?: string;
+            evidence?: components["schemas"]["ComplianceEvidenceResponse"][];
+        };
+        ComplianceSnapshotResponse: {
+            schemaVersion?: string;
+            items?: components["schemas"]["ComplianceMappingResponse"][];
+            digest?: string;
+        };
         SkillVersionDetailResponse: {
             /** Format: int64 */
             id?: number;
@@ -4161,6 +4179,7 @@ export interface components {
             publishedAt?: string;
             parsedMetadataJson?: string;
             manifestJson?: string;
+            complianceSnapshot?: components["schemas"]["ComplianceSnapshotResponse"];
         };
         ApiResponseSkillVersionCompareResponse: {
             /** Format: int32 */
@@ -4252,6 +4271,7 @@ export interface components {
             /** Format: date-time */
             publishedAt?: string;
             downloadAvailable?: boolean;
+            complianceSnapshot?: components["schemas"]["ComplianceSnapshotResponse"];
         };
         ApiResponseListTagResponse: {
             /** Format: int32 */

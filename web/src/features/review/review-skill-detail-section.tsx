@@ -7,6 +7,7 @@ import { FileTree } from '@/features/skill/file-tree'
 import { FilePreviewDialog } from '@/features/skill/file-preview-dialog'
 import type { FileTreeNode } from '@/features/skill/file-tree-builder'
 import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
+import { ComplianceSnapshotPanel } from '@/features/skill/compliance-snapshot-panel'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
@@ -169,6 +170,7 @@ export function ReviewSkillDetailSection({ detail, isLoading, hasError, reviewId
                         {version.changelog ? (
                           <p className="text-sm text-muted-foreground">{version.changelog}</p>
                         ) : null}
+                        <ComplianceSnapshotPanel snapshot={version.complianceSnapshot} />
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {t('skillDetail.fileCount', { count: version.fileCount })}
