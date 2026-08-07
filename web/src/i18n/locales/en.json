@@ -1,4 +1,10 @@
 {
+  "compliance": {
+    "title": "Compliance mappings",
+    "mappingCount": "{{count}} items",
+    "unknownStandard": "Unknown standard",
+    "evidence": "Evidence"
+  },
   "nav": {
     "landing": "Home",
     "home": "Skill Center",

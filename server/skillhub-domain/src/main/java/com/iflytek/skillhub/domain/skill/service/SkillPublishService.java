@@ -16,6 +16,8 @@ import com.iflytek.skillhub.domain.security.SecurityScanService;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.skill.*;
+import com.iflytek.skillhub.domain.skill.metadata.ComplianceMetadataService;
+import com.iflytek.skillhub.domain.skill.metadata.ComplianceSnapshot;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadata;
 import com.iflytek.skillhub.domain.skill.metadata.SkillMetadataParser;
 import com.iflytek.skillhub.domain.skill.validation.PackageEntry;
@@ -84,6 +86,7 @@ public class SkillPublishService {
     private final ObjectStorageService objectStorageService;
     private final SkillPackageValidator skillPackageValidator;
     private final SkillMetadataParser skillMetadataParser;
+    private final ComplianceMetadataService complianceMetadataService = new ComplianceMetadataService();
     private final PrePublishValidator prePublishValidator;
     private final ObjectMapper objectMapper;
     private final ReviewTaskRepository reviewTaskRepository;
@@ -462,9 +465,11 @@ public class SkillPublishService {
             version.setStatus(SkillVersionStatus.PENDING_REVIEW);
         }
 
+        ComplianceSnapshot complianceSnapshot = complianceMetadataService.buildSnapshot(metadata.frontmatter(), entries);
+
         // Store metadata as JSON
         try {
-            String metadataJson = objectMapper.writeValueAsString(metadata);
+            String metadataJson = objectMapper.writeValueAsString(buildParsedMetadata(metadata, complianceSnapshot));
             version.setParsedMetadataJson(metadataJson);
             version.setManifestJson(objectMapper.writeValueAsString(buildManifest(entries)));
         } catch (Exception e) {
@@ -726,6 +731,17 @@ public class SkillPublishService {
                         "size", entry.size(),
                         "contentType", entry.contentType()))
                 .toList();
+    }
+
+    private Map<String, Object> buildParsedMetadata(SkillMetadata metadata, ComplianceSnapshot complianceSnapshot) {
+        Map<String, Object> parsedMetadata = new LinkedHashMap<>();
+        parsedMetadata.put("name", metadata.name());
+        parsedMetadata.put("description", metadata.description());
+        parsedMetadata.put("version", metadata.version());
+        parsedMetadata.put("body", metadata.body());
+        parsedMetadata.put("frontmatter", metadata.frontmatter());
+        parsedMetadata.put(ComplianceMetadataService.SNAPSHOT_FIELD_NAME, complianceSnapshot);
+        return parsedMetadata;
     }
 
     private byte[] buildBundle(List<PackageEntry> entries) {

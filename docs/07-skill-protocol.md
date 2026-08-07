@@ -52,8 +52,20 @@ description: When to use
 x-astron-category: code-review
 x-astron-runtime: claude-code        # 预留
 x-astron-min-version: "1.0"          # 预留
+x-astron-compliance:                 # 可选，平台私有合规元数据
+  - standard: mitre-attack
+    version: "v19.1"
+    controlId: T1059
+    evidence:
+      - type: packaged-file
+        path: references/standards.md
 ---
 ```
+
+> 合规元数据先按 SkillHub/Astron 私有扩展实现，字段名采用 `x-astron-compliance`。
+> 当前第一阶段支持发布校验和版本级 `complianceSnapshot` 固化；详情展示、审核 diff、搜索 facet
+> 和 Runtime trace 集成按后续阶段推进。设计边界、分阶段实现和 Runtime 职责划分见
+> [24-compliance-metadata-design.md](24-compliance-metadata-design.md)。
 
 ## 8.3 技能包目录结构
 
