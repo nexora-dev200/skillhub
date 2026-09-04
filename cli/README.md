@@ -459,7 +459,8 @@ Update mechanism:
 | `skillhub remove <coordinate> [--agent <profile>] [--all] [--remote] [--hard] [--namespace <slug>] [--registry <url>] [--token <token>] [--json]` | Remove a skill |
 | `skillhub doctor [--json]` | Scan project directory and rebuild local inventory |
 | `skillhub publish <path> [--namespace <slug>] [--visibility <v>] [--registry <url>] [--token <token>] [--json]` | Publish a skill |
-| `skillhub sync <pull\|status\|diff\|push> --namespace <slug> [--skill <slug>] [options]` | Synchronize explicitly selected skills in a non-global namespace |
+| `skillhub sync pull --namespace <slug> [--skill <slug>...] [options]` | Pull explicitly selected skills from a non-global namespace |
+| `skillhub sync <status\|diff\|push> --namespace <slug> [options]` | Inspect or push a non-global namespace workspace |
 | `skillhub update [--check] [--json]` | Check or execute CLI self-update |
 
 ## 🔒 Security Notes
