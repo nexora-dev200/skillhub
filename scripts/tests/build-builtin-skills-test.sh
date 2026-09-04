@@ -33,6 +33,10 @@ for item in runtime_items:
     assert coordinate not in runtime_by_coordinate, coordinate
     runtime_by_coordinate[coordinate] = item
 
+artifact_coordinates = {(item["slug"], item["version"]) for item in artifacts}
+legacy_coordinates = {("skillhub-hello", "1.0.0"), ("agentguard", "1.1")}
+assert set(runtime_by_coordinate) == artifact_coordinates | legacy_coordinates
+
 for artifact in artifacts:
     coordinate = (artifact["slug"], artifact["version"])
     assert coordinate in runtime_by_coordinate, coordinate
