@@ -13,5 +13,6 @@
 SkillHub adaptation version: `1.0.0`.
 
 - Added explicit version metadata required by the SkillHub package contract.
+- Added a reviewed scanner configuration so untrusted target policy cannot suppress pre-trust findings.
 
 HOL and its contributors do not endorse this modified distribution.
