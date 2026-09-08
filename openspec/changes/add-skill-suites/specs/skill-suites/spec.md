@@ -360,6 +360,37 @@ Suite SHALL 有独立 API 和 Web URL。新的类型化资源发现结果中，�
 - **WHEN** 授权用户通过 Suite 专用接口解析某个版本
 - **THEN** 响应包含 SuiteVersion 身份以及有序的精确 Member 版本、fingerprint 和可下载状态
 
+### Requirement: Suite authors SHALL have a complete Web management flow
+
+Web SHALL expose only the Suite actions authorized by the Server. An authorized author SHALL be
+able to create and inspect a Suite, edit a DRAFT, reopen a REJECTED version before editing, and
+create a new immutable version from a published snapshot. Namespace administrators SHALL additionally
+be able to yank a published version, hide or restore discovery, archive or restore the Suite container,
+and delete a Suite when no review is pending. These actions SHALL NOT modify Member Skills.
+
+#### Scenario: Author manages editable and immutable versions
+- **WHEN** an authorized author opens a DRAFT, REJECTED, PUBLISHED, or YANKED SuiteVersion
+- **THEN** Web shows only actions permitted for that actor and state
+- **AND** REJECTED is explicitly reopened before editing
+- **AND** PUBLISHED and YANKED versions remain immutable and changes create a new version
+
+#### Scenario: Administrator governs or deletes a Suite
+- **WHEN** a Namespace administrator yanks, hides, restores, archives, unarchives, or deletes a Suite
+- **THEN** Web requires confirmation for destructive container or publication actions
+- **AND** a yank requires an audit reason
+- **AND** deletion is unavailable while a review is pending
+- **AND** hard deletion removes Suite-owned review tasks while retaining the deletion audit record
+- **AND** no Member Skill lifecycle or content changes
+
+#### Scenario: Public reader views a manageable Suite
+- **WHEN** an unauthenticated or unauthorized reader opens a public Suite detail page
+- **THEN** Web shows the Suite summary and its author-provided Markdown overview as separate information levels
+- **AND** Web shows every ordered Member as a Skill card with its exact pinned version, Entry Skill marker, and current availability
+- **AND** an available Member exposes live display metadata and links to Skill detail only when the current viewer can read that Skill
+- **AND** a viewer-restricted or deleted Member remains a non-navigable snapshot without exposing live display metadata
+- **AND** Web does not display edit, version creation, governance, or deletion controls
+- **AND** Server authorization remains the enforcement boundary
+
 ### Requirement: Suite operations SHALL be authorized and audited
 
 Suite 创建、编辑、提交、审核、发布、下架、隐藏、恢复、归档和删除 SHALL 使用现有 Namespace 与平台角色原则，并 SHALL 产生包含 Suite 类型、Suite ID、SuiteVersion ID、操作者和变更摘要的审计记录。
@@ -413,15 +444,20 @@ REJECTED SuiteVersion MAY 由有权限的管理者退回 DRAFT、修改并重新
 - **THEN** 系统拒绝修改
 - **AND** 提示创建新的 SuiteVersion
 
-### Requirement: Suite download metrics SHALL remain attributable and idempotent
+### Requirement: Suite plan and Member download metrics SHALL remain attributable and idempotent
 
-一次 Suite 安装计划 SHALL 使用服务端生成的唯一 operation ID 关联 Suite 请求与 Member 下载。服务端成功签发完整安装计划后，SHALL 记录一次 Suite 安装请求，并 SHALL 按现有下载口径为计划内每个 Member SkillVersion 记录一次来源为 SUITE 的下载。同一 operation ID 的重试 SHALL NOT 重复计数。该指标 SHALL 表示服务端计划/下载签发，不得标记为 CLI 本地安装成功。
+客户端 SHALL 为一次安装计划生成独立的 idempotency key，并在安全重试时复用；服务端 SHALL 按调用者隔离该 key，并生成 operation ID 关联该计划的审计记录。服务端成功签发完整计划后 SHALL 记录一次 Suite 安装请求，但 SHALL NOT 在此时预增 Member 下载数。每个 Member 继续通过现有 Skill 下载接口按实际下载请求计数，避免计划签发与文件下载对同一 Member 重复计数。这些指标表示服务端计划签发和实际下载请求，不表示 CLI 本地安装成功。
 
 #### Scenario: Issue a complete Suite install plan
 - **WHEN** 服务端完成 Suite 和全部 Member 的权限、状态及可下载性预检并签发完整安装计划
 - **THEN** Suite 安装请求数增加一次
-- **AND** 每个计划内 Member SkillVersion 下载数按现有口径增加一次并记录 Suite 来源
+- **AND** 此时不增加 Member SkillVersion 下载数
 - **AND** 相关审计记录共享同一个 operation ID
+
+#### Scenario: Download an exact Member from the issued plan
+- **WHEN** CLI 使用安装计划中的下载地址请求某个精确 Member SkillVersion
+- **THEN** 现有 Skill 下载接口按原有口径记录一次该 Member 的下载
+- **AND** 同一 Member 不因此前签发安装计划而重复计数
 
 #### Scenario: Suite plan preflight fails
 - **WHEN** 服务端因权限、状态或成员不可用而无法签发完整安装计划
@@ -430,13 +466,15 @@ REJECTED SuiteVersion MAY 由有权限的管理者退回 DRAFT、修改并重新
 
 #### Scenario: Local installation fails after plan issuance
 - **WHEN** CLI 在服务端签发计划后因下载、校验或文件提交失败并回滚
-- **THEN** 服务端已记录的计划和下载计数保持不变
+- **THEN** 服务端已记录的计划计数保持不变
+- **AND** 仅实际发出的 Member 下载请求按现有口径保留计数
 - **AND** 系统不将这些计数描述为本地安装成功数
 
-#### Scenario: Retry an already recorded operation
-- **WHEN** 客户端使用相同 operation ID 安全重试已经记录成功的安装
-- **THEN** 系统返回已有计划或幂等成功
-- **AND** Suite 和 Member 统计不重复增加
+#### Scenario: Retry an already issued plan
+- **WHEN** 客户端因网络或响应读取失败，使用相同 idempotency key 重试安装计划请求
+- **THEN** 服务端返回同一 operation ID 对应的计划或幂等成功
+- **AND** Suite 安装请求数和审计记录不重复增加
+- **AND** 该重试保证至少覆盖服务端约定的 24 小时幂等窗口
 
 ### Requirement: Existing Skill workflows SHALL remain compatible
 
@@ -489,6 +527,11 @@ Suite 能力 SHALL 以增量方式提供。旧 CLI 使用新 Server 时 SHALL �
 - **WHEN** 数据库迁移前已经存在 Skill 审核任务
 - **THEN** 新版本应用仍按原 SkillVersion 读取和处理该任务
 - **AND** 其审核决定、权限和审计语义保持不变
+
+#### Scenario: Enable Suite review in a non-overlapping deployment
+- **WHEN** 用户通过官方单实例 Compose 或本地 profile 运行 Server
+- **THEN** Suite 审核写入默认可用
+- **AND** 用户无需修改环境变量或数据库才能提交 Suite 审核
 
 #### Scenario: Mixed application versions during rollout
 - **WHEN** 部署期间同时存在支持和不支持 Suite subject 的应用实例

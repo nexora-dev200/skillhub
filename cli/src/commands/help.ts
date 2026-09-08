@@ -45,6 +45,16 @@ export const commands = {
       'skillhub install pdf-parser --scope project --agent codex'
     ]
   },
+  suite: {
+    summary: 'Install and manage a Skill Suite locally',
+    usage: 'skillhub suite <install|check|upgrade|remove> <coordinate> [options]',
+    examples: [
+      'skillhub suite install @global/marketing --scope user',
+      'skillhub suite check @global/marketing',
+      'skillhub suite upgrade @global/marketing --check',
+      'skillhub suite remove @global/marketing'
+    ]
+  },
   upgrade: {
     summary: 'Upgrade explicitly selected installed skills',
     usage: 'skillhub upgrade <coordinate...> [--namespace <slug>] [--agent <profile>] [--dir <path>] [--registry <url>] [--check] [--force] [--json]',

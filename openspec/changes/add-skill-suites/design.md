@@ -95,7 +95,7 @@ skillhub suite install @global/marketing
 
 ### 3. SuiteVersion 引用精确的已发布 SkillVersion
 
-作者可以在 `suite.yaml` 中选择成员坐标和版本：
+Suite 定义可稳定映射为以下 `suite.yaml` 交换格式：
 
 ```yaml
 apiVersion: skillhub.iflytek.com/v1alpha1
@@ -107,6 +107,9 @@ metadata:
   displayName: Superpowers
 spec:
   visibility: PUBLIC
+  overview: |
+    ## How to use this suite
+    Run the entry skill first, then use the remaining skills as needed.
   entrySkill: "@global/using-superpowers@1.0.0"
   members:
     - skill: "@global/using-superpowers"
@@ -115,11 +118,13 @@ spec:
       version: 2.1.0
 ```
 
-该文件是 API/CLI 的创作输入，不是下载到 Agent 的包。服务端在创建 SuiteVersion 时解析并保存精确 `skillVersionId` 和 fingerprint。一个 SuiteVersion 最多包含 100 个不同 Skill；同一 Skill 不允许重复出现。
+该文件不是下载到 Agent 的包。v1 通过 Web/API 提交等价字段；CLI 导入 `suite.yaml` 属于后续增量能力。服务端在创建 SuiteVersion 时解析并保存精确 `skillVersionId` 和 fingerprint。一个 SuiteVersion 最多包含 100 个不同 Skill；同一 Skill 不允许重复出现。
+
+SuiteVersion 同时保存短 `summary` 和可选的 Markdown `overview`。`summary` 用于搜索卡片和详情页首屏摘要；`overview` 用于说明成员组合方式、推荐顺序、输入输出和使用边界，并作为审核快照的一部分随 SuiteVersion 冻结。详情页将概述与成员列表分开呈现，成员列表批量解析实时展示名称和摘要，但仅向有权读取该 Skill 的当前查看者返回；安装与审计仍以快照坐标、精确版本和 fingerprint 为准，受限或硬删除成员只保留不可点击且不含实时元数据的历史快照。
 
 成员发布新版本不会改变已有 SuiteVersion。采用新版本、添加、删除、重排成员或修改 Entry Skill 都必须创建新的 SuiteVersion。
 
-为了降低创作成本，Web/CLI 在添加 Member 时默认推荐该 Skill 当前可安装的最新版本，但保存时立即解析为精确 `skillVersionId`、version 和 fingerprint，并向作者展示实际固定的版本。作者可以显式选择其他仍处于 PUBLISHED 的历史版本。
+为了降低创作成本，Web 在添加 Member 时默认推荐该 Skill 当前可安装的最新版本，但保存时立即解析为精确 `skillVersionId`、version 和 fingerprint，并向作者展示实际固定的版本。作者可以显式选择其他仍处于 PUBLISHED 的历史版本。
 
 不得在已发布 SuiteVersion 中保存 `latest` 或在安装时重新解析最新版本。可以提供“更新成员版本”辅助操作，但该操作必须先展示版本差异，并创建或修改 DRAFT SuiteVersion；它不是后台自动升级。
 
@@ -173,6 +178,8 @@ Suite 容器复用 `ACTIVE/ARCHIVED` 和独立的 hidden 治理覆盖。Suite �
 | 后续变更 | 新版本、下架、隐藏、归档或删除只作用于该 Skill | 新版本、下架、隐藏、归档或删除只作用于该 Suite | 已发布 SuiteVersion 不被自动改写；成员失效时 Suite 显示 degraded |
 
 这意味着 Suite 是成员 Skill 的“版本化清单”，不是它们的父生命周期。删除 Suite 不删除 Skill；更新 Skill 不更新 Suite；更新 Suite 也不重新发布 Skill。
+
+Suite 删除是容器级硬删除：与 Skill 硬删除保持一致，删除其版本、成员关系和 Suite 审核任务，避免审核中心保留无法解析的多态目标；`DELETE_SKILL_SUITE` 审计记录独立保留。该规则不影响 REJECTED Suite 在删除前保留并查询全部审核轮次。
 
 ### 5. 审核任务支持类型化目标
 
@@ -287,6 +294,8 @@ inventory schema 增加 `suites`，并让 Skill 安装目标记录来源集合�
 
 新增的类型化资源发现入口返回 `resourceType`，Web 使用类型徽标及独立 `/skills/...`、`/suites/...` 页面。现有 Skill 搜索接口继续只返回 Skill，避免旧 CLI 或第三方客户端把 Suite 响应按 Skill 反序列化。Suite 详情显示版本、精确成员、Entry Skill、可用状态和阻塞原因。
 
+Suite 详情响应同时返回服务端计算的管理能力，Web 不自行推断 Namespace 角色。作者可编辑草稿、显式重开被拒版本并基于已发布快照创建新版本；Namespace 管理员还可下架版本、隐藏、归档和删除 Suite。后端继续对每个命令独立鉴权，响应能力只用于正确展示入口，不作为安全边界。
+
 `suite check` 比较 inventory 快照、磁盘 fingerprint 和远端 SuiteVersion；`suite upgrade` 先显示成员增删改计划，再使用与安装相同的原子流程应用新的精确 SuiteVersion。升级不会单独追随 Member 的最新版本。
 
 ### 11. 生命周期兼容通过隔离状态与能力协商保证
@@ -311,7 +320,7 @@ Server 和 CLI 按以下组合兼容：
 
 SuiteVersion 被拒绝后允许由管理者退回 DRAFT，保留原审核记录并修改未发布版本后再次提交。PUBLISHED/YANKED SuiteVersion 永远不可编辑；这些版本的任何变化都创建新 SuiteVersion。每次重新提交创建新的审核轮次，不覆盖旧决定。
 
-一次 Suite 安装计划使用服务端生成的唯一 `operationId` 串联一条 Suite 安装计划审计和多条 Member 下载审计。服务端成功签发完整安装计划后，Suite 安装请求数增加一次；计划内每个 Member SkillVersion 按现有下载统计口径增加一次，并标记 `source=SUITE`。同一 `operationId` 的安全重试不得重复计数。
+CLI 为一次安装计划生成独立的 `Idempotency-Key`，网络重试复用该 key；服务端按调用者隔离 retry key，并生成唯一 `operationId` 串联 Suite 安装计划及 Member 下载意图审计。成功签发完整计划后仅增加一次 Suite 安装请求数，不预增 Member 下载数。Member 继续由现有 Skill 下载接口按实际请求计数，避免计划签发和文件下载对同一 Member 重复计数。服务端保留 retry-key 映射 24 小时，并复用现有幂等清理任务删除过期映射，避免无界增长。
 
 服务端无法可靠知道 CLI 最终是否完成本地文件提交，因此该指标表示“安装计划/下载已签发”，不宣称是本地安装成功数。CLI 后续校验或提交失败不反向扣减服务端计数；v1 不增加客户端完成回调或遥测上报。
 
@@ -329,7 +338,8 @@ SuiteVersion 被拒绝后允许由管理者退回 DRAFT，保留原审核记录�
 ## Migration Plan
 
 1. 新增 Suite 三张表、索引和类型化审核字段；回填现有审核任务为 `SKILL_VERSION`。
-2. 先发布兼容旧 API 的 Server；新表为空时现有行为不变。
+2. 先发布兼容旧 API 的 Server；新表为空时现有行为不变。单实例 Compose 和本地 profile 默认开放
+   Suite 审核；未知或多实例部署保持 fail-closed，并在确认所有实例升级后显式开放。
 3. 发布 Web 的 Suite 管理和类型化审核展示，重新生成 OpenAPI 类型。
 4. 发布支持 Suite 和新版 inventory 的 CLI；读取旧 inventory 时将缺少的 `suites`、`installedBy` 视为空。
 5. 用本地 exact-SHA 镜像验证 Skill 正常流、Suite 生命周期、成员失效和整组回滚。

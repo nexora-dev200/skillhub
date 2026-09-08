@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.review.ReviewTask;
 import com.iflytek.skillhub.domain.review.ReviewTaskStatus;
+import com.iflytek.skillhub.domain.suite.SkillSuite;
+import com.iflytek.skillhub.domain.suite.SkillSuiteVersion;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import java.time.Instant;
@@ -131,6 +133,33 @@ class JpaReviewProgressQueryRepositoryTest {
         assertThat(searchMiss.statusCounts().pending()).isZero();
         assertThat(searchMiss.statusCounts().approved()).isZero();
         assertThat(searchMiss.statusCounts().rejected()).isZero();
+    }
+
+    @Test
+    void includesSuiteAttemptsWithoutRequiringLegacySkillColumns() {
+        Namespace namespace = entityManager.persistFlushFind(
+                new Namespace("team-suite-review", "Suite Review Team", "owner"));
+        SkillSuite suite = entityManager.persistFlushFind(
+                new SkillSuite(namespace.getId(), "starter-pack", "Starter Pack", "author-1"));
+        SkillSuiteVersion suiteVersion = entityManager.persistFlushFind(
+                new SkillSuiteVersion(suite.getId(), "1.0.0", SkillVisibility.PUBLIC, "author-1"));
+        ReviewTask task = ReviewTask.forSuiteVersion(
+                suiteVersion.getId(), suite.getId(), namespace.getId(), suiteVersion.getVersion(), "author-1");
+        entityManager.persist(task);
+        entityManager.flush();
+        entityManager.clear();
+
+        var progress = repository.findMyProgress("author-1", null, "STARTER", 0, 20);
+
+        assertThat(progress.items()).singleElement().satisfies(item -> {
+            assertThat(item.skillId()).isNull();
+            assertThat(item.skillSlug()).isNull();
+            assertThat(item.subjectType()).isEqualTo("SUITE_VERSION");
+            assertThat(item.subjectId()).isEqualTo(suite.getId());
+            assertThat(item.subjectVersionId()).isEqualTo(suiteVersion.getId());
+            assertThat(item.subjectSlug()).isEqualTo("starter-pack");
+        });
+        assertThat(progress.statusCounts().pending()).isEqualTo(1);
     }
 
     private void persistAttempt(

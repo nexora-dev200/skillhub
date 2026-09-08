@@ -4,11 +4,13 @@ interface NamespaceBadgeProps {
   type: 'GLOBAL' | 'TEAM'
   name: string
   className?: string
+  title?: string
 }
 
-export function NamespaceBadge({ type, name, className }: NamespaceBadgeProps) {
+export function NamespaceBadge({ type, name, className, title }: NamespaceBadgeProps) {
   return (
     <span
+      title={title}
       className={cn(
         'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border transition-colors',
         type === 'GLOBAL'

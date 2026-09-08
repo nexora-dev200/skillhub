@@ -46,6 +46,10 @@ vi.mock('@/features/skill/skill-card', () => ({
   SkillCard: () => <div>skill-card</div>,
 }))
 
+vi.mock('@/features/suite/resource-card', () => ({
+  ResourceCard: () => <div>resource-card</div>,
+}))
+
 vi.mock('@/shared/components/skeleton-loader', () => ({
   SkeletonList: () => <div>skeleton</div>,
 }))
@@ -88,12 +92,17 @@ vi.mock('@/app/page-shell-style', () => ({
 }))
 
 const useSearchSkillsMock = vi.fn()
+const useResourceSearchMock = vi.fn()
 
 vi.mock('@/shared/hooks/use-skill-queries', () => ({
   useSearchSkills: (params: Record<string, unknown>) => {
     searchSkillParams.push(params)
     return useSearchSkillsMock()
   },
+}))
+
+vi.mock('@/shared/hooks/use-suite-queries', () => ({
+  useResourceSearch: () => useResourceSearchMock(),
 }))
 
 vi.mock('@/shared/hooks/use-label-queries', () => ({
@@ -145,6 +154,11 @@ describe('SearchPage', () => {
         page: 1,
         size: 12,
       },
+      isLoading: false,
+      isFetching: false,
+    })
+    useResourceSearchMock.mockReturnValue({
+      data: { items: [], total: 0, page: 0, size: 12 },
       isLoading: false,
       isFetching: false,
     })
@@ -270,9 +284,9 @@ describe('SearchPage', () => {
       page: 0,
       starredOnly: false,
     })
-    useSearchSkillsMock.mockReturnValue({
+    useResourceSearchMock.mockReturnValue({
       data: {
-        items: [{ id: 1, displayName: 'Demo Skill', summary: 'summary', namespace: 'global', slug: 'demo', downloadCount: 1, starCount: 1, ratingCount: 0, updatedAt: '2026-03-20T00:00:00Z', canSubmitPromotion: false }],
+        items: [{ resourceType: 'SKILL', detailUrl: '/space/global/demo', id: 1, displayName: 'Demo Skill', summary: 'summary', namespace: 'global', slug: 'demo', version: '1.0.0', visibility: 'PUBLIC', installCount: 1, available: true, updatedAt: '2026-03-20T00:00:00Z' }],
         total: 1,
         page: 0,
         size: 12,
@@ -283,7 +297,7 @@ describe('SearchPage', () => {
 
     const html = renderToStaticMarkup(<SearchPage />)
 
-    expect(html).toContain('skill-card')
+    expect(html).toContain('resource-card')
     expect(html).not.toContain('empty-state')
   })
 
@@ -295,7 +309,7 @@ describe('SearchPage', () => {
       page: 0,
       starredOnly: false,
     })
-    useSearchSkillsMock.mockReturnValue({
+    useResourceSearchMock.mockReturnValue({
       data: {
         items: [],
         total: 0,

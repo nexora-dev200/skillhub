@@ -2,9 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { setEnglishLocale } from './helpers/auth-fixtures'
 import { E2eTestDataBuilder } from './helpers/test-data-builder'
 
-function waitForSkillSearch(page: Page, options: { namespace?: string; q?: string; sort?: string }) {
+function waitForResourceSearch(page: Page, options: { namespace?: string; q?: string; sort?: string }) {
   return page.waitForResponse((response) => {
-    if (!response.ok() || !response.url().includes('/api/web/skills?')) {
+    if (!response.ok() || !response.url().includes('/api/web/resources?')) {
       return false
     }
 
@@ -47,7 +47,7 @@ test.describe('Namespace Search (Real API)', () => {
       await page.goto('/search')
       await page.getByPlaceholder('Search skills...').fill(`@${namespace.slug} roadmap`)
 
-      const filteredSearch = waitForSkillSearch(page, { namespace: namespace.slug, q: 'roadmap' })
+      const filteredSearch = waitForResourceSearch(page, { namespace: namespace.slug, q: 'roadmap' })
       await page.getByRole('button', { name: 'Search', exact: true }).click()
       await filteredSearch
 
@@ -60,7 +60,7 @@ test.describe('Namespace Search (Real API)', () => {
       await page.goto(`/search?q=roadmap&namespace=${namespace.slug}&sort=downloads&page=1&starredOnly=false`)
       await expect(page.getByRole('button', { name: `@${namespace.slug}` })).toBeVisible()
 
-      const unfilteredSearch = waitForSkillSearch(page, { q: 'roadmap', sort: 'downloads' })
+      const unfilteredSearch = waitForResourceSearch(page, { q: 'roadmap', sort: 'downloads' })
       await page.getByRole('button', { name: `@${namespace.slug}` }).click()
       await unfilteredSearch
 
@@ -91,7 +91,7 @@ test.describe('Namespace Search (Real API)', () => {
       await page.goto('/search')
       await page.getByPlaceholder('Search skills...').fill(`@${namespace.slug} boundary`)
 
-      const filteredSearch = waitForSkillSearch(page, { namespace: namespace.slug, q: 'boundary' })
+      const filteredSearch = waitForResourceSearch(page, { namespace: namespace.slug, q: 'boundary' })
       await page.getByRole('button', { name: 'Search', exact: true }).click()
       await filteredSearch
 
