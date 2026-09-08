@@ -93,7 +93,9 @@ public class MySkillAppService {
             skillPage = filterSkills(userId, page, size, normalizedFilter, keyword, namespace, platformRoles);
         }
 
-        List<SkillSummaryResponse> items = mySkillQueryRepository.getSkillSummaries(skillPage.getContent(), userId);
+        List<SkillSummaryResponse> items = normalizedFilter == MySkillFilter.HIDDEN
+                ? mySkillQueryRepository.getHiddenSkillSummaries(skillPage.getContent())
+                : mySkillQueryRepository.getSkillSummaries(skillPage.getContent(), userId);
 
         return new PageResponse<>(items, skillPage.getTotalElements(), skillPage.getNumber(), skillPage.getSize());
     }
