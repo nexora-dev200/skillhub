@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import skillGuide from '../docs/skill.md?raw'
 import skillGuideTemplate from '../docs/skill.md.template?raw'
 import en from './locales/en.json'
 import ru from './locales/ru.json'
@@ -7,9 +6,9 @@ import zh from './locales/zh.json'
 
 describe('landing quick start locales', () => {
   it('uses localized agent setup prompts for chinese, english, and russian', () => {
-    expect(zh.landing.quickStart.agent.command).toBe('请根据 https://www.example.com/install/skillhub.md 接入 SkillHub')
-    expect(en.landing.quickStart.agent.command).toBe('Connect SkillHub using https://www.example.com/install/skillhub.md')
-    expect(ru.landing.quickStart.agent.command).toBe('Подключите SkillHub по инструкции https://www.example.com/install/skillhub.md')
+    expect(zh.landing.quickStart.agent.command).toBe('请根据 https://www.example.com/registry/skill.md 接入 SkillHub')
+    expect(en.landing.quickStart.agent.command).toBe('Connect SkillHub using https://www.example.com/registry/skill.md')
+    expect(ru.landing.quickStart.agent.command).toBe('Подключите SkillHub по инструкции https://www.example.com/registry/skill.md')
   })
 
   it('provides command templates with url placeholder for dynamic rendering', () => {
@@ -37,12 +36,15 @@ describe('landing quick start locales', () => {
     }
   })
 
-  it('limits fallback to discovery in both served guide sources', () => {
-    for (const guide of [skillGuide, skillGuideTemplate]) {
-      expect(guide).toContain('version: 1.1.1')
-      expect(guide).toContain('Fallback is only appropriate for discovery requests')
-      expect(guide).toContain('For an exact coordinate or version request, report the failure and stop')
-    }
+  it('keeps the native CLI guide bound to the selected registry', () => {
+    expect(skillGuideTemplate).toContain('name: skillhub-cli')
+    expect(skillGuideTemplate).toContain('version: 1.0.0')
+    expect(skillGuideTemplate).toContain('npx --yes @astron-team/skillhub@0.1.12 version')
+    expect(skillGuideTemplate).toContain('semantic version is `0.1.12` or newer')
+    expect(skillGuideTemplate).toContain('is a template marker rather than a required shell environment variable')
+    expect(skillGuideTemplate).toContain('PowerShell 7')
+    expect(skillGuideTemplate).toContain('do not search for or substitute a similarly named package')
+    expect(skillGuideTemplate).toContain('ask before querying another registry')
   })
 
   it('exposes CLI install command in both locales', () => {

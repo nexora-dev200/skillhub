@@ -237,10 +237,10 @@ ZIP, and `.skillhub/` is excluded when an installed directory is published again
 
 ```bash
 # Preview without changing files
-skillhub upgrade @global/skillhub-registry --check
+skillhub upgrade @global/skillhub-cli --check
 
 # Upgrade one or a bounded list of installed Skills
-skillhub upgrade @global/skillhub-registry
+skillhub upgrade @global/skillhub-cli
 skillhub upgrade @team/code-review @team/java-guide
 
 # Deterministic machine-readable plan

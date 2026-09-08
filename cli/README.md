@@ -256,10 +256,10 @@ installs a missing Skill and has no implicit upgrade-all mode.
 
 ```bash
 # Preview without changing files
-skillhub upgrade @global/skillhub-registry --check
+skillhub upgrade @global/skillhub-cli --check
 
 # Upgrade one or a bounded list of installed Skills
-skillhub upgrade @global/skillhub-registry
+skillhub upgrade @global/skillhub-cli
 skillhub upgrade @team/code-review @team/java-guide
 
 # Machine-readable plan
