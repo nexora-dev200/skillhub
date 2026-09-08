@@ -98,4 +98,58 @@ class BasicPrePublishValidatorTest {
 
         assertTrue(result.passed());
     }
+
+    @Test
+    void shouldNotWarnOnRuntimeExpressionsAssignedToSensitiveVariables() {
+        PackageEntry script = new PackageEntry(
+                "scripts/oauth.py",
+                """
+                refresh_token = token_response.get("refresh_token")
+                client_secret = configured_secret
+                self._client_secret = credentials.client_secret
+                access_token = ensure_valid_access_token(session)
+                headers = build_headers(access_token=access_token)
+                """.getBytes(StandardCharsets.UTF_8),
+                229,
+                "text/x-python"
+        );
+
+        ValidationResult result = validator.validate(new PrePublishValidator.SkillPackageContext(
+                List.of(script),
+                new SkillMetadata("OAuth Skill", "desc", "1.0.0", "body", Map.of()),
+                "user-1",
+                1L
+        ));
+
+        assertTrue(result.passed());
+        assertTrue(result.warnings().isEmpty());
+    }
+
+    @Test
+    void shouldKeepWarningOnHardcodedAndProviderSpecificCredentials() {
+        PackageEntry script = new PackageEntry(
+                "scripts/leaked.js",
+                """
+                client_secret = "literalcredential123"
+                github_token = "ghp_abcdefghijklmnopqrstuvwxyz1234"
+                const token = "javascriptcredential123";
+                const config = { token: "objectcredential123", };
+                """.getBytes(StandardCharsets.UTF_8),
+                184,
+                "text/javascript"
+        );
+
+        ValidationResult result = validator.validate(new PrePublishValidator.SkillPackageContext(
+                List.of(script),
+                new SkillMetadata("Unsafe Skill", "desc", "1.0.0", "body", Map.of()),
+                "user-1",
+                1L
+        ));
+
+        assertTrue(result.passed());
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 1")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 2")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 3")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 4")));
+    }
 }
