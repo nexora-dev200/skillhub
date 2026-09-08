@@ -88,6 +88,16 @@ public class JpaSkillRepositoryAdapter implements SkillRepository {
     }
 
     @Override
+    public List<Skill> findByHiddenTrue() {
+        return delegate.findByHiddenTrue();
+    }
+
+    @Override
+    public Page<Skill> findByHiddenTrue(Pageable pageable) {
+        return delegate.findByHiddenTrue(pageable);
+    }
+
+    @Override
     public void incrementDownloadCount(Long skillId) {
         delegate.incrementDownloadCount(skillId);
     }

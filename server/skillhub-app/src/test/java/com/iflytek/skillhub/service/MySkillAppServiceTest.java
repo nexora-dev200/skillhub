@@ -230,14 +230,12 @@ class MySkillAppServiceTest {
     }
 
     @Test
-    void listMySkills_filtersHiddenOnlyForSuperAdmins() {
-        Skill hiddenSkill = createSkill(3L, 101L, "hidden-skill", "user-1");
+    void listMySkills_listsHiddenSkillsAcrossOwnersOnlyForSuperAdmins() {
+        Skill hiddenSkill = createSkill(3L, 101L, "hidden-skill", "publisher");
         hiddenSkill.setHidden(true);
-        Skill publishedSkill = createSkill(4L, 101L, "published-skill", "user-1");
-        SkillVersion hiddenVersion = createVersion(3L, 33L, "1.0.0", SkillVersionStatus.PUBLISHED, "2026-03-15T09:30:00Z");
 
-        given(skillRepository.findByOwnerId("user-1")).willReturn(List.of(hiddenSkill, publishedSkill));
-        given(skillVersionRepository.findBySkillId(3L)).willReturn(List.of(hiddenVersion));
+        given(skillRepository.findByHiddenTrue(PageRequest.of(0, 10)))
+                .willReturn(new PageImpl<>(List.of(hiddenSkill), PageRequest.of(0, 10), 1));
         given(namespaceRepository.findByIdIn(List.of(101L))).willReturn(List.of(namespace(101L, "team-ai")));
 
         var regularUserResult = service.listMySkills("user-1", 0, 10, "HIDDEN", Set.of("USER"));
@@ -246,6 +244,14 @@ class MySkillAppServiceTest {
         assertThat(regularUserResult.total()).isZero();
         assertThat(superAdminResult.total()).isEqualTo(1);
         assertThat(superAdminResult.items()).extracting("slug").containsExactly("hidden-skill");
+    }
+
+    @Test
+    void listMySkills_doesNotExposeHiddenSkillsToSkillAdmins() {
+        var result = service.listMySkills("skill-admin", 0, 10, "HIDDEN", Set.of("SKILL_ADMIN"));
+
+        assertThat(result.total()).isZero();
+        assertThat(result.items()).isEmpty();
     }
 
     @Test

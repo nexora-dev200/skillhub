@@ -14,6 +14,7 @@ import { useArchiveSkill, useUnarchiveSkill, useWithdrawSkillReview } from '@/sh
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import { useMySkills, useSubmitPromotion } from '@/shared/hooks/use-user-queries'
 import { useDebounce } from '@/shared/hooks/use-debounce'
+import { useRestoreHiddenSkill } from '@/features/admin/use-admin-skills'
 import { getHeadlineVersion, getPublishedVersion, getOwnerPreviewVersion, hasPendingOwnerPreview } from '@/shared/lib/skill-lifecycle'
 import { formatCompactCount } from '@/shared/lib/number-format'
 import { toast } from '@/shared/lib/toast'
@@ -63,6 +64,7 @@ export function MySkillsPage() {
   const [unarchiveTarget, setUnarchiveTarget] = useState<{ namespace: string; slug: string; name: string } | null>(null)
   const [withdrawTarget, setWithdrawTarget] = useState<{ namespace: string; slug: string; name: string; version: string } | null>(null)
   const [promotionTarget, setPromotionTarget] = useState<{ skillId: number; versionId: number; name: string; version: string } | null>(null)
+  const [restoreHiddenTarget, setRestoreHiddenTarget] = useState<{ skillId: number; name: string } | null>(null)
 
   const updateSearch = useCallback((next: Partial<typeof search>, options?: { replace?: boolean }) => {
     navigate({
@@ -102,6 +104,7 @@ export function MySkillsPage() {
   const unarchiveMutation = useUnarchiveSkill()
   const withdrawMutation = useWithdrawSkillReview()
   const submitPromotionMutation = useSubmitPromotion()
+  const restoreHiddenMutation = useRestoreHiddenSkill()
 
   const handleSkillClick = (namespace: string, slug: string) => {
     navigate({
@@ -270,6 +273,23 @@ export function MySkillsPage() {
     }
   }
 
+  const handleRestoreHiddenSkill = async () => {
+    if (!restoreHiddenTarget) {
+      return
+    }
+    try {
+      await restoreHiddenMutation.mutateAsync(restoreHiddenTarget.skillId)
+      toast.success(
+        t('mySkills.restoreHiddenSuccessTitle'),
+        t('mySkills.restoreHiddenSuccessDescription', { skill: restoreHiddenTarget.name }),
+      )
+      setRestoreHiddenTarget(null)
+    } catch (error) {
+      toast.error(t('mySkills.restoreHiddenErrorTitle'), error instanceof Error ? error.message : '')
+      throw error
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4 animate-fade-up">
@@ -362,8 +382,8 @@ export function MySkillsPage() {
                 return (
                   <Card
                     key={skill.id}
-                    className={`p-5 cursor-pointer group animate-fade-up delay-${Math.min(idx + 1, 6)}`}
-                    onClick={() => handleSkillClick(skill.namespace, skill.slug)}
+                    className={`p-5 group animate-fade-up delay-${Math.min(idx + 1, 6)} ${filter === 'HIDDEN' ? '' : 'cursor-pointer'}`}
+                    onClick={filter === 'HIDDEN' ? undefined : () => handleSkillClick(skill.namespace, skill.slug)}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -407,7 +427,18 @@ export function MySkillsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 pl-4">
-                        {skill.status !== 'ARCHIVED' && (
+                        {filter === 'HIDDEN' ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setRestoreHiddenTarget({ skillId: skill.id, name: skill.displayName })
+                            }}
+                          >
+                            {t('mySkills.restoreHidden')}
+                          </Button>
+                        ) : skill.status !== 'ARCHIVED' && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -419,7 +450,7 @@ export function MySkillsPage() {
                             {t('mySkills.update')}
                           </Button>
                         )}
-                        {hasPendingPreview && ownerPreviewVersion ? (
+                        {filter === 'HIDDEN' ? null : hasPendingPreview && ownerPreviewVersion ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -482,9 +513,11 @@ export function MySkillsPage() {
                             {t('mySkills.archive')}
                           </Button>
                         ) : null}
-                        <svg className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        {filter === 'HIDDEN' ? null : (
+                          <svg className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -514,6 +547,19 @@ export function MySkillsPage() {
           }
         />
       )}
+
+      <ConfirmDialog
+        open={!!restoreHiddenTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRestoreHiddenTarget(null)
+          }
+        }}
+        title={t('mySkills.restoreHiddenConfirmTitle')}
+        description={restoreHiddenTarget ? t('mySkills.restoreHiddenConfirmDescription', { skill: restoreHiddenTarget.name }) : ''}
+        confirmText={t('mySkills.restoreHidden')}
+        onConfirm={handleRestoreHiddenSkill}
+      />
 
       <ConfirmDialog
         open={!!promotionTarget}
