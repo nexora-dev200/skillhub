@@ -111,8 +111,9 @@ class BasicPrePublishValidatorTest {
                 access_token = ensure_valid_access_token(session)
                 headers = build_headers(access_token=access_token)
                 client_secret = "prefix-" + configured_secret
+                access_token = token_v2
                 """.getBytes(StandardCharsets.UTF_8),
-                275,
+                299,
                 "text/x-python"
         );
 
@@ -138,8 +139,11 @@ class BasicPrePublishValidatorTest {
                 const config = { token: "objectcredential123", };
                 const options = { token: "multipropertycredential123", endpoint: "/api" };
                 const escaped = { token: "credential\\\"value123" };
+                const emptyFirst = { token: "", password: "passwordafterempty123" };
+                const dynamicFirst = { token: configuredToken, password: "passwordafterdynamic123" };
+                token=barecredential123 // leaked
                 """.getBytes(StandardCharsets.UTF_8),
-                319,
+                518,
                 "text/javascript"
         );
 
@@ -157,6 +161,9 @@ class BasicPrePublishValidatorTest {
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 4")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 5")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 6")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 7")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 8")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 9")));
     }
 
     @Test

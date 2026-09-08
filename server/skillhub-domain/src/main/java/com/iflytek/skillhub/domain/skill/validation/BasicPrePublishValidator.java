@@ -19,7 +19,7 @@ public class BasicPrePublishValidator implements PrePublishValidator {
 
     private static final int MIN_GENERIC_SECRET_LENGTH = 12;
     private static final Pattern ASSIGNMENT_WITH_SENSITIVE_KEY = Pattern.compile(
-            "(?i)(api[_-]?key|access[_-]?key|secret|password|token)\\s*[:=]\\s*(.+)$"
+            "(?i)(api[_-]?key|access[_-]?key|secret|password|token)\\s*[:=]\\s*"
     );
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern BARE_LITERAL = Pattern.compile("[A-Za-z0-9_\\-]{12,}");
@@ -100,51 +100,50 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             return matcher.group(rule.valueGroup());
         }
 
-        Matcher assignmentMatcher = ASSIGNMENT_WITH_SENSITIVE_KEY.matcher(line);
-        if (!assignmentMatcher.find()) {
-            return null;
-        }
-
-        String rawValue = assignmentMatcher.group(2).trim();
-        if (rawValue.isBlank()) {
-            return null;
-        }
-
-        String quotedLiteral = extractQuotedLiteral(rawValue);
-        if (quotedLiteral != null) {
-            return quotedLiteral.length() >= MIN_GENERIC_SECRET_LENGTH ? quotedLiteral : null;
-        }
-
-        rawValue = stripInlineComment(rawValue);
-        if (rawValue.isBlank()) {
-            return null;
-        }
-
-        quotedLiteral = extractQuotedLiteral(rawValue);
-        if (quotedLiteral != null) {
-            return quotedLiteral.length() >= MIN_GENERIC_SECRET_LENGTH ? quotedLiteral : null;
-        }
-
-        if (looksLikeExpression(rawValue) || IDENTIFIER.matcher(rawValue).matches()) {
-            return null;
-        }
-
-        return BARE_LITERAL.matcher(rawValue).matches() ? rawValue : null;
+        do {
+            GenericValueScan scan = scanGenericValue(line, matcher.end());
+            if (scan.literal() != null) {
+                return scan.literal();
+            }
+            if (scan.nextSearchIndex() >= line.length()) {
+                return null;
+            }
+            matcher.region(scan.nextSearchIndex(), line.length());
+        } while (matcher.find());
+        return null;
     }
 
-    private String extractQuotedLiteral(String rawValue) {
-        if (rawValue.length() < 2) {
-            return null;
+    private GenericValueScan scanGenericValue(String line, int valueStart) {
+        int start = valueStart;
+        while (start < line.length() && Character.isWhitespace(line.charAt(start))) {
+            start++;
+        }
+        if (start == line.length()) {
+            return new GenericValueScan(null, line.length());
         }
 
-        char quote = rawValue.charAt(0);
-        if (quote != '\'' && quote != '"') {
-            return null;
+        char first = line.charAt(start);
+        if (first == '\'' || first == '"') {
+            return scanQuotedLiteral(line, start, first);
         }
 
+        int end = start;
+        while (end < line.length() && !isBareValueTerminator(line, end)) {
+            end++;
+        }
+        String bareValue = line.substring(start, end);
+        if (IDENTIFIER.matcher(bareValue).matches()
+                && bareValue.chars().filter(Character::isDigit).count() < 3) {
+            return new GenericValueScan(null, end);
+        }
+        String literal = BARE_LITERAL.matcher(bareValue).matches() ? bareValue : null;
+        return new GenericValueScan(literal, end);
+    }
+
+    private GenericValueScan scanQuotedLiteral(String line, int start, char quote) {
         boolean escaped = false;
-        for (int i = 1; i < rawValue.length(); i++) {
-            char current = rawValue.charAt(i);
+        for (int i = start + 1; i < line.length(); i++) {
+            char current = line.charAt(i);
             if (escaped) {
                 escaped = false;
                 continue;
@@ -154,52 +153,45 @@ public class BasicPrePublishValidator implements PrePublishValidator {
                 continue;
             }
             if (current == quote) {
-                return hasLiteralTerminator(rawValue, i + 1) ? rawValue.substring(1, i) : null;
+                String value = line.substring(start + 1, i);
+                String literal = hasLiteralTerminator(line, i + 1)
+                        && value.length() >= MIN_GENERIC_SECRET_LENGTH
+                        ? value
+                        : null;
+                return new GenericValueScan(literal, i + 1);
             }
         }
-        return null;
+        return new GenericValueScan(null, line.length());
     }
 
-    private boolean hasLiteralTerminator(String rawValue, int startIndex) {
+    private boolean hasLiteralTerminator(String line, int startIndex) {
         int index = startIndex;
-        while (index < rawValue.length() && Character.isWhitespace(rawValue.charAt(index))) {
+        while (index < line.length() && Character.isWhitespace(line.charAt(index))) {
             index++;
         }
-        if (index == rawValue.length()) {
+        if (index == line.length()) {
             return true;
         }
 
-        char current = rawValue.charAt(index);
+        char current = line.charAt(index);
         return isTrailingDelimiter(current)
                 || current == '#'
-                || (current == '/' && index + 1 < rawValue.length() && rawValue.charAt(index + 1) == '/');
+                || (current == '/' && index + 1 < line.length() && line.charAt(index + 1) == '/');
     }
 
     private boolean isTrailingDelimiter(char value) {
         return value == ',' || value == ';' || value == ')' || value == '}' || value == ']';
     }
 
-    private String stripInlineComment(String rawValue) {
-        int hashIndex = rawValue.indexOf('#');
-        if (hashIndex >= 0) {
-            return rawValue.substring(0, hashIndex).trim();
-        }
-        return rawValue;
+    private boolean isBareValueTerminator(String line, int index) {
+        char current = line.charAt(index);
+        return Character.isWhitespace(current)
+                || isTrailingDelimiter(current)
+                || current == '#'
+                || (current == '/' && index + 1 < line.length() && line.charAt(index + 1) == '/');
     }
 
-    private boolean looksLikeExpression(String rawValue) {
-        return rawValue.contains("(")
-                || rawValue.contains(")")
-                || rawValue.contains(".")
-                || rawValue.contains("[")
-                || rawValue.contains("]")
-                || rawValue.contains("{")
-                || rawValue.contains("}")
-                || rawValue.contains(",")
-                || rawValue.contains(" ")
-                || rawValue.contains("+")
-                || rawValue.contains("/");
-    }
+    private record GenericValueScan(String literal, int nextSearchIndex) {}
 
     private record SecretRule(Pattern pattern, int valueGroup, String label) {}
 }
