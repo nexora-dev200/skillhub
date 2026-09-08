@@ -20,9 +20,6 @@ public class BasicPrePublishValidator implements PrePublishValidator {
     private static final Pattern ASSIGNMENT_WITH_SENSITIVE_KEY = Pattern.compile(
             "(?i)(api[_-]?key|access[_-]?key|secret|password|token)\\s*[:=]\\s*(.+)$"
     );
-    private static final Pattern QUOTED_LITERAL = Pattern.compile(
-            "^(['\"])(.*)\\1(?:\\s*[,;)}\\]])*\\s*(?:(?://|#).*)?$"
-    );
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern BARE_LITERAL = Pattern.compile("[A-Za-z0-9_\\-]{12,}");
     private static final Set<String> PLACEHOLDER_MARKERS = Set.of(
@@ -112,9 +109,9 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             return null;
         }
 
-        Matcher quotedLiteralMatcher = QUOTED_LITERAL.matcher(rawValue);
-        if (quotedLiteralMatcher.matches()) {
-            return quotedLiteralMatcher.group(2);
+        String quotedLiteral = extractQuotedLiteral(rawValue);
+        if (quotedLiteral != null) {
+            return quotedLiteral;
         }
 
         rawValue = stripInlineComment(rawValue);
@@ -122,9 +119,9 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             return null;
         }
 
-        quotedLiteralMatcher = QUOTED_LITERAL.matcher(rawValue);
-        if (quotedLiteralMatcher.matches()) {
-            return quotedLiteralMatcher.group(2);
+        quotedLiteral = extractQuotedLiteral(rawValue);
+        if (quotedLiteral != null) {
+            return quotedLiteral;
         }
 
         if (looksLikeExpression(rawValue) || IDENTIFIER.matcher(rawValue).matches()) {
@@ -132,6 +129,52 @@ public class BasicPrePublishValidator implements PrePublishValidator {
         }
 
         return BARE_LITERAL.matcher(rawValue).matches() ? rawValue : null;
+    }
+
+    private String extractQuotedLiteral(String rawValue) {
+        if (rawValue.length() < 2) {
+            return null;
+        }
+
+        char quote = rawValue.charAt(0);
+        if (quote != '\'' && quote != '"') {
+            return null;
+        }
+
+        boolean escaped = false;
+        for (int i = 1; i < rawValue.length(); i++) {
+            char current = rawValue.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (current == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (current == quote) {
+                return hasOnlyTrailingSyntax(rawValue, i + 1) ? rawValue.substring(1, i) : null;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasOnlyTrailingSyntax(String rawValue, int startIndex) {
+        for (int i = startIndex; i < rawValue.length(); i++) {
+            char current = rawValue.charAt(i);
+            if (Character.isWhitespace(current) || isTrailingDelimiter(current)) {
+                continue;
+            }
+            if (current == '#') {
+                return true;
+            }
+            return current == '/' && i + 1 < rawValue.length() && rawValue.charAt(i + 1) == '/';
+        }
+        return true;
+    }
+
+    private boolean isTrailingDelimiter(char value) {
+        return value == ',' || value == ';' || value == ')' || value == '}' || value == ']';
     }
 
     private String stripInlineComment(String rawValue) {

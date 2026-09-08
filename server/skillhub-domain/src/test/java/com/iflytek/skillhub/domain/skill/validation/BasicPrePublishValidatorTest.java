@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -109,8 +110,9 @@ class BasicPrePublishValidatorTest {
                 self._client_secret = credentials.client_secret
                 access_token = ensure_valid_access_token(session)
                 headers = build_headers(access_token=access_token)
+                client_secret = "prefix-" + configured_secret
                 """.getBytes(StandardCharsets.UTF_8),
-                229,
+                275,
                 "text/x-python"
         );
 
@@ -151,5 +153,31 @@ class BasicPrePublishValidatorTest {
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 2")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 3")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 4")));
+    }
+
+    @Test
+    void shouldScanDeeplyNestedSingleLineObjectWithoutOverflowingRegexStack() {
+        String content = "const config = "
+                + "{ nested: ".repeat(5_000)
+                + "{ token: \"literalcredential123\""
+                + " }".repeat(5_001)
+                + ";";
+        PackageEntry script = new PackageEntry(
+                "scripts/deeply-nested.js",
+                content.getBytes(StandardCharsets.UTF_8),
+                content.length(),
+                "text/javascript"
+        );
+        PrePublishValidator.SkillPackageContext context = new PrePublishValidator.SkillPackageContext(
+                List.of(script),
+                new SkillMetadata("Deeply Nested Skill", "desc", "1.0.0", "body", Map.of()),
+                "user-1",
+                1L
+        );
+
+        ValidationResult result = assertDoesNotThrow(() -> validator.validate(context));
+
+        assertTrue(result.passed());
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 1")));
     }
 }
