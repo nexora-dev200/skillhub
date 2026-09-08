@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 @Component
 public class BasicPrePublishValidator implements PrePublishValidator {
 
+    private static final int MIN_GENERIC_SECRET_LENGTH = 12;
     private static final Pattern ASSIGNMENT_WITH_SENSITIVE_KEY = Pattern.compile(
             "(?i)(api[_-]?key|access[_-]?key|secret|password|token)\\s*[:=]\\s*(.+)$"
     );
@@ -111,7 +112,7 @@ public class BasicPrePublishValidator implements PrePublishValidator {
 
         String quotedLiteral = extractQuotedLiteral(rawValue);
         if (quotedLiteral != null) {
-            return quotedLiteral;
+            return quotedLiteral.length() >= MIN_GENERIC_SECRET_LENGTH ? quotedLiteral : null;
         }
 
         rawValue = stripInlineComment(rawValue);
@@ -121,7 +122,7 @@ public class BasicPrePublishValidator implements PrePublishValidator {
 
         quotedLiteral = extractQuotedLiteral(rawValue);
         if (quotedLiteral != null) {
-            return quotedLiteral;
+            return quotedLiteral.length() >= MIN_GENERIC_SECRET_LENGTH ? quotedLiteral : null;
         }
 
         if (looksLikeExpression(rawValue) || IDENTIFIER.matcher(rawValue).matches()) {
@@ -153,24 +154,25 @@ public class BasicPrePublishValidator implements PrePublishValidator {
                 continue;
             }
             if (current == quote) {
-                return hasOnlyTrailingSyntax(rawValue, i + 1) ? rawValue.substring(1, i) : null;
+                return hasLiteralTerminator(rawValue, i + 1) ? rawValue.substring(1, i) : null;
             }
         }
         return null;
     }
 
-    private boolean hasOnlyTrailingSyntax(String rawValue, int startIndex) {
-        for (int i = startIndex; i < rawValue.length(); i++) {
-            char current = rawValue.charAt(i);
-            if (Character.isWhitespace(current) || isTrailingDelimiter(current)) {
-                continue;
-            }
-            if (current == '#') {
-                return true;
-            }
-            return current == '/' && i + 1 < rawValue.length() && rawValue.charAt(i + 1) == '/';
+    private boolean hasLiteralTerminator(String rawValue, int startIndex) {
+        int index = startIndex;
+        while (index < rawValue.length() && Character.isWhitespace(rawValue.charAt(index))) {
+            index++;
         }
-        return true;
+        if (index == rawValue.length()) {
+            return true;
+        }
+
+        char current = rawValue.charAt(index);
+        return isTrailingDelimiter(current)
+                || current == '#'
+                || (current == '/' && index + 1 < rawValue.length() && rawValue.charAt(index + 1) == '/');
     }
 
     private boolean isTrailingDelimiter(char value) {

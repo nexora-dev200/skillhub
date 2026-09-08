@@ -136,8 +136,10 @@ class BasicPrePublishValidatorTest {
                 github_token = "ghp_abcdefghijklmnopqrstuvwxyz1234"
                 const token = "javascriptcredential123";
                 const config = { token: "objectcredential123", };
+                const options = { token: "multipropertycredential123", endpoint: "/api" };
+                const escaped = { token: "credential\\\"value123" };
                 """.getBytes(StandardCharsets.UTF_8),
-                184,
+                319,
                 "text/javascript"
         );
 
@@ -153,6 +155,32 @@ class BasicPrePublishValidatorTest {
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 2")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 3")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 4")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 5")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 6")));
+    }
+
+    @Test
+    void shouldNotWarnOnEmptyOrShortSensitiveLiterals() {
+        PackageEntry script = new PackageEntry(
+                "scripts/defaults.py",
+                """
+                token = ""
+                client_secret = "short"
+                password = 'unset'
+                """.getBytes(StandardCharsets.UTF_8),
+                58,
+                "text/x-python"
+        );
+
+        ValidationResult result = validator.validate(new PrePublishValidator.SkillPackageContext(
+                List.of(script),
+                new SkillMetadata("Defaults Skill", "desc", "1.0.0", "body", Map.of()),
+                "user-1",
+                1L
+        ));
+
+        assertTrue(result.passed());
+        assertTrue(result.warnings().isEmpty());
     }
 
     @Test
