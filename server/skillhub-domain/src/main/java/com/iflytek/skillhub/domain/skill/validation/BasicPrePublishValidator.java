@@ -50,7 +50,8 @@ public class BasicPrePublishValidator implements PrePublishValidator {
                     if (!matcher.find()) {
                         continue;
                     }
-                    String matchedValue = extractMatchedValue(line, matcher, rule);
+                    String matchedValue = extractMatchedValue(
+                            line, matcher, rule, isBareSecretConfiguration(entry.path()));
                     if (matchedValue == null) {
                         continue;
                     }
@@ -86,6 +87,13 @@ public class BasicPrePublishValidator implements PrePublishValidator {
                 || lowerPath.endsWith(".zsh") || lowerPath.endsWith(".bash");
     }
 
+    private boolean isBareSecretConfiguration(String path) {
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        return lowerPath.endsWith(".yaml") || lowerPath.endsWith(".yml")
+                || lowerPath.endsWith(".toml") || lowerPath.endsWith(".ini")
+                || lowerPath.endsWith(".cfg") || lowerPath.endsWith(".env");
+    }
+
     private boolean isPlaceholderValue(String value) {
         if (value == null || value.isBlank()) {
             return false;
@@ -95,13 +103,14 @@ public class BasicPrePublishValidator implements PrePublishValidator {
                 || value.chars().allMatch(ch -> ch == 'x' || ch == 'X' || ch == '*' || ch == '-');
     }
 
-    private String extractMatchedValue(String line, Matcher matcher, SecretRule rule) {
+    private String extractMatchedValue(
+            String line, Matcher matcher, SecretRule rule, boolean allowBareLiteral) {
         if (rule.valueGroup() > 0) {
             return matcher.group(rule.valueGroup());
         }
 
         do {
-            GenericValueScan scan = scanGenericValue(line, matcher.end());
+            GenericValueScan scan = scanGenericValue(line, matcher.end(), allowBareLiteral);
             if (scan.literal() != null) {
                 return scan.literal();
             }
@@ -113,7 +122,7 @@ public class BasicPrePublishValidator implements PrePublishValidator {
         return null;
     }
 
-    private GenericValueScan scanGenericValue(String line, int valueStart) {
+    private GenericValueScan scanGenericValue(String line, int valueStart, boolean allowBareLiteral) {
         int start = valueStart;
         while (start < line.length() && Character.isWhitespace(line.charAt(start))) {
             start++;
@@ -122,9 +131,10 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             return new GenericValueScan(null, line.length());
         }
 
-        char first = line.charAt(start);
+        int quotedStart = findQuotedLiteralStart(line, start);
+        char first = line.charAt(quotedStart);
         if (first == '\'' || first == '"') {
-            return scanQuotedLiteral(line, start, first);
+            return scanQuotedLiteral(line, quotedStart, first);
         }
 
         int end = start;
@@ -132,12 +142,24 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             end++;
         }
         String bareValue = line.substring(start, end);
-        if (IDENTIFIER.matcher(bareValue).matches()
-                && bareValue.chars().filter(Character::isDigit).count() < 3) {
+        if (!allowBareLiteral && IDENTIFIER.matcher(bareValue).matches()) {
             return new GenericValueScan(null, end);
         }
         String literal = BARE_LITERAL.matcher(bareValue).matches() ? bareValue : null;
         return new GenericValueScan(literal, end);
+    }
+
+    private int findQuotedLiteralStart(String line, int start) {
+        int index = start;
+        while (index < line.length() && line.charAt(index) == '(') {
+            index++;
+            while (index < line.length() && Character.isWhitespace(line.charAt(index))) {
+                index++;
+            }
+        }
+        return index < line.length() && (line.charAt(index) == '\'' || line.charAt(index) == '"')
+                ? index
+                : start;
     }
 
     private GenericValueScan scanQuotedLiteral(String line, int start, char quote) {
@@ -165,14 +187,37 @@ public class BasicPrePublishValidator implements PrePublishValidator {
     }
 
     private boolean hasLiteralTerminator(String line, int startIndex) {
+        int index = skipWhitespace(line, startIndex);
+        if (isLiteralTerminatorAt(line, index)) {
+            return true;
+        }
+
+        if (!line.startsWith("as", index)
+                || index + 2 >= line.length()
+                || !Character.isWhitespace(line.charAt(index + 2))) {
+            return false;
+        }
+        index = skipWhitespace(line, index + 2);
+        if (!line.startsWith("const", index)
+                || (index + 5 < line.length()
+                && Character.isJavaIdentifierPart(line.charAt(index + 5)))) {
+            return false;
+        }
+        return isLiteralTerminatorAt(line, skipWhitespace(line, index + 5));
+    }
+
+    private int skipWhitespace(String line, int startIndex) {
         int index = startIndex;
         while (index < line.length() && Character.isWhitespace(line.charAt(index))) {
             index++;
         }
+        return index;
+    }
+
+    private boolean isLiteralTerminatorAt(String line, int index) {
         if (index == line.length()) {
             return true;
         }
-
         char current = line.charAt(index);
         return isTrailingDelimiter(current)
                 || current == '#'

@@ -112,8 +112,10 @@ class BasicPrePublishValidatorTest {
                 headers = build_headers(access_token=access_token)
                 client_secret = "prefix-" + configured_secret
                 access_token = token_v2
+                access_token = configuredToken123
+                refresh_token = foo123bar456
                 """.getBytes(StandardCharsets.UTF_8),
-                299,
+                371,
                 "text/x-python"
         );
 
@@ -141,14 +143,21 @@ class BasicPrePublishValidatorTest {
                 const escaped = { token: "credential\\\"value123" };
                 const emptyFirst = { token: "", password: "passwordafterempty123" };
                 const dynamicFirst = { token: configuredToken, password: "passwordafterdynamic123" };
-                token=barecredential123 // leaked
+                token=("wrappedcredential123");
+                token="assertedcredential123" as const;
                 """.getBytes(StandardCharsets.UTF_8),
-                518,
+                568,
                 "text/javascript"
+        );
+        PackageEntry configuration = new PackageEntry(
+                "config/settings.env",
+                "token=barecredential123 // leaked\n".getBytes(StandardCharsets.UTF_8),
+                35,
+                "text/plain"
         );
 
         ValidationResult result = validator.validate(new PrePublishValidator.SkillPackageContext(
-                List.of(script),
+                List.of(script, configuration),
                 new SkillMetadata("Unsafe Skill", "desc", "1.0.0", "body", Map.of()),
                 "user-1",
                 1L
@@ -164,6 +173,9 @@ class BasicPrePublishValidatorTest {
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 7")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 8")));
         assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 9")));
+        assertTrue(result.warnings().stream().anyMatch(warning -> warning.contains("line 10")));
+        assertTrue(result.warnings().stream().anyMatch(warning ->
+                warning.contains("config/settings.env line 1")));
     }
 
     @Test
