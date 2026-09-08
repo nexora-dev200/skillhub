@@ -10,6 +10,7 @@ import com.iflytek.skillhub.domain.social.SkillStarRepository;
 import com.iflytek.skillhub.domain.social.SkillSubscriptionRepository;
 import com.iflytek.skillhub.dto.PageResponse;
 import com.iflytek.skillhub.dto.SkillSummaryResponse;
+import com.iflytek.skillhub.repository.HiddenSkillQueryRepository;
 import com.iflytek.skillhub.repository.MySkillQueryRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -37,6 +38,7 @@ public class MySkillAppService {
     private final SkillStarRepository skillStarRepository;
     private final SkillSubscriptionRepository skillSubscriptionRepository;
     private final MySkillQueryRepository mySkillQueryRepository;
+    private final HiddenSkillQueryRepository hiddenSkillQueryRepository;
     private final SkillLifecycleProjectionService skillLifecycleProjectionService;
     private final NamespaceRepository namespaceRepository;
 
@@ -46,6 +48,7 @@ public class MySkillAppService {
             SkillStarRepository skillStarRepository,
             SkillSubscriptionRepository skillSubscriptionRepository,
             MySkillQueryRepository mySkillQueryRepository,
+            HiddenSkillQueryRepository hiddenSkillQueryRepository,
             SkillLifecycleProjectionService skillLifecycleProjectionService,
             NamespaceRepository namespaceRepository) {
         this.skillRepository = skillRepository;
@@ -53,6 +56,7 @@ public class MySkillAppService {
         this.skillStarRepository = skillStarRepository;
         this.skillSubscriptionRepository = skillSubscriptionRepository;
         this.mySkillQueryRepository = mySkillQueryRepository;
+        this.hiddenSkillQueryRepository = hiddenSkillQueryRepository;
         this.skillLifecycleProjectionService = skillLifecycleProjectionService;
         this.namespaceRepository = namespaceRepository;
     }
@@ -103,17 +107,8 @@ public class MySkillAppService {
         if (!platformRoles.contains("SUPER_ADMIN")) {
             return Page.empty(pageable);
         }
-        if ((keyword == null || keyword.isBlank()) && (namespace == null || namespace.isBlank())) {
-            return skillRepository.findByHiddenTrue(pageable);
-        }
-
         Long namespaceId = resolveNamespaceId(namespace);
-        String normalizedKeyword = normalizeKeyword(keyword);
-        List<Skill> filtered = skillRepository.findByHiddenTrue().stream()
-                .filter(skill -> matchesNamespace(skill, namespaceId))
-                .filter(skill -> matchesKeyword(skill, normalizedKeyword))
-                .toList();
-        return page(filtered, page, size);
+        return hiddenSkillQueryRepository.search(normalizeKeyword(keyword), namespaceId, pageable);
     }
 
     public PageResponse<SkillSummaryResponse> listMyStars(String userId, int page, int size) {

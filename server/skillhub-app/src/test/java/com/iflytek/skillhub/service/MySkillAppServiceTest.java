@@ -17,6 +17,7 @@ import com.iflytek.skillhub.domain.social.SkillStar;
 import com.iflytek.skillhub.domain.social.SkillStarRepository;
 import com.iflytek.skillhub.domain.social.SkillSubscriptionRepository;
 import com.iflytek.skillhub.repository.JpaMySkillQueryRepository;
+import com.iflytek.skillhub.repository.HiddenSkillQueryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -57,6 +58,9 @@ class MySkillAppServiceTest {
     @Mock
     private PromotionRequestRepository promotionRequestRepository;
 
+    @Mock
+    private HiddenSkillQueryRepository hiddenSkillQueryRepository;
+
     private MySkillAppService service;
     private SkillLifecycleProjectionService skillLifecycleProjectionService;
     private JpaMySkillQueryRepository mySkillQueryRepository;
@@ -75,6 +79,7 @@ class MySkillAppServiceTest {
                 skillStarRepository,
                 skillSubscriptionRepository,
                 mySkillQueryRepository,
+                hiddenSkillQueryRepository,
                 skillLifecycleProjectionService,
                 namespaceRepository
         );
@@ -234,7 +239,7 @@ class MySkillAppServiceTest {
         Skill hiddenSkill = createSkill(3L, 101L, "hidden-skill", "publisher");
         hiddenSkill.setHidden(true);
 
-        given(skillRepository.findByHiddenTrue(PageRequest.of(0, 10)))
+        given(hiddenSkillQueryRepository.search(null, null, PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(hiddenSkill), PageRequest.of(0, 10), 1));
         given(namespaceRepository.findByIdIn(List.of(101L))).willReturn(List.of(namespace(101L, "team-ai")));
 
@@ -252,6 +257,27 @@ class MySkillAppServiceTest {
 
         assertThat(result.total()).isZero();
         assertThat(result.items()).isEmpty();
+    }
+
+    @Test
+    void listMySkills_delegatesHiddenFilteringAndPaginationToQueryRepository() {
+        Skill hiddenSkill = createSkill(7L, 101L, "hidden-agent", "publisher");
+        hiddenSkill.setHidden(true);
+        Namespace namespace = namespace(101L, "team-ai");
+        PageRequest pageRequest = PageRequest.of(1, 5);
+
+        given(namespaceRepository.findBySlug("team-ai")).willReturn(Optional.of(namespace));
+        given(hiddenSkillQueryRepository.search("agent", 101L, pageRequest))
+                .willReturn(new PageImpl<>(List.of(hiddenSkill), pageRequest, 6));
+        given(namespaceRepository.findByIdIn(List.of(101L))).willReturn(List.of(namespace));
+
+        var result = service.listMySkills(
+                "super-admin", 1, 5, "HIDDEN", " Agent ", "team-ai", Set.of("SUPER_ADMIN"));
+
+        assertThat(result.total()).isEqualTo(6);
+        assertThat(result.page()).isEqualTo(1);
+        assertThat(result.size()).isEqualTo(5);
+        assertThat(result.items()).extracting("slug").containsExactly("hidden-agent");
     }
 
     @Test

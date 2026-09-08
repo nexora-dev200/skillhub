@@ -98,6 +98,7 @@ export function MySkillsPage() {
   const skills = skillPage?.items ?? []
   const totalPages = skillPage ? Math.max(Math.ceil(skillPage.total / skillPage.size), 1) : 1
   const availableFilters = getMySkillFilters(hasRole('SUPER_ADMIN'))
+  const canRestoreHidden = filter === 'HIDDEN' && hasRole('SUPER_ADMIN')
   const hasActiveSearch = keyword.trim() !== '' || namespaceFilter !== ''
   const emptyStateKey = getMySkillEmptyStateKey(filter)
   const archiveMutation = useArchiveSkill()
@@ -322,24 +323,26 @@ export function MySkillsPage() {
             aria-label={t('mySkills.searchPlaceholder')}
             className="sm:max-w-md"
           />
-          <Select
-            value={namespaceFilter || ALL_NAMESPACES_VALUE}
-            onValueChange={(value) => {
-              updateSearch({ namespace: value === ALL_NAMESPACES_VALUE ? undefined : value, page: 0 })
-            }}
-          >
-            <SelectTrigger aria-label={t('mySkills.namespaceFilterLabel')} className="sm:max-w-[14rem]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_NAMESPACES_VALUE}>{t('mySkills.namespaceFilterAll')}</SelectItem>
-              {(namespaceOptions ?? []).map((ns: { id: number; slug: string }) => (
-                <SelectItem key={ns.id} value={ns.slug}>
-                  @{ns.slug}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {filter === 'HIDDEN' ? null : (
+            <Select
+              value={namespaceFilter || ALL_NAMESPACES_VALUE}
+              onValueChange={(value) => {
+                updateSearch({ namespace: value === ALL_NAMESPACES_VALUE ? undefined : value, page: 0 })
+              }}
+            >
+              <SelectTrigger aria-label={t('mySkills.namespaceFilterLabel')} className="sm:max-w-[14rem]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_NAMESPACES_VALUE}>{t('mySkills.namespaceFilterAll')}</SelectItem>
+                {(namespaceOptions ?? []).map((ns: { id: number; slug: string }) => (
+                  <SelectItem key={ns.id} value={ns.slug}>
+                    @{ns.slug}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {hasActiveSearch ? (
             <Button
               type="button"
@@ -427,7 +430,7 @@ export function MySkillsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 pl-4">
-                        {filter === 'HIDDEN' ? (
+                        {canRestoreHidden ? (
                           <Button
                             size="sm"
                             variant="outline"
@@ -438,7 +441,7 @@ export function MySkillsPage() {
                           >
                             {t('mySkills.restoreHidden')}
                           </Button>
-                        ) : skill.status !== 'ARCHIVED' && (
+                        ) : filter === 'HIDDEN' ? null : skill.status !== 'ARCHIVED' && (
                           <Button
                             size="sm"
                             variant="outline"

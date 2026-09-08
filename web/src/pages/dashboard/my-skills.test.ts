@@ -235,6 +235,14 @@ describe('MySkillsPage', () => {
     expect(buttonRecords.some((button) => button.label === 'mySkills.archive')).toBe(false)
   })
 
+  it('does not render the restore action for a non-super-admin even when the hidden filter is in the URL', () => {
+    searchMock.filter = 'HIDDEN'
+
+    renderToStaticMarkup(createElement(MySkillsPage))
+
+    expect(buttonRecords.some((button) => button.label === 'mySkills.restoreHidden')).toBe(false)
+  })
+
   it('exports a named component function', () => {
     expect(typeof MySkillsPage).toBe('function')
   })

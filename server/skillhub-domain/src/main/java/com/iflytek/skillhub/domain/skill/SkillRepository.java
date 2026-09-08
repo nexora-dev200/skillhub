@@ -22,8 +22,6 @@ public interface SkillRepository {
     void delete(Skill skill);
     List<Skill> findByOwnerId(String ownerId);
     Page<Skill> findVisibleByOwnerId(String ownerId, Pageable pageable);
-    List<Skill> findByHiddenTrue();
-    Page<Skill> findByHiddenTrue(Pageable pageable);
     void incrementDownloadCount(Long skillId);
     void incrementSubscriptionCount(Long skillId);
     void decrementSubscriptionCount(Long skillId);
