@@ -131,10 +131,10 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             return new GenericValueScan(null, line.length());
         }
 
-        int quotedStart = findQuotedLiteralStart(line, start);
-        char first = line.charAt(quotedStart);
+        QuotedLiteralStart quotedStart = findQuotedLiteralStart(line, start);
+        char first = line.charAt(quotedStart.index());
         if (first == '\'' || first == '"') {
-            return scanQuotedLiteral(line, quotedStart, first);
+            return scanQuotedLiteral(line, quotedStart.index(), first, quotedStart.wrapperDepth());
         }
 
         int end = start;
@@ -149,20 +149,23 @@ public class BasicPrePublishValidator implements PrePublishValidator {
         return new GenericValueScan(literal, end);
     }
 
-    private int findQuotedLiteralStart(String line, int start) {
+    private QuotedLiteralStart findQuotedLiteralStart(String line, int start) {
         int index = start;
+        int wrapperDepth = 0;
         while (index < line.length() && line.charAt(index) == '(') {
+            wrapperDepth++;
             index++;
             while (index < line.length() && Character.isWhitespace(line.charAt(index))) {
                 index++;
             }
         }
         return index < line.length() && (line.charAt(index) == '\'' || line.charAt(index) == '"')
-                ? index
-                : start;
+                ? new QuotedLiteralStart(index, wrapperDepth)
+                : new QuotedLiteralStart(start, 0);
     }
 
-    private GenericValueScan scanQuotedLiteral(String line, int start, char quote) {
+    private GenericValueScan scanQuotedLiteral(
+            String line, int start, char quote, int wrapperDepth) {
         boolean escaped = false;
         for (int i = start + 1; i < line.length(); i++) {
             char current = line.charAt(i);
@@ -176,7 +179,7 @@ public class BasicPrePublishValidator implements PrePublishValidator {
             }
             if (current == quote) {
                 String value = line.substring(start + 1, i);
-                String literal = hasLiteralTerminator(line, i + 1)
+                String literal = hasLiteralTerminator(line, i + 1, wrapperDepth)
                         && value.length() >= MIN_GENERIC_SECRET_LENGTH
                         ? value
                         : null;
@@ -186,8 +189,14 @@ public class BasicPrePublishValidator implements PrePublishValidator {
         return new GenericValueScan(null, line.length());
     }
 
-    private boolean hasLiteralTerminator(String line, int startIndex) {
+    private boolean hasLiteralTerminator(String line, int startIndex, int wrapperDepth) {
         int index = skipWhitespace(line, startIndex);
+        for (int i = 0; i < wrapperDepth; i++) {
+            if (index == line.length() || line.charAt(index) != ')') {
+                return false;
+            }
+            index = skipWhitespace(line, index + 1);
+        }
         if (isLiteralTerminatorAt(line, index)) {
             return true;
         }
@@ -237,6 +246,8 @@ public class BasicPrePublishValidator implements PrePublishValidator {
     }
 
     private record GenericValueScan(String literal, int nextSearchIndex) {}
+
+    private record QuotedLiteralStart(int index, int wrapperDepth) {}
 
     private record SecretRule(Pattern pattern, int valueGroup, String label) {}
 }

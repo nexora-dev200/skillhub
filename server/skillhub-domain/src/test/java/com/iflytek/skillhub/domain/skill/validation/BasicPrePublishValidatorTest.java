@@ -114,8 +114,10 @@ class BasicPrePublishValidatorTest {
                 access_token = token_v2
                 access_token = configuredToken123
                 refresh_token = foo123bar456
+                token = ("static-prefix-") + configuredToken
+                access_token = ("static_prefix_") + configured_token
                 """.getBytes(StandardCharsets.UTF_8),
-                371,
+                476,
                 "text/x-python"
         );
 
