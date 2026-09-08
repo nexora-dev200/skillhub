@@ -41,7 +41,7 @@ describe('landing quick start locales', () => {
     expect(skillGuideTemplate).toContain('version: 1.0.0')
     expect(skillGuideTemplate).toContain('npx --yes @astron-team/skillhub@0.1.12 version')
     expect(skillGuideTemplate).toContain('semantic version is `0.1.12` or newer')
-    expect(skillGuideTemplate).toContain('is a template marker rather than a required shell environment variable')
+    expect(skillGuideTemplate).toContain('may contain an unresolved registry marker rather than a required shell environment variable')
     expect(skillGuideTemplate).toContain('PowerShell 7')
     expect(skillGuideTemplate).toContain('do not search for or substitute a similarly named package')
     expect(skillGuideTemplate).toContain('ask before querying another registry')
