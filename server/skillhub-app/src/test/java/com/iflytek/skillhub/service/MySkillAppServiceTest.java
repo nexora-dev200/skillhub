@@ -132,7 +132,7 @@ class MySkillAppServiceTest {
         ReflectionTestUtils.setField(pendingVersion, "id", 11L);
         ReflectionTestUtils.setField(pendingVersion, "createdAt", Instant.parse("2026-03-15T09:30:00Z"));
 
-        given(skillRepository.findByOwnerId("user-1", PageRequest.of(0, 10)))
+        given(skillRepository.findVisibleByOwnerId("user-1", PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(skill), PageRequest.of(0, 10), 1));
         given(skillVersionRepository.findBySkillIdAndStatus(1L, SkillVersionStatus.PUBLISHED)).willReturn(List.of());
         given(skillVersionRepository.findBySkillId(1L)).willReturn(List.of(pendingVersion));
@@ -165,7 +165,7 @@ class MySkillAppServiceTest {
         Namespace namespace = new Namespace("team-ai", "Team AI", "user-1");
         ReflectionTestUtils.setField(namespace, "id", 101L);
 
-        given(skillRepository.findByOwnerId("user-1", PageRequest.of(0, 10)))
+        given(skillRepository.findVisibleByOwnerId("user-1", PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(skill), PageRequest.of(0, 10), 1));
         given(skillVersionRepository.findBySkillIdAndStatus(2L, SkillVersionStatus.PUBLISHED)).willReturn(List.of(publishedVersion));
         given(skillVersionRepository.findBySkillId(2L)).willReturn(List.of(publishedVersion));
@@ -197,7 +197,7 @@ class MySkillAppServiceTest {
         Namespace namespace = new Namespace("team-ai", "Team AI", "user-1");
         ReflectionTestUtils.setField(namespace, "id", 101L);
 
-        given(skillRepository.findByOwnerId("user-1", PageRequest.of(0, 10)))
+        given(skillRepository.findVisibleByOwnerId("user-1", PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(skill), PageRequest.of(0, 10), 1));
         given(skillVersionRepository.findBySkillIdAndStatus(2L, SkillVersionStatus.PUBLISHED)).willReturn(List.of(publishedVersion));
         given(skillVersionRepository.findBySkillId(2L)).willReturn(List.of(publishedVersion));
@@ -259,7 +259,7 @@ class MySkillAppServiceTest {
         Skill skill = createSkill(5L, 101L, "rejected-skill", "user-1");
         SkillVersion rejectedVersion = createVersion(5L, 55L, "1.1.0", SkillVersionStatus.REJECTED, "2026-03-15T09:30:00Z");
 
-        given(skillRepository.findByOwnerId("user-1", PageRequest.of(0, 10)))
+        given(skillRepository.findVisibleByOwnerId("user-1", PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(skill), PageRequest.of(0, 10), 1));
         given(skillVersionRepository.findBySkillId(5L)).willReturn(List.of(rejectedVersion));
         given(namespaceRepository.findByIdIn(List.of(101L))).willReturn(List.of(namespace(101L, "team-ai")));
@@ -278,7 +278,7 @@ class MySkillAppServiceTest {
         SkillVersion rejectedVersion = createVersion(6L, 60L, "1.0.0", SkillVersionStatus.REJECTED, "2026-03-15T09:30:00Z");
         SkillVersion publishedVersion = createVersion(6L, 61L, "2.0.0", SkillVersionStatus.PUBLISHED, "2026-03-16T09:30:00Z");
 
-        given(skillRepository.findByOwnerId("user-1", PageRequest.of(0, 10)))
+        given(skillRepository.findVisibleByOwnerId("user-1", PageRequest.of(0, 10)))
                 .willReturn(new PageImpl<>(List.of(skill), PageRequest.of(0, 10), 1));
         given(skillVersionRepository.findBySkillIdAndStatus(6L, SkillVersionStatus.PUBLISHED)).willReturn(List.of(publishedVersion));
         given(skillVersionRepository.findBySkillId(6L)).willReturn(List.of(rejectedVersion, publishedVersion));

@@ -84,7 +84,7 @@ public class MySkillAppService {
         } else if (normalizedFilter == MySkillFilter.ALL
                 && (keyword == null || keyword.isBlank())
                 && (namespace == null || namespace.isBlank())) {
-            skillPage = skillRepository.findByOwnerId(userId, PageRequest.of(page, size));
+            skillPage = skillRepository.findVisibleByOwnerId(userId, PageRequest.of(page, size));
         } else {
             skillPage = filterSkills(userId, page, size, normalizedFilter, keyword, namespace, platformRoles);
         }
