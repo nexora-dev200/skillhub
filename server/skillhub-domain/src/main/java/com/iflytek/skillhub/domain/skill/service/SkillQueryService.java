@@ -626,7 +626,8 @@ public class SkillQueryService {
     public ResolvedVersionDTO resolveVersionById(
             Long versionId,
             String currentUserId,
-            Map<Long, NamespaceRole> userNsRoles
+            Map<Long, NamespaceRole> userNsRoles,
+            Set<String> platformRoles
     ) {
         SkillVersion version = skillVersionRepository.findById(versionId)
                 .orElseThrow(() -> new DomainBadRequestException("error.skill.version.notFound", versionId));
@@ -635,7 +636,7 @@ public class SkillQueryService {
         Namespace namespace = namespaceRepository.findById(skill.getNamespaceId())
                 .orElseThrow(() -> new DomainBadRequestException(
                         "error.namespace.id.notFound", skill.getNamespaceId()));
-        assertPublishedAccessible(namespace, skill, currentUserId, userNsRoles);
+        assertPublishedAccessible(namespace, skill, currentUserId, userNsRoles, platformRoles);
         assertInstallableVersion(version, version.getVersion());
         String fingerprint = computeFingerprint(version);
         return new ResolvedVersionDTO(
@@ -881,6 +882,15 @@ public class SkillQueryService {
             Skill skill,
             String currentUserId,
             Map<Long, NamespaceRole> userNsRoles) {
+        assertPublishedAccessible(namespace, skill, currentUserId, userNsRoles, Set.of());
+    }
+
+    private void assertPublishedAccessible(
+            Namespace namespace,
+            Skill skill,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles,
+            Set<String> platformRoles) {
         if (namespace.getStatus() == NamespaceStatus.ARCHIVED && !isNamespaceMember(skill.getNamespaceId(), currentUserId, userNsRoles)) {
             throw new DomainForbiddenException("error.namespace.archived", namespace.getSlug());
         }
@@ -890,7 +900,7 @@ public class SkillQueryService {
         if (skill.isHidden() && !canManageRestrictedSkill(skill, currentUserId, userNsRoles)) {
             throw new DomainForbiddenException("error.skill.access.denied", skill.getSlug());
         }
-        if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles)) {
+        if (!visibilityChecker.canAccess(skill, currentUserId, userNsRoles, platformRoles)) {
             throw new DomainForbiddenException("error.skill.access.denied", skill.getSlug());
         }
     }

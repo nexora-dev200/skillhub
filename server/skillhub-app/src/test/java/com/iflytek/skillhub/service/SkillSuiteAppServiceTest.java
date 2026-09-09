@@ -273,18 +273,19 @@ class SkillSuiteAppServiceTest {
     }
 
     @Test
-    void create_rejectsWhenExactVersionIdDoesNotMatchTheSubmittedCoordinate() {
+    void create_rejectsCoordinateMismatchAfterResolvingWithPlatformRoles() {
         SkillSuiteMemberRequest member = new SkillSuiteMemberRequest(
                 101L, "global", "selected", "1.0.0");
         SkillSuiteCreateRequest createRequest = new SkillSuiteCreateRequest(
                 "global", "starter", "Starter", null, null, "1.0.0",
                 SkillVisibility.PRIVATE, null, member, List.of(member));
         given(namespaceRepository.findBySlug("global")).willReturn(java.util.Optional.of(namespace));
-        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(
+                101L, "user-1", Map.of(), Set.of("SUPER_ADMIN")))
                 .willReturn(resolved(99L, 101L, "different", "1.0.0", "sha256:different"));
 
         assertThatThrownBy(() -> service.create(
-                createRequest, "user-1", Map.of(), Set.of(), request))
+                createRequest, "user-1", Map.of(), Set.of("SUPER_ADMIN"), request))
                 .isInstanceOfSatisfying(DomainBadRequestException.class, exception ->
                         assertThat(exception.messageCode())
                                 .isEqualTo("error.suite.members.selectionMismatch"));

@@ -765,13 +765,39 @@ class SkillQueryServiceTest {
         when(skillFileRepository.findByVersionId(220L)).thenReturn(List.of(file));
 
         SkillQueryService.ResolvedVersionDTO result = service.resolveVersionById(
-                220L, "current-owner", Map.of(1L, NamespaceRole.MEMBER));
+                220L, "current-owner", Map.of(1L, NamespaceRole.MEMBER), Set.of());
 
         assertEquals(22L, result.skillId());
         assertEquals(220L, result.versionId());
         assertEquals("team", result.namespace());
         assertEquals("shared", result.slug());
         verify(skillRepository, never()).findByNamespaceIdAndSlug(anyLong(), anyString());
+    }
+
+    @Test
+    void testResolveVersionById_ShouldAllowSuperAdminToSelectPrivatePublishedSkill() throws Exception {
+        Namespace namespace = new Namespace("team", "Team", "namespace-owner");
+        setId(namespace, 1L);
+        Skill selected = new Skill(1L, "private-member", "skill-owner", SkillVisibility.PRIVATE);
+        setId(selected, 22L);
+        selected.setStatus(SkillStatus.ACTIVE);
+        selected.setLatestVersionId(220L);
+        SkillVersion selectedVersion = new SkillVersion(22L, "1.0.0", "skill-owner");
+        setId(selectedVersion, 220L);
+        selectedVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        selectedVersion.setDownloadReady(true);
+        SkillFile file = new SkillFile(220L, "SKILL.md", 10L, "text/markdown", "hash", "key");
+
+        when(skillVersionRepository.findById(220L)).thenReturn(Optional.of(selectedVersion));
+        when(skillRepository.findById(22L)).thenReturn(Optional.of(selected));
+        when(namespaceRepository.findById(1L)).thenReturn(Optional.of(namespace));
+        when(skillFileRepository.findByVersionId(220L)).thenReturn(List.of(file));
+
+        SkillQueryService.ResolvedVersionDTO result = service.resolveVersionById(
+                220L, "super-admin", Map.of(), Set.of("SUPER_ADMIN"));
+
+        assertEquals(220L, result.versionId());
+        assertEquals("private-member", result.slug());
     }
 
     @Test

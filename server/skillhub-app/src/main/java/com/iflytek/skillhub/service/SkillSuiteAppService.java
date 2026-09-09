@@ -344,7 +344,7 @@ public class SkillSuiteAppService {
                 .orElseThrow(() -> new DomainBadRequestException(
                         "error.namespace.slug.notFound", request.namespace()));
         SkillSuiteDraftService.CreatedDraft created = draftService.create(
-                toCommand(namespace.getId(), request, userId, namespaceRoles),
+                toCommand(namespace.getId(), request, userId, namespaceRoles, platformRoles),
                 context(userId, namespaceRoles, platformRoles, httpRequest));
         return toResponse(namespace, created, userId, namespaceRoles, platformRoles);
     }
@@ -361,7 +361,7 @@ public class SkillSuiteAppService {
                 .orElseThrow(() -> new DomainBadRequestException(
                         "error.namespace.slug.notFound", request.namespace()));
         SkillSuiteDraftService.CreatedDraft created = draftService.createVersion(
-                suiteId, toCommand(namespace.getId(), request, userId, namespaceRoles),
+                suiteId, toCommand(namespace.getId(), request, userId, namespaceRoles, platformRoles),
                 context(userId, namespaceRoles, platformRoles, httpRequest));
         return toResponse(namespace, created, userId, namespaceRoles, platformRoles);
     }
@@ -379,7 +379,7 @@ public class SkillSuiteAppService {
                 .orElseThrow(() -> new DomainBadRequestException(
                         "error.namespace.slug.notFound", request.namespace()));
         SkillSuiteDraftService.CreatedDraft updated = draftService.updateDraft(
-                suiteId, versionId, toCommand(namespace.getId(), request, userId, namespaceRoles),
+                suiteId, versionId, toCommand(namespace.getId(), request, userId, namespaceRoles, platformRoles),
                 context(userId, namespaceRoles, platformRoles, httpRequest));
         return toResponse(namespace, updated, userId, namespaceRoles, platformRoles);
     }
@@ -510,10 +510,11 @@ public class SkillSuiteAppService {
     private SkillSuiteMemberSelection resolve(
             SkillSuiteMemberRequest member,
             String userId,
-            Map<Long, NamespaceRole> namespaceRoles
+            Map<Long, NamespaceRole> namespaceRoles,
+            Set<String> platformRoles
     ) {
         SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersionById(
-                member.skillVersionId(), userId, namespaceRoles);
+                member.skillVersionId(), userId, namespaceRoles, platformRoles);
         if (!Objects.equals(resolved.namespace(), member.namespace())
                 || !Objects.equals(resolved.slug(), member.slug())
                 || !Objects.equals(resolved.version(), member.version())) {
@@ -528,10 +529,11 @@ public class SkillSuiteAppService {
             Long namespaceId,
             SkillSuiteCreateRequest request,
             String userId,
-            Map<Long, NamespaceRole> namespaceRoles
+            Map<Long, NamespaceRole> namespaceRoles,
+            Set<String> platformRoles
     ) {
         List<SkillSuiteMemberSelection> selections = request.members().stream()
-                .map(member -> resolve(member, userId, namespaceRoles))
+                .map(member -> resolve(member, userId, namespaceRoles, platformRoles))
                 .toList();
         Long entryVersionId = resolveEntryVersionId(request.entrySkill(), selections);
         return new CreateSkillSuiteDraftCommand(
