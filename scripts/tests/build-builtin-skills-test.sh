@@ -27,7 +27,13 @@ cmp \
 test -f "$REPO_ROOT/builtin-skills/skills/skillhub-cli/references/cli-operations.md"
 grep -F 'npm install --global @astron-team/skillhub' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
-grep -F 'version: 2.0.0' \
+grep -F 'version: 2.0.2' \
+  "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
+grep -F 'separately confirms removal of that exact identified launcher' \
+  "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
+grep -F 'Never unlink an executable directly' \
+  "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
+grep -F 'do not run the global installation or update yet' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
 grep -F 'installed but not yet loaded' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
@@ -37,6 +43,60 @@ grep -F 'skillhub publish ./my-skill' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/references/cli-operations.md" >/dev/null
 grep -F '`--dry-run` sends the package bytes to the selected registry' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/references/cli-operations.md" >/dev/null
+
+# Keep the launcher takeover decision executable as a contract instead of only
+# checking for isolated safety phrases. A connect request has three disjoint
+# states; the non-first-party state must identify provenance and obtain a
+# separate confirmation before the first permitted write.
+python3 - "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" <<'PY'
+import sys
+from pathlib import Path
+
+guide = Path(sys.argv[1]).read_text(encoding="utf-8")
+missing = guide.index("If the command is missing")
+install = guide.index("npm install --global @astron-team/skillhub", missing)
+existing = guide.index("If the command exists")
+verified = guide.index("Treat an existing command as first-party only")
+foreign = guide.index("If package metadata proves another owner or package")
+confirm = guide.index("Only after the user separately confirms removal", foreign)
+
+assert missing < install < existing < verified < foreign < confirm
+inspection = guide[existing:verified]
+for required in ("exact command selected by the shell", "follow symlinks", "owner", "package manager or package"):
+    assert required in inspection, required
+for forbidden in ("npm install --global", "supported uninstall command", "unlink an executable"):
+    assert forbidden not in inspection, forbidden
+assert "resolved package metadata proves" in guide[verified:foreign]
+assert "installing package is `@astron-team/skillhub`" in guide[verified:foreign]
+assert "even when it prints `SkillHub CLI <version>`" in guide[foreign:confirm]
+
+authorization = guide[guide.index("An explicit request to connect SkillHub authorizes"):]
+assert "does not authorize removing another `skillhub` launcher" in authorization
+assert "Launcher removal requires the separate, exact confirmation" in authorization
+assert "If the owner or package source cannot be proven, stop" in guide
+PY
+
+# The guide response stays constant-time: its request handler returns the
+# startup-loaded template without network calls or directory traversal. The
+# container entrypoint performs one local guide copy and no guide-time fetch.
+python3 - \
+  "$REPO_ROOT/web/vite.config.ts" \
+  "$REPO_ROOT/web/docker-entrypoint.d/30-runtime-config.sh" <<'PY'
+import sys
+from pathlib import Path
+
+vite = Path(sys.argv[1]).read_text(encoding="utf-8")
+handler = vite[vite.index("configureServer(server)"):vite.index("export default defineConfig")]
+assert "response.end(guideTemplate)" in handler
+for forbidden in ("fetch(", "readFile", "readdir", "glob("):
+    assert forbidden not in handler, forbidden
+
+entrypoint = Path(sys.argv[2]).read_text(encoding="utf-8")
+guide_setup = entrypoint[entrypoint.index("# The guide derives its registry"):]
+assert guide_setup.count("\ncp ") == 1
+for forbidden in ("curl ", "wget ", "find ", "envsubst"):
+    assert forbidden not in guide_setup, forbidden
+PY
 
 runtime_manifest="$REPO_ROOT/server/skillhub-app/src/main/resources/builtin-skills/manifest.json"
 python3 - "$first/artifacts.json" "$runtime_manifest" <<'PY'
