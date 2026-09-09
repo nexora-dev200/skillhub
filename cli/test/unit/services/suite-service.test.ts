@@ -865,6 +865,62 @@ describe('Suite local lifecycle', () => {
     expect(inventory).toMatchObject({ items: [], suites: [] })
   })
 
+  test('rejects stale upgrade targets after the same Suite is reinstalled elsewhere', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const originalRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-original-'))
+    const replacementRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-replacement-'))
+    const first = makePlan()
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir: originalRoot, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(first.plan, first.downloads)
+    })
+
+    const nextPlan = { ...first.plan, operationId: 'operation-2', version: '2.0.0' }
+    const upgradeClient = clientFor(nextPlan, first.downloads)
+    const fetchDetail = upgradeClient.suiteDetail.bind(upgradeClient)
+    let signalPlanRead: (() => void) | undefined
+    let releasePlan: (() => void) | undefined
+    const planRead = new Promise<void>((resolvePromise) => { signalPlanRead = resolvePromise })
+    const holdPlan = new Promise<void>((resolvePromise) => { releasePlan = resolvePromise })
+    upgradeClient.suiteDetail = async (...args) => {
+      signalPlanRead?.()
+      await holdPlan
+      return fetchDetail(...args)
+    }
+
+    const upgrading = upgradeSuite({
+      registry, namespace: 'global', slug: 'starter-pack', home, client: upgradeClient
+    })
+    await planRead
+    try {
+      await removeSuite({ registry, namespace: 'global', slug: 'starter-pack', home })
+      await installSuite({
+        registry,
+        namespace: 'global',
+        slug: 'starter-pack',
+        targets: [{ agent: 'claude', rootDir: replacementRoot, scope: 'project', source: 'explicit' }],
+        force: false,
+        home,
+        client: clientFor(first.plan, first.downloads)
+      })
+    } finally {
+      releasePlan?.()
+    }
+
+    await expect(upgrading).rejects.toThrow('installed Suite changed while waiting for target locks')
+    expect(await readdir(originalRoot)).toEqual([])
+    expect(await readFile(join(replacementRoot, 'alpha', 'SKILL.md'), 'utf8')).toBe('# Alpha')
+    const inventory = JSON.parse(await readFile(join(home, '.skillhub', 'inventory.json'), 'utf8'))
+    expect(inventory.suites[0]).toMatchObject({ version: '1.0.0', fingerprint: 'sha256:suite' })
+    expect(inventory.suites[0].members.every((member: { installDirs: string[] }) =>
+      member.installDirs.every(dir => dir.startsWith(replacementRoot)))).toBe(true)
+  })
+
   test('preserves a member modified after removal starts but before locked validation', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))

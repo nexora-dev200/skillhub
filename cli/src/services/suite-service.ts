@@ -854,9 +854,29 @@ function assertSuiteSnapshotUnchanged(
   before: InventorySuite | undefined,
   locked: InventorySuite | undefined
 ): void {
-  if (before?.version === locked?.version && before?.fingerprint === locked?.fingerprint) return
+  if (suiteSnapshot(before) === suiteSnapshot(locked)) return
   throw new CliError('installed Suite changed while waiting for target locks', EXIT.validation, {
     next: 'run `skillhub suite check` and retry'
+  })
+}
+
+function suiteSnapshot(suite: InventorySuite | undefined): string {
+  if (!suite) return ''
+  const members = suite.members.map(member => ({
+    namespace: member.namespace,
+    slug: member.slug,
+    version: member.version,
+    fingerprint: member.fingerprint,
+    installDirs: member.installDirs.map(installDir => resolve(installDir)).sort()
+  })).sort((left, right) =>
+    `${left.namespace}\0${left.slug}`.localeCompare(`${right.namespace}\0${right.slug}`))
+  return JSON.stringify({
+    registry: suite.registry,
+    namespace: suite.namespace,
+    slug: suite.slug,
+    version: suite.version,
+    fingerprint: suite.fingerprint,
+    members
   })
 }
 
