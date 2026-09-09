@@ -146,13 +146,14 @@ async function installSuiteWithPlan(
   client: SkillHubClient,
   renameOperation: typeof rename,
   plan: SuiteInstallPlan,
-  expectedCurrentSuite?: InventorySuite
+  expectedCurrentSuite?: InventorySuite,
+  allowVersionReplacement = options.force
 ): Promise<SuiteInstallResult> {
   const releaseSuiteLock = await acquireSuiteOperationLock(
     options.home, options.registry, plan.namespace, plan.slug)
   try {
     return await installSuiteTransaction(
-      options, client, renameOperation, plan, expectedCurrentSuite)
+      options, client, renameOperation, plan, expectedCurrentSuite, allowVersionReplacement)
   } finally {
     await releaseSuiteLock().catch(() => {})
   }
@@ -163,7 +164,8 @@ async function installSuiteTransaction(
   client: SkillHubClient,
   renameOperation: typeof rename,
   plan: SuiteInstallPlan,
-  expectedCurrentSuite?: InventorySuite
+  expectedCurrentSuite?: InventorySuite,
+  allowVersionReplacement = options.force
 ): Promise<SuiteInstallResult> {
   const store = new InventoryStore(options.home)
   const before = await store.read()
@@ -179,7 +181,8 @@ async function installSuiteTransaction(
   const retired = await prepareRetiredTargets(before, previousSuite, plan, stageToken)
 
   try {
-    await preflightExistingTargets(before, options.registry, plan, options.targets, options.force)
+    await preflightExistingTargets(
+      before, options.registry, plan, options.targets, options.force, allowVersionReplacement)
 
     for (const member of plan.members) {
       const stagingTargets = options.targets.map((target, index) => ({
@@ -243,7 +246,8 @@ async function installSuiteTransaction(
       const lockedPreviousSuite = installedSuites(lockedInventory).find(candidate =>
         candidate.registry === options.registry && candidate.namespace === plan.namespace && candidate.slug === plan.slug)
       assertSuiteSnapshotUnchanged(previousSuite, lockedPreviousSuite)
-      await preflightExistingTargets(lockedInventory, options.registry, plan, options.targets, options.force)
+      await preflightExistingTargets(
+        lockedInventory, options.registry, plan, options.targets, options.force, allowVersionReplacement)
       for (const item of prepared) {
         item.reuse = await isReusable(lockedInventory, options.registry, item.member, item.installDir)
         item.replace = await pathExists(item.installDir) && !item.reuse
@@ -542,6 +546,7 @@ export async function upgradeSuite(options: {
   token?: string | undefined
   namespace: string
   slug: string
+  force?: boolean | undefined
   home?: string | undefined
   client?: SkillHubClient | undefined
 }): Promise<{ upgrade: SuiteUpgradePlan; result?: SuiteInstallResult }> {
@@ -561,8 +566,8 @@ export async function upgradeSuite(options: {
     ...options,
     version: upgrade.remote.version,
     targets: upgrade.targets,
-    force: true
-  }, client, rename, installPlan, upgrade.current)
+    force: Boolean(options.force)
+  }, client, rename, installPlan, upgrade.current, true)
   return { upgrade, result }
 }
 
@@ -624,7 +629,8 @@ async function preflightExistingTargets(
   registry: string,
   plan: SuiteInstallPlan,
   targets: AgentCandidate[],
-  force: boolean
+  force: boolean,
+  allowVersionReplacement: boolean
 ): Promise<void> {
   for (const member of plan.members) {
     const selectedDirs = new Set(targets.map(target => join(resolve(target.rootDir), member.slug)))
@@ -673,7 +679,7 @@ async function preflightExistingTargets(
           next: 'install the Suite into another target or upgrade the sharing Suite first'
         })
       }
-      if (owner && owner.version !== member.version && !force) {
+      if (owner && owner.version !== member.version && !allowVersionReplacement) {
         throw new CliError(`different Skill version already installed at ${installDir}`, EXIT.validation, {
           currentVersion: owner.version,
           requestedVersion: member.version,

@@ -908,6 +908,59 @@ describe('Suite local lifecycle', () => {
     expect(inventory.items.map((item: { slug: string }) => item.slug).sort()).toEqual(['alpha', 'gamma'])
   })
 
+  test('does not overwrite a locally modified member during Suite upgrade by default', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
+    const first = makePlan()
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(first.plan, first.downloads)
+    })
+    await writeFile(join(rootDir, 'alpha', 'SKILL.md'), '# Locally modified Alpha')
+
+    const alphaV2 = archive('# Alpha v2')
+    const second: SuiteInstallPlan = {
+      ...first.plan,
+      operationId: 'operation-2',
+      version: '2.0.0',
+      fingerprint: 'sha256:suite-v2',
+      members: [
+        { ...first.plan.members[0]!, skillVersionId: 12, version: '2.0.0', fingerprint: alphaV2.fingerprint },
+        first.plan.members[1]!
+      ]
+    }
+
+    await expect(upgradeSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      home,
+      client: clientFor(second, { ...first.downloads, '/downloads/alpha': alphaV2.bytes })
+    })).rejects.toThrow('local changes')
+
+    expect(await readFile(join(rootDir, 'alpha', 'SKILL.md'), 'utf8')).toBe('# Locally modified Alpha')
+    const unchangedInventory = JSON.parse(await readFile(join(home, '.skillhub', 'inventory.json'), 'utf8'))
+    expect(unchangedInventory.suites[0]).toMatchObject({ version: '1.0.0', fingerprint: 'sha256:suite' })
+
+    await upgradeSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      force: true,
+      home,
+      client: clientFor(second, { ...first.downloads, '/downloads/alpha': alphaV2.bytes })
+    })
+
+    expect(await readFile(join(rootDir, 'alpha', 'SKILL.md'), 'utf8')).toBe('# Alpha v2')
+    const upgradedInventory = JSON.parse(await readFile(join(home, '.skillhub', 'inventory.json'), 'utf8'))
+    expect(upgradedInventory.suites[0]).toMatchObject({ version: '2.0.0', fingerprint: 'sha256:suite-v2' })
+  })
+
   test('does not reinstall a Suite removed after upgrade planning', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))

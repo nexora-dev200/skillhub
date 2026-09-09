@@ -255,7 +255,7 @@ cli
   .option('--scope <scope>', 'Install scope: user or project')
   .option('--agent <profile>', 'Agent profile (repeatable)')
   .option('--dir <path>', 'Install directory')
-  .option('--force', 'Replace same-source member versions or local changes')
+  .option('--force', 'Replace local changes during install or upgrade')
   .option('--check', 'Show an upgrade plan without writing')
   .option('--registry <url>', 'Registry URL')
   .option('--token <token>', 'API token')

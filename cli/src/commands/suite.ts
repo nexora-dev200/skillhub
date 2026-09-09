@@ -83,8 +83,10 @@ export async function suiteCommand(
     ].join('\n')
   }
 
-  if (hasInstallOnlyOptions(options)) {
-    throw new CliError('--scope, --agent, --dir, --force, and --version are only valid with suite install', EXIT.usage)
+  if (hasInstallOnlyOptions(options) || (options.force === true && action !== 'upgrade')) {
+    throw new CliError(
+      '--scope, --agent, --dir, and --version are only valid with suite install; --force is valid with install or upgrade',
+      EXIT.usage)
   }
 
   if (action === 'check') {
@@ -116,7 +118,7 @@ export async function suiteCommand(
     const plan = await planSuiteUpgrade(common)
     return renderUpgradePlan(plan, Boolean(options.json))
   }
-  const { upgrade, result } = await upgradeSuite(common)
+  const { upgrade, result } = await upgradeSuite({ ...common, force: Boolean(options.force) })
   if (options.json) return JSON.stringify({ ok: true, upgrade, result })
   if (!result) return `Suite @${namespace}/${slug}@${upgrade.current.version} is current`
   return [
@@ -127,7 +129,7 @@ export async function suiteCommand(
 
 function hasInstallOnlyOptions(options: SuiteCommandOptions): boolean {
   return options.scope !== undefined || options.agent !== undefined || options.dir !== undefined ||
-    options.force !== undefined || options.version !== undefined
+    options.version !== undefined
 }
 
 function renderUpgradePlan(plan: Awaited<ReturnType<typeof planSuiteUpgrade>>, json: boolean): string {

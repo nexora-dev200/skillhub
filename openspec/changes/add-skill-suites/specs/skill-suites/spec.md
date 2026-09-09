@@ -279,10 +279,11 @@ CLI SHALL 在修改目标目录前完成全部成员和全部 Agent 目标的解
 - **AND** 另一个操作明确报告繁忙，不得基于旧 inventory 提交
 
 #### Scenario: Existing Member has local changes
-- **WHEN** Suite 安装将复用或替换一个已登记但 fingerprint 已变化的 Member 目录
+- **WHEN** Suite 安装或升级将复用或替换一个已登记但 fingerprint 已变化的 Member 目录
 - **AND** 用户未明确传入 `--force`
-- **THEN** CLI 在写入任何目标或 inventory 前拒绝安装
+- **THEN** CLI 在写入任何目标或 inventory 前拒绝该操作
 - **AND** 保留本地文件和现有 inventory
+- **AND** 只有用户显式传入 `--force` 时才允许覆盖本地修改
 
 ### Requirement: Suite installation SHALL preserve Agent Skills compatibility
 
