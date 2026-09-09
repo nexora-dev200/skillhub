@@ -1763,6 +1763,8 @@
     "available": "Available",
     "degraded": "Degraded",
     "installCommand": "Install command",
+    "copyInstallCommand": "Copy install command",
+    "detailsSidebar": "Suite information and actions",
     "commandCopied": "Install command copied",
     "degradedDescription": "A member or its access changed. Restore every member before installing this suite.",
     "membersTitle": "Included skills ({{count}})",

@@ -2,16 +2,14 @@ import { startTransition, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useTranslation } from 'react-i18next'
 import { Loader2 } from 'lucide-react'
-import type { ResourceType, SkillSummary } from '@/api/types'
+import type { SkillSummary } from '@/api/types'
 import { useAuth } from '@/features/auth/use-auth'
 import { SearchBar } from '@/features/search/search-bar'
 import { SkillCard } from '@/features/skill/skill-card'
-import { ResourceCard } from '@/features/suite/resource-card'
 import { SkeletonList } from '@/shared/components/skeleton-loader'
 import { EmptyState } from '@/shared/components/empty-state'
 import { Pagination } from '@/shared/components/pagination'
 import { useSearchSkills } from '@/shared/hooks/use-skill-queries'
-import { useResourceSearch } from '@/shared/hooks/use-suite-queries'
 import { useVisibleLabels } from '@/shared/hooks/use-label-queries'
 import { useMyStars } from '@/shared/hooks/use-user-queries'
 import { toRouterPath } from '@/shared/lib/base-path'
@@ -96,7 +94,6 @@ export function SearchPage() {
   const q = normalizeSearchQuery(searchParams.q || '')
   const namespace = (searchParams.namespace || '').replace(/^@/, '')
   const selectedLabel = searchParams.label || ''
-  const resourceType = searchParams.resourceType
   const sort = searchParams.sort || 'newest'
   const page = searchParams.page ?? 0
   const starredOnly = searchParams.starredOnly ?? false
@@ -121,7 +118,6 @@ export function SearchPage() {
     previousPageRef.current = page
   }, [page])
 
-  const useLegacySkillSearch = starredOnly || Boolean(selectedLabel)
   const { data, isLoading, isFetching } = useSearchSkills({
     q,
     namespace: namespace || undefined,
@@ -130,19 +126,7 @@ export function SearchPage() {
     page,
     size: PAGE_SIZE,
     starredOnly,
-  }, useLegacySkillSearch)
-  const {
-    data: resourceData,
-    isLoading: isLoadingResources,
-    isFetching: isFetchingResources,
-  } = useResourceSearch({
-    q,
-    namespace: namespace || undefined,
-    resourceType,
-    sort,
-    page,
-    size: PAGE_SIZE,
-  }, !useLegacySkillSearch)
+  }, !starredOnly)
   const { data: labels } = useVisibleLabels()
   const {
     data: starredSkills,
@@ -159,44 +143,44 @@ export function SearchPage() {
 
     if (!parsedInput.query && !parsedInput.namespace) {
       startTransition(() => {
-        navigate({ to: '/search', search: { q: '', namespace: '', label: selectedLabel, resourceType, sort, page: 0, starredOnly }, replace: page === 0 })
+        navigate({ to: '/search', search: { q: '', namespace: '', label: selectedLabel, sort, page: 0, starredOnly }, replace: page === 0 })
       })
       return
     }
 
     const timeoutId = window.setTimeout(() => {
       startTransition(() => {
-        navigate({ to: '/search', search: { q: parsedInput.query, namespace: parsedInput.namespace, label: selectedLabel, resourceType, sort, page: 0, starredOnly }, replace: true })
+        navigate({ to: '/search', search: { q: parsedInput.query, namespace: parsedInput.namespace, label: selectedLabel, sort, page: 0, starredOnly }, replace: true })
       })
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [navigate, namespace, page, q, queryInput, resourceType, selectedLabel, sort, starredOnly])
+  }, [navigate, namespace, page, q, queryInput, selectedLabel, sort, starredOnly])
 
   const handleSearch = (query: string) => {
     const parsedInput = parseNamespaceSearchInput(query)
     setQueryInput(query)
     startTransition(() => {
-      navigate({ to: '/search', search: { q: parsedInput.query, namespace: parsedInput.namespace, label: selectedLabel, resourceType, sort, page: 0, starredOnly }, replace: true })
+      navigate({ to: '/search', search: { q: parsedInput.query, namespace: parsedInput.namespace, label: selectedLabel, sort, page: 0, starredOnly }, replace: true })
     })
   }
 
   const handleSortChange = (newSort: string) => {
-    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, resourceType, sort: newSort, page: 0, starredOnly } })
+    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, sort: newSort, page: 0, starredOnly } })
   }
 
   const handlePageChange = (newPage: number) => {
     blurActiveElement()
-    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, resourceType, sort, page: newPage, starredOnly } })
+    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, sort, page: newPage, starredOnly } })
   }
 
   const handleLabelToggle = (label: string) => {
     const nextLabel = selectedLabel === label ? '' : label
-    navigate({ to: '/search', search: { q, namespace, label: nextLabel, resourceType: undefined, sort, page: 0, starredOnly } })
+    navigate({ to: '/search', search: { q, namespace, label: nextLabel, sort, page: 0, starredOnly } })
   }
 
   const handleNamespaceClear = () => {
-    navigate({ to: '/search', search: { q, namespace: '', label: selectedLabel, resourceType, sort, page: 0, starredOnly } })
+    navigate({ to: '/search', search: { q, namespace: '', label: selectedLabel, sort, page: 0, starredOnly } })
   }
 
   const handleStarredToggle = () => {
@@ -210,20 +194,13 @@ export function SearchPage() {
       return
     }
 
-    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, resourceType: undefined, sort, page: 0, starredOnly: !starredOnly } })
+    navigate({ to: '/search', search: { q, namespace, label: selectedLabel, sort, page: 0, starredOnly: !starredOnly } })
   }
 
   const handleSkillClick = (namespace: string, slug: string) => {
     navigate({
       to: `/space/${namespace}/${encodeURIComponent(slug)}`,
       search: { returnTo: toRouterPath(window.location.pathname, window.location.search) },
-    })
-  }
-
-  const handleResourceTypeChange = (nextType?: ResourceType) => {
-    navigate({
-      to: '/search',
-      search: { q, namespace, label: '', resourceType: nextType, sort, page: 0, starredOnly: false },
     })
   }
 
@@ -235,26 +212,19 @@ export function SearchPage() {
     : []
   const totalPages = starredOnly
     ? Math.ceil(filteredStarredSkills.length / PAGE_SIZE)
-    : useLegacySkillSearch && data
+    : data
       ? Math.ceil(data.total / data.size)
-      : resourceData
-        ? Math.ceil(resourceData.total / resourceData.size)
-        : 0
+      : 0
   const displayItems = starredOnly
     ? starredPageItems
-    : useLegacySkillSearch
-      ? (data?.items ?? [])
-      : []
-  const resourceItems = useLegacySkillSearch ? [] : (resourceData?.items ?? [])
-  const isPageLoading = starredOnly ? isLoadingStarred : useLegacySkillSearch ? isLoading : isLoadingResources
+    : (data?.items ?? [])
+  const isPageLoading = starredOnly ? isLoadingStarred : isLoading
   const isUpdatingResults = starredOnly
     ? isFetchingStarred && !isLoadingStarred
-    : useLegacySkillSearch
-      ? isFetching && !isLoading
-      : isFetchingResources && !isLoadingResources
+    : isFetching && !isLoading
   const resultCount = starredOnly
     ? filteredStarredSkills.length
-    : useLegacySkillSearch ? (data?.total ?? 0) : (resourceData?.total ?? 0)
+    : (data?.total ?? 0)
 
   return (
     <div className={APP_SHELL_PAGE_CLASS_NAME}>
@@ -313,10 +283,6 @@ export function SearchPage() {
         ) : null}
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="shrink-0 text-sm font-medium text-muted-foreground">{t('suite.resourceType')}</span>
-          <Button variant={!resourceType && !useLegacySkillSearch ? 'default' : 'outline'} size="sm" onClick={() => handleResourceTypeChange(undefined)}>{t('suite.allTypes')}</Button>
-          <Button variant={resourceType === 'SKILL' ? 'default' : 'outline'} size="sm" onClick={() => handleResourceTypeChange('SKILL')}>{t('suite.resourceTypeSkill')}</Button>
-          <Button variant={resourceType === 'SUITE' ? 'default' : 'outline'} size="sm" onClick={() => handleResourceTypeChange('SUITE')}>{t('suite.resourceTypeSuite')}</Button>
           <span className="shrink-0 text-sm font-medium text-muted-foreground">{t('search.filters.label')}</span>
           <Button
             variant={starredOnly ? 'default' : 'outline'}
@@ -350,7 +316,7 @@ export function SearchPage() {
       {/* Results */}
       {isPageLoading ? (
         <SkeletonList count={PAGE_SIZE} />
-      ) : displayItems.length > 0 || resourceItems.length > 0 ? (
+      ) : displayItems.length > 0 ? (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {displayItems.map((skill, idx) => (
@@ -359,16 +325,6 @@ export function SearchPage() {
                   skill={skill}
                   highlightStarred
                   onClick={() => handleSkillClick(skill.namespace, skill.slug)}
-                />
-              </div>
-            ))}
-            {resourceItems.map((resource, idx) => (
-              <div key={`${resource.resourceType}-${resource.id}`} className={`h-full animate-fade-up delay-${Math.min(idx % 6 + 1, 6)}`}>
-                <ResourceCard
-                  resource={resource}
-                  onClick={() => resource.resourceType === 'SUITE'
-                    ? navigate({ to: `/suite/${resource.namespace}/${encodeURIComponent(resource.slug)}` })
-                    : handleSkillClick(resource.namespace, resource.slug)}
                 />
               </div>
             ))}

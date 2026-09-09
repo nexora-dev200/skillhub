@@ -1762,6 +1762,8 @@
     "available": "可用",
     "degraded": "已降级",
     "installCommand": "安装命令",
+    "copyInstallCommand": "复制安装命令",
+    "detailsSidebar": "套件信息与操作",
     "commandCopied": "已复制安装命令",
     "degradedDescription": "成员失效或权限发生变化，恢复所有成员后才能安装。",
     "membersTitle": "包含的技能（{{count}}）",

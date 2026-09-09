@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SkillSuite } from '@/api/types'
@@ -118,5 +118,16 @@ describe('SuiteDetailPage', () => {
     const deletedLabels = screen.getAllByText('@global/deleted-helper')
     expect(deletedLabels.every((label) => label.closest('a') === null)).toBe(true)
     expect(screen.getAllByRole('link')).toHaveLength(1)
+  })
+
+  it('places Suite metadata and installation in the detail sidebar', () => {
+    mocks.detail = { data: suite(), isLoading: false, error: null }
+
+    render(<SuiteDetailPage />)
+
+    const sidebar = screen.getByRole('complementary', { name: 'suite.detailsSidebar' })
+    expect(within(sidebar).getByText('v1.0.0')).not.toBeNull()
+    expect(within(sidebar).getByText('suite.installCommand')).not.toBeNull()
+    expect(within(sidebar).getByLabelText('suite.copyInstallCommand')).not.toBeNull()
   })
 })
