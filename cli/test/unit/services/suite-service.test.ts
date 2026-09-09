@@ -487,6 +487,38 @@ describe('Suite local lifecycle', () => {
     expect(await exists(join(home, '.skillhub', 'inventory.json'))).toBe(false)
   })
 
+  test('rolls back the first Agent target when the second target commit fails', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const codexRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-codex-'))
+    const claudeRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-claude-'))
+    const { plan, downloads } = makePlan()
+    const renameOperation: typeof rename = async (source, target): Promise<void> => {
+      if (String(source).includes('.skillhub-suite-stage-')
+        && String(target) === join(claudeRoot, 'alpha')) {
+        throw new Error('injected second target failure')
+      }
+      await rename(source, target)
+    }
+
+    await expect(installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [
+        { agent: 'codex', rootDir: codexRoot, scope: 'project', source: 'explicit' },
+        { agent: 'claude', rootDir: claudeRoot, scope: 'project', source: 'explicit' }
+      ],
+      force: false,
+      home,
+      client: clientFor(plan, downloads),
+      renameOperation
+    })).rejects.toThrow('injected second target failure')
+
+    expect(await readdir(codexRoot)).toEqual([])
+    expect(await readdir(claudeRoot)).toEqual([])
+    expect(await exists(join(home, '.skillhub', 'inventory.json'))).toBe(false)
+  })
+
   test('reports retained backup paths when rollback cannot restore a replaced member', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))

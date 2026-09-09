@@ -73,6 +73,7 @@ class SkillSuiteDraftServiceTest {
             assertThat(saved.getSkillVersionId()).isEqualTo(40L);
             assertThat(saved.getPosition()).isZero();
             assertThat(saved.getFingerprintSnapshot()).isEqualTo("sha256:abc");
+            assertThat(saved.isEntry()).isTrue();
         });
         assertThat(result.version().getOverview()).isEqualTo("## Start here");
         verify(publicationValidator).validate(result.suite(), result.version());
