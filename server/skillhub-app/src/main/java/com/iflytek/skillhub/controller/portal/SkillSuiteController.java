@@ -51,7 +51,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @GetMapping("/{namespace}/{slug}")
-    @Operation(summary = "Get one visible Suite version")
+    @Operation(operationId = "getSkillSuite", summary = "Get one visible Suite version")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite version returned")
     public ApiResponse<SkillSuiteResponse> getDetail(
             @PathVariable String namespace,
@@ -66,7 +66,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @GetMapping("/{namespace}/{slug}/versions")
-    @Operation(summary = "List visible Suite versions")
+    @Operation(operationId = "listSkillSuiteVersions", summary = "List visible Suite versions")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite version history returned")
     public ApiResponse<List<SkillSuiteVersionSummaryResponse>> listVersions(
             @PathVariable String namespace,
@@ -80,7 +80,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @GetMapping("/member-candidates")
-    @Operation(summary = "Search exact Skill versions eligible for a Suite draft")
+    @Operation(operationId = "searchSkillSuiteMemberCandidates", summary = "Search exact Skill versions eligible for a Suite draft")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Eligible member candidates returned")
     public ApiResponse<List<SkillSuiteMemberCandidateResponse>> searchCandidates(
             @RequestParam String suiteNamespace,
@@ -96,7 +96,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{namespace}/{slug}/install-plan")
-    @Operation(summary = "Issue an idempotent exact-member Suite install plan")
+    @Operation(operationId = "createSkillSuiteInstallPlan", summary = "Issue an idempotent exact-member Suite install plan")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Install plan issued")
     @RateLimit(category = "download", authenticated = 120, anonymous = 30)
     public ApiResponse<SkillSuiteInstallPlanResponse> createInstallPlan(
@@ -115,7 +115,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping
-    @Operation(summary = "Create a Suite and its first draft version")
+    @Operation(operationId = "createSkillSuite", summary = "Create a Suite and its first draft version")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite draft created")
     public ApiResponse<SkillSuiteResponse> create(
             @Valid @RequestBody SkillSuiteCreateRequest request,
@@ -129,7 +129,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/versions")
-    @Operation(summary = "Create a new draft version for a Suite")
+    @Operation(operationId = "createSkillSuiteVersion", summary = "Create a new draft version for a Suite")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite version draft created")
     public ApiResponse<SkillSuiteResponse> createVersion(
             @PathVariable Long suiteId,
@@ -144,7 +144,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PutMapping("/{suiteId}/versions/{versionId}")
-    @Operation(summary = "Update an editable Suite draft")
+    @Operation(operationId = "updateSkillSuiteDraft", summary = "Update an editable Suite draft")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite draft updated")
     public ApiResponse<SkillSuiteResponse> updateDraft(
             @PathVariable Long suiteId,
@@ -160,7 +160,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/versions/{versionId}/submit")
-    @Operation(summary = "Submit a public or namespace Suite draft for review")
+    @Operation(operationId = "submitSkillSuiteReview", summary = "Submit a public or namespace Suite draft for review")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite draft submitted")
     public ApiResponse<MessageResponse> submit(
             @PathVariable Long suiteId,
@@ -176,7 +176,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/versions/{versionId}/publish")
-    @Operation(summary = "Publish a private Suite draft directly")
+    @Operation(operationId = "publishPrivateSkillSuite", summary = "Publish a private Suite draft directly")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Private Suite published")
     public ApiResponse<MessageResponse> publishPrivate(
             @PathVariable Long suiteId,
@@ -192,7 +192,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/reviews/{reviewTaskId}/approve")
-    @Operation(summary = "Approve a pending Suite review")
+    @Operation(operationId = "approveSkillSuiteReview", summary = "Approve a pending Suite review")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite review approved")
     public ApiResponse<MessageResponse> approve(
             @PathVariable Long reviewTaskId,
@@ -209,7 +209,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/reviews/{reviewTaskId}/reject")
-    @Operation(summary = "Reject a pending Suite review")
+    @Operation(operationId = "rejectSkillSuiteReview", summary = "Reject a pending Suite review")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite review rejected")
     public ApiResponse<MessageResponse> reject(
             @PathVariable Long reviewTaskId,
@@ -226,7 +226,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/versions/{versionId}/reopen")
-    @Operation(summary = "Reopen a rejected Suite version as a draft")
+    @Operation(operationId = "reopenSkillSuiteDraft", summary = "Reopen a rejected Suite version as a draft")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite draft reopened")
     public ApiResponse<MessageResponse> reopen(
             @PathVariable Long suiteId,
@@ -242,7 +242,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/versions/{versionId}/yank")
-    @Operation(summary = "Yank a published Suite version")
+    @Operation(operationId = "yankSkillSuiteVersion", summary = "Yank a published Suite version")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite version yanked")
     public ApiResponse<MessageResponse> yank(
             @PathVariable Long suiteId,
@@ -260,7 +260,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/hide")
-    @Operation(summary = "Hide a Suite from discovery")
+    @Operation(operationId = "hideSkillSuite", summary = "Hide a Suite from discovery")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite hidden")
     public ApiResponse<MessageResponse> hide(
             @PathVariable Long suiteId,
@@ -274,7 +274,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/restore")
-    @Operation(summary = "Restore a hidden Suite")
+    @Operation(operationId = "restoreSkillSuite", summary = "Restore a hidden Suite")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite restored")
     public ApiResponse<MessageResponse> restore(
             @PathVariable Long suiteId,
@@ -288,7 +288,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/archive")
-    @Operation(summary = "Archive a Suite container")
+    @Operation(operationId = "archiveSkillSuite", summary = "Archive a Suite container")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite archived")
     public ApiResponse<MessageResponse> archive(
             @PathVariable Long suiteId,
@@ -302,7 +302,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @PostMapping("/{suiteId}/unarchive")
-    @Operation(summary = "Restore an archived Suite container")
+    @Operation(operationId = "unarchiveSkillSuite", summary = "Restore an archived Suite container")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite unarchived")
     public ApiResponse<MessageResponse> unarchive(
             @PathVariable Long suiteId,
@@ -316,7 +316,7 @@ public class SkillSuiteController extends BaseApiController {
     }
 
     @DeleteMapping("/{suiteId}")
-    @Operation(summary = "Delete a Suite without changing member Skills")
+    @Operation(operationId = "deleteSkillSuite", summary = "Delete a Suite without changing member Skills")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Suite deleted")
     public ApiResponse<MessageResponse> delete(
             @PathVariable Long suiteId,

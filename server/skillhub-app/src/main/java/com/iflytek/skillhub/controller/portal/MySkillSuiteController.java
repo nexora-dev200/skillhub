@@ -30,7 +30,7 @@ public class MySkillSuiteController extends BaseApiController {
     }
 
     @GetMapping
-    @Operation(summary = "List Suite versions manageable by the current user")
+    @Operation(operationId = "listMySkillSuites", summary = "List Suite versions manageable by the current user")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Manageable Suite page returned")
     public ApiResponse<PageResponse<MySkillSuiteSummaryResponse>> list(
             @RequestParam(required = false) String q,

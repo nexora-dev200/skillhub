@@ -33,7 +33,7 @@ public class ResourceDiscoveryController extends BaseApiController {
     }
 
     @GetMapping
-    @Operation(summary = "Search Skills and Suites with explicit resource types")
+    @Operation(operationId = "searchResources", summary = "Search Skills and Suites with explicit resource types")
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Resource page returned")
     @RateLimit(category = "search", authenticated = 60, anonymous = 20)
     public ApiResponse<ResourceSearchResponse> search(

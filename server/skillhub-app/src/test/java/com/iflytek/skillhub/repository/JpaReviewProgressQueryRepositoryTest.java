@@ -8,7 +8,9 @@ import com.iflytek.skillhub.domain.review.ReviewTaskStatus;
 import com.iflytek.skillhub.domain.suite.SkillSuite;
 import com.iflytek.skillhub.domain.suite.SkillSuiteVersion;
 import com.iflytek.skillhub.domain.skill.Skill;
+import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
+import com.iflytek.skillhub.domain.user.UserAccount;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +43,8 @@ class JpaReviewProgressQueryRepositoryTest {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
         registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
         registry.add("spring.jpa.database-platform", () -> "org.hibernate.dialect.PostgreSQLDialect");
+        registry.add("spring.flyway.enabled", () -> true);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
     }
 
     @Autowired
@@ -51,6 +55,7 @@ class JpaReviewProgressQueryRepositoryTest {
 
     @Test
     void groupsAttemptsFiltersLatestStatusAndKeepsTotalsOnEmptyPage() {
+        persistUsers("owner", "author-1", "other-author");
         Namespace namespace = entityManager.persistFlushFind(
                 new Namespace("team-review", "Review Team", "owner"));
         Skill alpha = entityManager.persistFlushFind(
@@ -137,6 +142,7 @@ class JpaReviewProgressQueryRepositoryTest {
 
     @Test
     void includesSuiteAttemptsWithoutRequiringLegacySkillColumns() {
+        persistUsers("owner", "author-1");
         Namespace namespace = entityManager.persistFlushFind(
                 new Namespace("team-suite-review", "Suite Review Team", "owner"));
         SkillSuite suite = entityManager.persistFlushFind(
@@ -160,6 +166,53 @@ class JpaReviewProgressQueryRepositoryTest {
             assertThat(item.subjectSlug()).isEqualTo("starter-pack");
         });
         assertThat(progress.statusCounts().pending()).isEqualTo(1);
+    }
+
+    @Test
+    void legacySkillReviewInsertPopulatesTypedSubjectDuringRollingUpgrade() {
+        entityManager.persist(new UserAccount(
+                "legacy-review-author", "Legacy Review Author", null, null));
+        Namespace namespace = entityManager.persistFlushFind(
+                new Namespace("legacy-review", "Legacy Review", "legacy-review-author"));
+        Skill skill = entityManager.persistFlushFind(
+                new Skill(namespace.getId(), "legacy-skill", "legacy-review-author", SkillVisibility.PUBLIC));
+        SkillVersion skillVersion = entityManager.persistFlushFind(
+                new SkillVersion(skill.getId(), "1.0.0", "legacy-review-author"));
+
+        int inserted = entityManager.getEntityManager().createNativeQuery("""
+                INSERT INTO review_task (
+                    skill_version_id, skill_id, skill_version, namespace_id,
+                    status, version, submitted_by, submitted_at
+                ) VALUES (
+                    :skillVersionId, :skillId, :skillVersion, :namespaceId,
+                    'PENDING', 1, :submittedBy, CURRENT_TIMESTAMP
+                )
+                """)
+                .setParameter("skillVersionId", skillVersion.getId())
+                .setParameter("skillId", skill.getId())
+                .setParameter("skillVersion", skillVersion.getVersion())
+                .setParameter("namespaceId", namespace.getId())
+                .setParameter("submittedBy", "legacy-review-author")
+                .executeUpdate();
+
+        Object[] typedSubject = (Object[]) entityManager.getEntityManager().createNativeQuery("""
+                SELECT subject_type, subject_id, subject_version_id, subject_version
+                FROM review_task
+                WHERE skill_version_id = :skillVersionId
+                """)
+                .setParameter("skillVersionId", skillVersion.getId())
+                .getSingleResult();
+
+        assertThat(inserted).isEqualTo(1);
+        assertThat(typedSubject).containsExactly(
+                "SKILL_VERSION", skill.getId(), skillVersion.getId(), "1.0.0");
+    }
+
+    private void persistUsers(String... userIds) {
+        for (String userId : userIds) {
+            entityManager.persist(new UserAccount(userId, userId, null, null));
+        }
+        entityManager.flush();
     }
 
     private void persistAttempt(

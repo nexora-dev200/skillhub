@@ -34,6 +34,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
@@ -43,6 +44,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -95,11 +97,9 @@ class SkillSuiteAppServiceTest {
         SkillSuiteQueryService.Detail detail = detail(true);
         given(queryService.getDetail("global", "starter", null, "user-1", Map.of(), Set.of()))
                 .willReturn(detail);
-        given(skillQueryService.resolveVersion(
-                "global", "first", "1.0.0", null, "sha256:first", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
-        given(skillQueryService.resolveVersion(
-                "global", "second", "2.0.0", null, "sha256:second", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(102L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(12L, 102L, "second", "2.0.0", "sha256:second"));
         given(installOperationRepository.insertIfAbsent(
                 any(), org.mockito.ArgumentMatchers.eq("retry-1"),
@@ -121,15 +121,71 @@ class SkillSuiteAppServiceTest {
     }
 
     @Test
+    void createInstallPlan_preservesSuperAdminAccessWhenResolvingPrivateMembers() {
+        Set<String> platformRoles = Set.of("SUPER_ADMIN");
+        SkillSuiteQueryService.Detail detail = detail(true);
+        given(queryService.getDetail(
+                "global", "starter", null, "super-admin", Map.of(), platformRoles))
+                .willReturn(detail);
+        given(skillQueryService.resolveVersionById(
+                101L, "super-admin", Map.of(), platformRoles))
+                .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
+        given(skillQueryService.resolveVersionById(
+                102L, "super-admin", Map.of(), platformRoles))
+                .willReturn(resolved(12L, 102L, "second", "2.0.0", "sha256:second"));
+        given(installOperationRepository.insertIfAbsent(
+                any(), org.mockito.ArgumentMatchers.eq("retry-super-admin"),
+                org.mockito.ArgumentMatchers.eq("user:super-admin"),
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(70L))).willReturn(1);
+
+        var result = service.createInstallPlan(
+                "global", "starter", null, "super-admin", Map.of(), platformRoles,
+                "retry-super-admin", request);
+
+        assertThat(result.members()).hasSize(2);
+    }
+
+    @Test
+    void createInstallPlan_scopesAnonymousIdempotencyByCallerAndSuite() {
+        HttpServletRequest secondRequest = org.mockito.Mockito.mock(HttpServletRequest.class);
+        given(request.getRemoteAddr()).willReturn("192.0.2.10");
+        given(request.getHeader("User-Agent")).willReturn("skillhub-cli/test");
+        given(secondRequest.getRemoteAddr()).willReturn("192.0.2.11");
+        given(secondRequest.getHeader("User-Agent")).willReturn("skillhub-cli/test");
+        SkillSuiteQueryService.Detail detail = detail(true);
+        given(queryService.getDetail("global", "starter", null, null, Map.of(), Set.of()))
+                .willReturn(detail);
+        given(skillQueryService.resolveVersionById(101L, null, Map.of(), Set.of()))
+                .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
+        given(skillQueryService.resolveVersionById(102L, null, Map.of(), Set.of()))
+                .willReturn(resolved(12L, 102L, "second", "2.0.0", "sha256:second"));
+        given(installOperationRepository.insertIfAbsent(
+                any(), org.mockito.ArgumentMatchers.eq("retry-anonymous"), any(),
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(70L))).willReturn(1);
+
+        service.createInstallPlan(
+                "global", "starter", null, null, Map.of(), Set.of(), "retry-anonymous", request);
+        service.createInstallPlan(
+                "global", "starter", null, null, Map.of(), Set.of(), "retry-anonymous", secondRequest);
+
+        ArgumentCaptor<String> actorKeys = ArgumentCaptor.forClass(String.class);
+        verify(installOperationRepository, times(2)).insertIfAbsent(
+                any(), org.mockito.ArgumentMatchers.eq("retry-anonymous"), actorKeys.capture(),
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(70L));
+        assertThat(actorKeys.getAllValues())
+                .hasSize(2)
+                .doesNotHaveDuplicates()
+                .allMatch(value -> value.startsWith("anonymous:"));
+    }
+
+    @Test
     void createInstallPlan_replaysTheCapturedVersionWithoutDuplicateMetrics() {
         SkillSuiteQueryService.Detail detail = detail(true);
         given(queryService.getDetailByVersionId(
                 "global", "starter", 70L, "user-1", Map.of(), Set.of())).willReturn(detail);
-        given(skillQueryService.resolveVersion(
-                "global", "first", "1.0.0", null, "sha256:first", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
-        given(skillQueryService.resolveVersion(
-                "global", "second", "2.0.0", null, "sha256:second", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(102L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(12L, 102L, "second", "2.0.0", "sha256:second"));
         SkillSuiteInstallOperation operation = org.mockito.Mockito.mock(SkillSuiteInstallOperation.class);
         given(operation.getOperationId()).willReturn("server-operation-1");
@@ -155,11 +211,9 @@ class SkillSuiteAppServiceTest {
                 .willReturn(detail);
         given(queryService.getDetailByVersionId(
                 "global", "starter", 70L, "user-1", Map.of(), Set.of())).willReturn(detail);
-        given(skillQueryService.resolveVersion(
-                "global", "first", "1.0.0", null, "sha256:first", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
-        given(skillQueryService.resolveVersion(
-                "global", "second", "2.0.0", null, "sha256:second", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(102L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(12L, 102L, "second", "2.0.0", "sha256:second"));
         given(installOperationRepository.insertIfAbsent(
                 any(), org.mockito.ArgumentMatchers.eq("retry-race"),
@@ -185,11 +239,9 @@ class SkillSuiteAppServiceTest {
         SkillSuiteQueryService.Detail detail = detail(true);
         given(queryService.getDetail("global", "starter", null, "user-1", Map.of(), Set.of()))
                 .willReturn(detail);
-        given(skillQueryService.resolveVersion(
-                "global", "first", "1.0.0", null, "sha256:first", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of(), Set.of()))
                 .willReturn(resolved(11L, 101L, "first", "1.0.0", "sha256:first"));
-        given(skillQueryService.resolveVersion(
-                "global", "second", "2.0.0", null, "sha256:second", "user-1", Map.of()))
+        given(skillQueryService.resolveVersionById(102L, "user-1", Map.of(), Set.of()))
                 .willThrow(new DomainForbiddenException("error.skill.access.denied", "private-skill"));
 
         assertThatThrownBy(() -> service.createInstallPlan(
@@ -211,7 +263,7 @@ class SkillSuiteAppServiceTest {
                 "global", "starter", null, null, Map.of(), Set.of(), "retry-3", request))
                 .isInstanceOf(DomainBadRequestException.class);
 
-        verify(skillQueryService, never()).resolveVersion(any(), any(), any(), any(), any(), any(), any());
+        verify(skillQueryService, never()).resolveVersionById(any(), any(), any(), any());
         verify(installMetricsService, never()).recordIssuedPlan(any());
     }
 
@@ -287,9 +339,36 @@ class SkillSuiteAppServiceTest {
         assertThatThrownBy(() -> service.create(
                 createRequest, "user-1", Map.of(), Set.of("SUPER_ADMIN"), request))
                 .isInstanceOfSatisfying(DomainBadRequestException.class, exception ->
-                        assertThat(exception.messageCode())
-                                .isEqualTo("error.suite.members.selectionMismatch"));
+                        assertThat(exception.messageArgs()[0].toString())
+                                .contains("@global/selected@1.0.0")
+                                .contains("error.suite.members.selectionMismatch"));
 
+        verify(draftService, never()).create(any(), any());
+    }
+
+    @Test
+    void create_reportsEveryInvalidMemberCoordinateAndReason() {
+        SkillSuiteMemberRequest first = new SkillSuiteMemberRequest(
+                101L, "global", "missing", "1.0.0");
+        SkillSuiteMemberRequest second = new SkillSuiteMemberRequest(
+                102L, "private-team", "restricted", "2.0.0");
+        SkillSuiteCreateRequest createRequest = new SkillSuiteCreateRequest(
+                "global", "starter", "Starter", null, null, "1.0.0",
+                SkillVisibility.PRIVATE, null, first, List.of(first, second));
+        given(namespaceRepository.findBySlug("global")).willReturn(java.util.Optional.of(namespace));
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of(), Set.of()))
+                .willThrow(new DomainBadRequestException("error.skill.version.notFound", 101L));
+        given(skillQueryService.resolveVersionById(102L, "user-1", Map.of(), Set.of()))
+                .willThrow(new DomainForbiddenException("error.skill.access.denied", "restricted"));
+
+        DomainBadRequestException exception = catchThrowableOfType(
+                () -> service.create(createRequest, "user-1", Map.of(), Set.of(), request),
+                DomainBadRequestException.class);
+
+        assertThat(exception.messageCode()).isEqualTo("error.suite.members.invalid");
+        assertThat((String) exception.messageArgs()[0])
+                .contains("@global/missing@1.0.0 (error.skill.version.notFound)")
+                .contains("@private-team/restricted@2.0.0 (error.skill.access.denied)");
         verify(draftService, never()).create(any(), any());
     }
 

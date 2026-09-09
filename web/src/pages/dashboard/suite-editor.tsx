@@ -215,7 +215,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="suite-slug">Slug</Label>
+          <Label htmlFor="suite-slug">{t('suite.slug')}</Label>
           <Input id="suite-slug" value={slug} disabled={loadingSource} onChange={(event) => setSlug(event.target.value)} placeholder="marketing-workflow" />
         </div>
         <div className="space-y-2">

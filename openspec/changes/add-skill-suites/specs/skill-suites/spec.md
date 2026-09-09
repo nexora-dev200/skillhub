@@ -273,6 +273,11 @@ CLI SHALL 在修改目标目录前完成全部成员和全部 Agent 目标的解
 - **AND** 恢复备份和安装前 inventory
 - **AND** 无法完成的回滚必须保留备份路径并明确报告
 
+#### Scenario: Concurrent operations target the same local Suite
+- **WHEN** 两个 CLI 进程并发安装、升级或卸载同一 registry 和 Suite 坐标
+- **THEN** CLI 通过 Suite 级本地锁只允许一个操作进入事务
+- **AND** 另一个操作明确报告繁忙，不得基于旧 inventory 提交
+
 ### Requirement: Suite installation SHALL preserve Agent Skills compatibility
 
 CLI SHALL 将每个 Member 作为普通 Skill 安装到 Agent 已支持的 Skill 根目录。CLI SHALL NOT 为 Suite 创建同名 `SKILL.md` 或要求 Agent 理解 Suite 协议。
@@ -492,6 +497,11 @@ REJECTED SuiteVersion MAY 由有权限的管理者退回 DRAFT、修改并重新
 - **AND** Suite 安装请求数和审计记录不重复增加
 - **AND** 该重试保证至少覆盖服务端约定的 24 小时幂等窗口
 
+#### Scenario: Anonymous callers reuse the same client key
+- **WHEN** 两个匿名调用者对 Suite 安装计划使用相同的 idempotency key
+- **THEN** 服务端使用经过哈希的调用者上下文和 Suite 坐标隔离幂等记录
+- **AND** 不在幂等 actor key 中保存原始 IP 或 User-Agent
+
 ### Requirement: Existing Skill workflows SHALL remain compatible
 
 引入 Suite 后，现有单 Skill 包协议、发布、扫描、审核、URL、API 和 CLI 安装行为 SHALL 保持不变。Suite 专用能力 SHALL 是增量接口。
@@ -552,4 +562,5 @@ Suite 能力 SHALL 以增量方式提供。旧 CLI 使用新 Server 时 SHALL �
 #### Scenario: Mixed application versions during rollout
 - **WHEN** 部署期间同时存在支持和不支持 Suite subject 的应用实例
 - **THEN** 现有 Skill 审核流程保持可用
+- **AND** 数据库为旧版实例写入的 Skill 审核补全类型化 subject
 - **AND** Suite 审核写入只在所有处理实例均支持类型化 subject 后启用

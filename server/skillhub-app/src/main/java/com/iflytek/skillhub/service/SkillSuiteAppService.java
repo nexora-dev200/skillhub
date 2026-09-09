@@ -44,6 +44,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
@@ -170,7 +171,7 @@ public class SkillSuiteAppService {
             HttpServletRequest request
     ) {
         String retryKey = normalizeClientRequestId(clientRequestId);
-        String actorKey = idempotencyActorKey(userId);
+        String actorKey = idempotencyActorKey(userId, namespace, slug, request);
         SkillSuiteInstallOperation existing = installOperationRepository
                 .findByClientRequestIdAndActorKey(retryKey, actorKey)
                 .orElse(null);
@@ -184,7 +185,8 @@ public class SkillSuiteAppService {
         if (!detail.available()) {
             throw new DomainBadRequestException("error.suite.install.unavailable");
         }
-        List<SkillSuiteInstallMemberResponse> members = resolveInstallMembers(detail, userId, namespaceRoles);
+        List<SkillSuiteInstallMemberResponse> members = resolveInstallMembers(
+                detail, userId, namespaceRoles, platformRoles);
 
         String operationId = UUID.randomUUID().toString();
         String fingerprint = suiteFingerprint(detail, members);
@@ -250,7 +252,8 @@ public class SkillSuiteAppService {
         if (!detail.available()) {
             throw new DomainBadRequestException("error.suite.install.unavailable");
         }
-        List<SkillSuiteInstallMemberResponse> members = resolveInstallMembers(detail, userId, namespaceRoles);
+        List<SkillSuiteInstallMemberResponse> members = resolveInstallMembers(
+                detail, userId, namespaceRoles, platformRoles);
         String fingerprint = suiteFingerprint(detail, members);
         log.info(
                 "Suite install plan safely replayed [suiteId={}, versionId={}, actorId={}, memberCount={}, operationId={}]",
@@ -262,16 +265,21 @@ public class SkillSuiteAppService {
     private List<SkillSuiteInstallMemberResponse> resolveInstallMembers(
             SkillSuiteQueryService.Detail detail,
             String userId,
-            Map<Long, NamespaceRole> namespaceRoles
+            Map<Long, NamespaceRole> namespaceRoles,
+            Set<String> platformRoles
     ) {
         List<SkillSuiteInstallMemberResponse> members = new ArrayList<>(detail.members().size());
         try {
             for (SkillSuiteQueryService.MemberDetail member : detail.members()) {
                 var snapshot = member.snapshot();
-                SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersion(
-                        snapshot.getNamespaceSlugSnapshot(), snapshot.getSkillSlugSnapshot(),
-                        snapshot.getSkillVersionSnapshot(), null, snapshot.getFingerprintSnapshot(),
-                        userId, namespaceRoles);
+                SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersionById(
+                        snapshot.getSkillVersionId(), userId, namespaceRoles, platformRoles);
+                if (!Objects.equals(resolved.namespace(), snapshot.getNamespaceSlugSnapshot())
+                        || !Objects.equals(resolved.slug(), snapshot.getSkillSlugSnapshot())
+                        || !Objects.equals(resolved.version(), snapshot.getSkillVersionSnapshot())
+                        || !Objects.equals(resolved.fingerprint(), snapshot.getFingerprintSnapshot())) {
+                    throw new DomainBadRequestException("error.suite.install.unavailable");
+                }
                 members.add(new SkillSuiteInstallMemberResponse(
                         snapshot.getSkillId(), snapshot.getSkillVersionId(),
                         resolved.namespace(), resolved.slug(), resolved.version(), resolved.fingerprint(),
@@ -295,8 +303,26 @@ public class SkillSuiteAppService {
         return clientRequestId;
     }
 
-    private String idempotencyActorKey(String userId) {
-        return userId == null ? "anonymous" : "user:" + userId;
+    private String idempotencyActorKey(
+            String userId,
+            String namespace,
+            String slug,
+            HttpServletRequest request
+    ) {
+        if (userId != null) {
+            return "user:" + userId;
+        }
+        AuditRequestContext context = AuditRequestContext.from(request);
+        String callerScope = Objects.toString(context.clientIp(), "") + '\0'
+                + Objects.toString(context.userAgent(), "") + '\0'
+                + namespace + '/' + slug;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return "anonymous:" + HexFormat.of().formatHex(
+                    digest.digest(callerScope.getBytes(StandardCharsets.UTF_8)));
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Failed to scope anonymous Suite idempotency", exception);
+        }
     }
 
     public SkillSuiteResponse getDetail(
@@ -532,9 +558,21 @@ public class SkillSuiteAppService {
             Map<Long, NamespaceRole> namespaceRoles,
             Set<String> platformRoles
     ) {
-        List<SkillSuiteMemberSelection> selections = request.members().stream()
-                .map(member -> resolve(member, userId, namespaceRoles, platformRoles))
-                .toList();
+        List<SkillSuiteMemberSelection> selections = new ArrayList<>(request.members().size());
+        List<String> invalidMembers = new ArrayList<>();
+        for (SkillSuiteMemberRequest member : request.members()) {
+            try {
+                selections.add(resolve(member, userId, namespaceRoles, platformRoles));
+            } catch (LocalizedDomainException exception) {
+                invalidMembers.add(String.format(
+                        "@%s/%s@%s (%s)", member.namespace(), member.slug(), member.version(),
+                        exception.messageCode()));
+            }
+        }
+        if (!invalidMembers.isEmpty()) {
+            throw new DomainBadRequestException(
+                    "error.suite.members.invalid", String.join("; ", invalidMembers));
+        }
         Long entryVersionId = resolveEntryVersionId(request.entrySkill(), selections);
         return new CreateSkillSuiteDraftCommand(
                 namespaceId, request.slug(), request.displayName(), request.summary(), request.overview(),

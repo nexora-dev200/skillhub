@@ -13,7 +13,7 @@ export interface paths {
         };
         get?: never;
         /** Update an editable Suite draft */
-        put: operations["updateDraft"];
+        put: operations["updateSkillSuiteDraft"];
         post?: never;
         delete?: never;
         options?: never;
@@ -30,7 +30,7 @@ export interface paths {
         };
         get?: never;
         /** Update an editable Suite draft */
-        put: operations["updateDraft_1"];
+        put: operations["updateSkillSuiteDraft_1"];
         post?: never;
         delete?: never;
         options?: never;
@@ -496,7 +496,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Yank a published Suite version */
-        post: operations["yank"];
+        post: operations["yankSkillSuiteVersion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -513,7 +513,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Yank a published Suite version */
-        post: operations["yank_1"];
+        post: operations["yankSkillSuiteVersion_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -530,7 +530,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Submit a public or namespace Suite draft for review */
-        post: operations["submit"];
+        post: operations["submitSkillSuiteReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -547,7 +547,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Submit a public or namespace Suite draft for review */
-        post: operations["submit_1"];
+        post: operations["submitSkillSuiteReview_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -564,7 +564,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reopen a rejected Suite version as a draft */
-        post: operations["reopen"];
+        post: operations["reopenSkillSuiteDraft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -581,7 +581,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reopen a rejected Suite version as a draft */
-        post: operations["reopen_1"];
+        post: operations["reopenSkillSuiteDraft_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -598,7 +598,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Publish a private Suite draft directly */
-        post: operations["publishPrivate"];
+        post: operations["publishPrivateSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -615,7 +615,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Publish a private Suite draft directly */
-        post: operations["publishPrivate_1"];
+        post: operations["publishPrivateSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -632,7 +632,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create a new draft version for a Suite */
-        post: operations["createVersion"];
+        post: operations["createSkillSuiteVersion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -649,7 +649,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create a new draft version for a Suite */
-        post: operations["createVersion_1"];
+        post: operations["createSkillSuiteVersion_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -666,7 +666,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Restore an archived Suite container */
-        post: operations["unarchive"];
+        post: operations["unarchiveSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -683,7 +683,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Restore an archived Suite container */
-        post: operations["unarchive_1"];
+        post: operations["unarchiveSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -700,7 +700,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Restore a hidden Suite */
-        post: operations["restore"];
+        post: operations["restoreSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -717,7 +717,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Restore a hidden Suite */
-        post: operations["restore_1"];
+        post: operations["restoreSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -734,7 +734,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Hide a Suite from discovery */
-        post: operations["hide"];
+        post: operations["hideSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -751,7 +751,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Hide a Suite from discovery */
-        post: operations["hide_1"];
+        post: operations["hideSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -768,7 +768,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Archive a Suite container */
-        post: operations["archive"];
+        post: operations["archiveSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -785,7 +785,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Archive a Suite container */
-        post: operations["archive_1"];
+        post: operations["archiveSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -802,7 +802,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Issue an idempotent exact-member Suite install plan */
-        post: operations["createInstallPlan"];
+        post: operations["createSkillSuiteInstallPlan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -819,7 +819,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Issue an idempotent exact-member Suite install plan */
-        post: operations["createInstallPlan_1"];
+        post: operations["createSkillSuiteInstallPlan_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -836,7 +836,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reject a pending Suite review */
-        post: operations["reject"];
+        post: operations["rejectSkillSuiteReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -853,7 +853,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Reject a pending Suite review */
-        post: operations["reject_1"];
+        post: operations["rejectSkillSuiteReview_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -870,7 +870,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Approve a pending Suite review */
-        post: operations["approve"];
+        post: operations["approveSkillSuiteReview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -887,7 +887,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Approve a pending Suite review */
-        post: operations["approve_1"];
+        post: operations["approveSkillSuiteReview_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -904,7 +904,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create a Suite and its first draft version */
-        post: operations["create"];
+        post: operations["createSkillSuite"];
         delete?: never;
         options?: never;
         head?: never;
@@ -921,7 +921,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Create a Suite and its first draft version */
-        post: operations["create_1"];
+        post: operations["createSkillSuite_1"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1703,9 +1703,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_6"];
+        get: operations["list_4"];
         put?: never;
-        post: operations["create_2"];
+        post: operations["create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2073,7 +2073,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["restore_2"];
+        post: operations["restore"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2089,7 +2089,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["hide_2"];
+        post: operations["hide"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2153,7 +2153,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["reject_2"];
+        post: operations["reject"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2169,7 +2169,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["approve_2"];
+        post: operations["approve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2408,7 +2408,7 @@ export interface paths {
             cookie?: never;
         };
         /** List visible Suite versions */
-        get: operations["listVersions"];
+        get: operations["listSkillSuiteVersions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2425,7 +2425,7 @@ export interface paths {
             cookie?: never;
         };
         /** List visible Suite versions */
-        get: operations["listVersions_1"];
+        get: operations["listSkillSuiteVersions_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2442,7 +2442,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get one visible Suite version */
-        get: operations["getDetail"];
+        get: operations["getSkillSuite"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2459,7 +2459,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get one visible Suite version */
-        get: operations["getDetail_1"];
+        get: operations["getSkillSuite_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2476,7 +2476,7 @@ export interface paths {
             cookie?: never;
         };
         /** Search exact Skill versions eligible for a Suite draft */
-        get: operations["searchCandidates"];
+        get: operations["searchSkillSuiteMemberCandidates"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2493,7 +2493,7 @@ export interface paths {
             cookie?: never;
         };
         /** Search exact Skill versions eligible for a Suite draft */
-        get: operations["searchCandidates_1"];
+        get: operations["searchSkillSuiteMemberCandidates_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2717,7 +2717,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listVersions_2"];
+        get: operations["listVersions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2733,7 +2733,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["listVersions_3"];
+        get: operations["listVersions_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3294,7 +3294,7 @@ export interface paths {
             cookie?: never;
         };
         /** Search Skills and Suites with explicit resource types */
-        get: operations["search_1"];
+        get: operations["searchResources"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3311,7 +3311,7 @@ export interface paths {
             cookie?: never;
         };
         /** Search Skills and Suites with explicit resource types */
-        get: operations["search_2"];
+        get: operations["searchResources_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3488,7 +3488,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Suite versions manageable by the current user */
-        get: operations["list_4"];
+        get: operations["listMySkillSuites"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3505,7 +3505,7 @@ export interface paths {
             cookie?: never;
         };
         /** List Suite versions manageable by the current user */
-        get: operations["list_5"];
+        get: operations["listMySkillSuites_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3857,7 +3857,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["search_3"];
+        get: operations["search_1"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4033,7 +4033,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["list_7"];
+        get: operations["list_5"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4161,7 +4161,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["search_4"];
+        get: operations["search_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4229,7 +4229,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete a Suite without changing member Skills */
-        delete: operations["delete"];
+        delete: operations["deleteSkillSuite"];
         options?: never;
         head?: never;
         patch?: never;
@@ -4246,7 +4246,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** Delete a Suite without changing member Skills */
-        delete: operations["delete_1"];
+        delete: operations["deleteSkillSuite_1"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6658,7 +6658,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    updateDraft: {
+    updateSkillSuiteDraft: {
         parameters: {
             query?: never;
             header?: never;
@@ -6685,7 +6685,7 @@ export interface operations {
             };
         };
     };
-    updateDraft_1: {
+    updateSkillSuiteDraft_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -7955,7 +7955,7 @@ export interface operations {
             };
         };
     };
-    yank: {
+    yankSkillSuiteVersion: {
         parameters: {
             query?: never;
             header?: never;
@@ -7982,7 +7982,7 @@ export interface operations {
             };
         };
     };
-    yank_1: {
+    yankSkillSuiteVersion_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8009,7 +8009,7 @@ export interface operations {
             };
         };
     };
-    submit: {
+    submitSkillSuiteReview: {
         parameters: {
             query?: never;
             header?: never;
@@ -8032,7 +8032,7 @@ export interface operations {
             };
         };
     };
-    submit_1: {
+    submitSkillSuiteReview_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8055,7 +8055,7 @@ export interface operations {
             };
         };
     };
-    reopen: {
+    reopenSkillSuiteDraft: {
         parameters: {
             query?: never;
             header?: never;
@@ -8078,7 +8078,7 @@ export interface operations {
             };
         };
     };
-    reopen_1: {
+    reopenSkillSuiteDraft_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8101,7 +8101,7 @@ export interface operations {
             };
         };
     };
-    publishPrivate: {
+    publishPrivateSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8124,7 +8124,7 @@ export interface operations {
             };
         };
     };
-    publishPrivate_1: {
+    publishPrivateSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8147,7 +8147,7 @@ export interface operations {
             };
         };
     };
-    createVersion: {
+    createSkillSuiteVersion: {
         parameters: {
             query?: never;
             header?: never;
@@ -8173,7 +8173,7 @@ export interface operations {
             };
         };
     };
-    createVersion_1: {
+    createSkillSuiteVersion_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8199,7 +8199,7 @@ export interface operations {
             };
         };
     };
-    unarchive: {
+    unarchiveSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8221,7 +8221,7 @@ export interface operations {
             };
         };
     };
-    unarchive_1: {
+    unarchiveSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8243,7 +8243,7 @@ export interface operations {
             };
         };
     };
-    restore: {
+    restoreSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8265,7 +8265,7 @@ export interface operations {
             };
         };
     };
-    restore_1: {
+    restoreSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8287,7 +8287,7 @@ export interface operations {
             };
         };
     };
-    hide: {
+    hideSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8309,7 +8309,7 @@ export interface operations {
             };
         };
     };
-    hide_1: {
+    hideSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8331,7 +8331,7 @@ export interface operations {
             };
         };
     };
-    archive: {
+    archiveSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8353,7 +8353,7 @@ export interface operations {
             };
         };
     };
-    archive_1: {
+    archiveSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8375,7 +8375,7 @@ export interface operations {
             };
         };
     };
-    createInstallPlan: {
+    createSkillSuiteInstallPlan: {
         parameters: {
             query?: {
                 version?: string;
@@ -8402,7 +8402,7 @@ export interface operations {
             };
         };
     };
-    createInstallPlan_1: {
+    createSkillSuiteInstallPlan_1: {
         parameters: {
             query?: {
                 version?: string;
@@ -8429,7 +8429,7 @@ export interface operations {
             };
         };
     };
-    reject: {
+    rejectSkillSuiteReview: {
         parameters: {
             query?: never;
             header?: never;
@@ -8455,7 +8455,7 @@ export interface operations {
             };
         };
     };
-    reject_1: {
+    rejectSkillSuiteReview_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8481,7 +8481,7 @@ export interface operations {
             };
         };
     };
-    approve: {
+    approveSkillSuiteReview: {
         parameters: {
             query?: never;
             header?: never;
@@ -8507,7 +8507,7 @@ export interface operations {
             };
         };
     };
-    approve_1: {
+    approveSkillSuiteReview_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -8533,7 +8533,7 @@ export interface operations {
             };
         };
     };
-    create: {
+    createSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -8557,7 +8557,7 @@ export interface operations {
             };
         };
     };
-    create_1: {
+    createSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -9995,7 +9995,7 @@ export interface operations {
             };
         };
     };
-    list_6: {
+    list_4: {
         parameters: {
             query?: {
                 page?: number;
@@ -10018,7 +10018,7 @@ export interface operations {
             };
         };
     };
-    create_2: {
+    create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10609,7 +10609,7 @@ export interface operations {
             };
         };
     };
-    restore_2: {
+    restore: {
         parameters: {
             query?: never;
             header?: never;
@@ -10631,7 +10631,7 @@ export interface operations {
             };
         };
     };
-    hide_2: {
+    hide: {
         parameters: {
             query?: never;
             header?: never;
@@ -10729,7 +10729,7 @@ export interface operations {
             };
         };
     };
-    reject_2: {
+    reject: {
         parameters: {
             query?: never;
             header?: never;
@@ -10755,7 +10755,7 @@ export interface operations {
             };
         };
     };
-    approve_2: {
+    approve: {
         parameters: {
             query?: never;
             header?: never;
@@ -11196,7 +11196,7 @@ export interface operations {
             };
         };
     };
-    listVersions: {
+    listSkillSuiteVersions: {
         parameters: {
             query?: never;
             header?: never;
@@ -11219,7 +11219,7 @@ export interface operations {
             };
         };
     };
-    listVersions_1: {
+    listSkillSuiteVersions_1: {
         parameters: {
             query?: never;
             header?: never;
@@ -11242,7 +11242,7 @@ export interface operations {
             };
         };
     };
-    getDetail: {
+    getSkillSuite: {
         parameters: {
             query?: {
                 version?: string;
@@ -11267,7 +11267,7 @@ export interface operations {
             };
         };
     };
-    getDetail_1: {
+    getSkillSuite_1: {
         parameters: {
             query?: {
                 version?: string;
@@ -11292,7 +11292,7 @@ export interface operations {
             };
         };
     };
-    searchCandidates: {
+    searchSkillSuiteMemberCandidates: {
         parameters: {
             query: {
                 suiteNamespace: string;
@@ -11317,7 +11317,7 @@ export interface operations {
             };
         };
     };
-    searchCandidates_1: {
+    searchSkillSuiteMemberCandidates_1: {
         parameters: {
             query: {
                 suiteNamespace: string;
@@ -11717,7 +11717,7 @@ export interface operations {
             };
         };
     };
-    listVersions_2: {
+    listVersions: {
         parameters: {
             query?: {
                 page?: number;
@@ -11743,7 +11743,7 @@ export interface operations {
             };
         };
     };
-    listVersions_3: {
+    listVersions_1: {
         parameters: {
             query?: {
                 page?: number;
@@ -12617,7 +12617,7 @@ export interface operations {
             };
         };
     };
-    search_1: {
+    searchResources: {
         parameters: {
             query?: {
                 q?: string;
@@ -12644,7 +12644,7 @@ export interface operations {
             };
         };
     };
-    search_2: {
+    searchResources_1: {
         parameters: {
             query?: {
                 q?: string;
@@ -12899,7 +12899,7 @@ export interface operations {
             };
         };
     };
-    list_4: {
+    listMySkillSuites: {
         parameters: {
             query?: {
                 q?: string;
@@ -12923,7 +12923,7 @@ export interface operations {
             };
         };
     };
-    list_5: {
+    listMySkillSuites_1: {
         parameters: {
             query?: {
                 q?: string;
@@ -13440,7 +13440,7 @@ export interface operations {
             };
         };
     };
-    search_3: {
+    search_1: {
         parameters: {
             query: {
                 q: string;
@@ -13688,7 +13688,7 @@ export interface operations {
             };
         };
     };
-    list_7: {
+    list_5: {
         parameters: {
             query?: {
                 status?: string;
@@ -13889,7 +13889,7 @@ export interface operations {
             };
         };
     };
-    search_4: {
+    search_2: {
         parameters: {
             query?: {
                 q?: string;
@@ -13979,7 +13979,7 @@ export interface operations {
             };
         };
     };
-    delete: {
+    deleteSkillSuite: {
         parameters: {
             query?: never;
             header?: never;
@@ -14001,7 +14001,7 @@ export interface operations {
             };
         };
     };
-    delete_1: {
+    deleteSkillSuite_1: {
         parameters: {
             query?: never;
             header?: never;

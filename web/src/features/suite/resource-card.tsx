@@ -32,7 +32,7 @@ export function ResourceCard({ resource, onClick }: { resource: ResourceSummary;
           </div>
           <NamespaceBadge
             className="max-w-[50%] shrink-0 truncate"
-            type="TEAM"
+            type={resource.namespace === 'global' ? 'GLOBAL' : 'TEAM'}
             name={`@${resource.namespace}`}
             title={`@${resource.namespace}`}
           />

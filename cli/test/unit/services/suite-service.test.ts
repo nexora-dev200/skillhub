@@ -158,6 +158,53 @@ describe('Suite local lifecycle', () => {
     expect(checked.members.every(member => member.status === 'ok')).toBe(true)
   })
 
+  test('serializes the same Suite across different Agent targets', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const firstRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-first-root-'))
+    const secondRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-second-root-'))
+    const { plan, downloads } = makePlan()
+    let signalFirstLocked: (() => void) | undefined
+    let releaseFirst: (() => void) | undefined
+    const firstLocked = new Promise<void>((resolvePromise) => { signalFirstLocked = resolvePromise })
+    const holdFirst = new Promise<void>((resolvePromise) => { releaseFirst = resolvePromise })
+
+    const firstInstall = installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir: firstRoot, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(plan, downloads),
+      afterTargetLocksAcquired: async () => {
+        signalFirstLocked?.()
+        await holdFirst
+      }
+    })
+
+    await firstLocked
+    try {
+      await expect(installSuite({
+        registry,
+        namespace: 'global',
+        slug: 'starter-pack',
+        targets: [{ agent: 'claude', rootDir: secondRoot, scope: 'project', source: 'explicit' }],
+        force: false,
+        home,
+        client: clientFor(plan, downloads)
+      })).rejects.toThrow('Suite operation is busy')
+    } finally {
+      releaseFirst?.()
+      await firstInstall
+    }
+
+    const inventory = await new InventoryStore(home).read()
+    expect(inventory.suites).toHaveLength(1)
+    expect(inventory.suites?.[0]?.members.every(member =>
+      member.installDirs.every(dir => dir.startsWith(firstRoot)))).toBe(true)
+    expect(await exists(join(secondRoot, 'alpha'))).toBe(false)
+  })
+
   test('does not change live directories or inventory when a member fingerprint fails', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))

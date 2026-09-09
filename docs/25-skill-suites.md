@@ -88,16 +88,18 @@ skillhub suite upgrade @global/superpowers
 skillhub suite remove @global/superpowers
 ```
 
-安装先解析精确计划并下载、校验全部成员，再按稳定顺序锁定目标目录并整体提交。提交中途失败时，
-CLI 恢复本次替换的目录并保持安装前 inventory。卸载只移除当前 Suite 的来源；直接安装、被其他
-Suite 共享或已被本地修改的成员目录会保留。
+安装、升级和卸载先获取当前 Suite 的本地操作锁，避免两个 CLI 进程基于同一份旧 inventory 并发
+提交。安装随后解析精确计划并下载、校验全部成员，再按稳定顺序锁定目标目录并整体提交。提交中途
+失败时，CLI 恢复本次替换的目录并保持安装前 inventory。卸载只移除当前 Suite 的来源；直接安装、
+被其他 Suite 共享或已被本地修改的成员目录会保留。
 
 CLI inventory 向后兼容旧记录。旧记录没有 `installedBy` 时按直接安装处理，不会在移除 Suite 时被
 误删。新 CLI 在 Server 未声明 `skill-suite-v1` 能力时会明确停止 Suite 命令，普通 Skill 命令不受影响。
 
 CLI 获取安装计划时会发送独立的 `Idempotency-Key`，遇到网络错误或 502/503/504 时使用同一个 key
-重试一次。Server 按调用者隔离该 key，并为计划生成 `operationId`，在 24 小时窗口内避免重复记录
-Suite 安装请求和审计。
+重试一次。Server 按登录用户隔离该 key；匿名请求使用经过哈希的请求来源、客户端标识和 Suite 坐标
+隔离，不保存原始身份字段。Server 为计划生成 `operationId`，在 24 小时窗口内避免重复记录 Suite
+安装请求和审计。
 安装计划本身不预增成员下载数；每个成员仍由原有 Skill 下载接口按实际请求计数。
 
 本地 `local` profile 可直接运行 `make suite-smoke`。验证 release Compose 时必须使用真实管理员会话：
@@ -123,7 +125,8 @@ SMOKE_ADMIN_PASSWORD='<configured-password>' \
 
 ## 部署顺序
 
-数据库迁移会先把既有审核任务回填为 `SKILL_VERSION`，并保留旧 Skill 专用列。官方单实例
+数据库迁移会先把既有审核任务回填为 `SKILL_VERSION`，保留旧 Skill 专用列，并通过数据库触发器
+把旧版 Server 新写入的 Skill 审核同步补全为类型化 subject。官方单实例
 `compose.release.yml` 和本地开发 profile 已默认开启 Suite 审核写入，因为它们不会同时运行新旧 Server。
 
 其他部署方式默认保持关闭。全新安装、单实例升级或停机升级可直接设置：

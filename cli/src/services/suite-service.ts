@@ -1,7 +1,8 @@
 import { mkdtemp, rename, rm } from 'node:fs/promises'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
+import { lock } from 'proper-lockfile'
 import { SkillHubClient, type SuiteDetail, type SuiteInstallPlan } from '../clients/skillhub-client'
 import {
   InventoryStore,
@@ -16,9 +17,9 @@ import {
 import { CliError } from '../shared/errors'
 import { EXIT } from '../shared/constants'
 import { installSkill } from './install-service'
-import { pathExists } from '../platform/paths'
+import { pathExists, userStateDir } from '../platform/paths'
 import { snapshotSkillDirectory } from './skill-fingerprint'
-import { acquireSkillTargetLock } from './skill-target-lock'
+import { acquireSkillTargetLock, ensurePrivateLockDir } from './skill-target-lock'
 import type { AgentCandidate } from '../agents/types'
 
 const SUITE_CAPABILITY = 'skill-suite-v1'
@@ -63,6 +64,15 @@ export interface SuiteCheckResult {
 export interface SuiteRemoveResult {
   removed: string[]
   preserved: Array<{ dir: string; reason: 'shared' | 'modified' | 'missing' }>
+}
+
+export interface SuiteRemoveOptions {
+  registry: string
+  namespace: string
+  slug: string
+  home?: string | undefined
+  /** Internal seam used to verify state observed immediately after target locking. */
+  afterTargetLocksAcquired?: (() => Promise<void>) | undefined
 }
 
 export interface SuiteUpgradePlan {
@@ -128,6 +138,21 @@ export async function installSuite(options: SuiteInstallOptions): Promise<SuiteI
   )
   assertNoTargetCollisions(plan)
 
+  const releaseSuiteLock = await acquireSuiteOperationLock(
+    options.home, options.registry, plan.namespace, plan.slug)
+  try {
+    return await installSuiteTransaction(options, client, renameOperation, plan)
+  } finally {
+    await releaseSuiteLock().catch(() => {})
+  }
+}
+
+async function installSuiteTransaction(
+  options: SuiteInstallOptions,
+  client: SkillHubClient,
+  renameOperation: typeof rename,
+  plan: SuiteInstallPlan
+): Promise<SuiteInstallResult> {
   const store = new InventoryStore(options.home)
   const before = await store.read()
   const previousSuite = installedSuites(before).find(candidate =>
@@ -338,14 +363,17 @@ export async function checkSuite(options: {
   }
 }
 
-export async function removeSuite(options: {
-  registry: string
-  namespace: string
-  slug: string
-  home?: string | undefined
-  /** Internal seam used to verify state observed immediately after target locking. */
-  afterTargetLocksAcquired?: (() => Promise<void>) | undefined
-}): Promise<SuiteRemoveResult> {
+export async function removeSuite(options: SuiteRemoveOptions): Promise<SuiteRemoveResult> {
+  const releaseSuiteLock = await acquireSuiteOperationLock(
+    options.home, options.registry, options.namespace, options.slug)
+  try {
+    return await removeSuiteTransaction(options)
+  } finally {
+    await releaseSuiteLock().catch(() => {})
+  }
+}
+
+async function removeSuiteTransaction(options: SuiteRemoveOptions): Promise<SuiteRemoveResult> {
   const store = new InventoryStore(options.home)
   const inventory = await store.read()
   const suite = findInstalledSuite(inventory, options.registry, options.namespace, options.slug)
@@ -807,6 +835,38 @@ function assertSuiteSnapshotUnchanged(
   throw new CliError('installed Suite changed while waiting for target locks', EXIT.validation, {
     next: 'run `skillhub suite check` and retry'
   })
+}
+
+/** Serializes local install, upgrade, and remove operations for one Suite inventory identity. */
+async function acquireSuiteOperationLock(
+  home: string | undefined,
+  registry: string,
+  namespace: string,
+  slug: string
+): Promise<() => Promise<void>> {
+  const uid = typeof process.getuid === 'function' ? process.getuid() : 'user'
+  const lockDir = join(tmpdir(), `skillhub-cli-suite-locks-${uid}`)
+  await ensurePrivateLockDir(lockDir)
+  const digest = createHash('sha256')
+    .update(`${userStateDir(home)}\0${registry}\0${namespace}\0${slug}`)
+    .digest('hex')
+  const lockPath = join(lockDir, `${digest}.lock`)
+  try {
+    return await lock(lockPath, {
+      lockfilePath: lockPath,
+      realpath: false,
+      stale: 30_000,
+      update: 10_000,
+      retries: 0
+    })
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ELOCKED') {
+      throw new CliError(`Suite operation is busy: @${namespace}/${slug}`, EXIT.filesystem, {
+        next: 'wait for the other SkillHub CLI process to finish and retry'
+      })
+    }
+    throw error
+  }
 }
 
 function describe(error: unknown): string {
