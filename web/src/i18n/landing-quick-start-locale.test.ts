@@ -39,8 +39,10 @@ describe('landing quick start locales', () => {
   it('keeps the native CLI guide bound to the selected registry', () => {
     expect(skillGuideTemplate).toContain('name: skillhub-cli')
     expect(skillGuideTemplate).toContain('version: 1.0.0')
-    expect(skillGuideTemplate).toContain('npx --yes @astron-team/skillhub@0.1.12 version')
+    expect(skillGuideTemplate).toContain('npm install --global @astron-team/skillhub@0.1.12')
     expect(skillGuideTemplate).toContain('semantic version is `0.1.12` or newer')
+    expect(skillGuideTemplate).toContain('remove that conflicting launcher only when it is owned by the current user')
+    expect(skillGuideTemplate).toContain('Do not retain or create an alias for the replaced command')
     expect(skillGuideTemplate).toContain('may contain an unresolved registry marker rather than a required shell environment variable')
     expect(skillGuideTemplate).toContain('PowerShell 7')
     expect(skillGuideTemplate).toContain('do not search for or substitute a similarly named package')

@@ -29,15 +29,16 @@ skillhub version
 
 Use it only when the output is `SkillHub CLI <version>` and that semantic version is `0.1.12` or newer. An older first-party version does not yet preserve compatible third-party fields in shared state files. A different result may be an unrelated command with the same name.
 
-Some third-party stores install another `skillhub` executable. Preserve it: do not replace, remove, or globally overwrite that command. Use the fully qualified first-party npm package below whenever the command on `PATH` does not pass the identity check. The first-party CLI updates only its own `registry` and `tokens` fields in shared `~/.skillhub` JSON files and preserves unknown fields owned by compatible tools.
+When the command is missing or does not pass the identity check, install the pinned first-party CLI globally so future manual `skillhub` commands use this implementation:
 
-If the first-party CLI is unavailable, use its fully qualified npm package for this request:
-
-```bash
-npx --yes @astron-team/skillhub@0.1.12 version
+```console
+npm install --global @astron-team/skillhub@0.1.12
+skillhub version
 ```
 
-In that case, replace `skillhub` in the examples below with `npx --yes @astron-team/skillhub@0.1.12`. Do not install the CLI globally unless the user asks. Do not replace the CLI with raw HTTP downloads: the CLI validates the resolved version, package fingerprint, destination ownership, and local changes. Never rewrite or delete unknown fields in shared SkillHub configuration or credential files.
+If `skillhub version` still resolves to a known third-party launcher after installation, locate the exact command selected by the shell, remove that conflicting launcher only when it is owned by the current user, refresh command lookup, and run the pinned global installation again. Do not retain or create an alias for the replaced command. Never remove an identity-unknown or system-managed executable, use elevated privileges, edit shell startup files, or delete a directory merely to take over the command; stop and report the resolved path when safe user-level replacement is not possible.
+
+Replacing the executable must not replace the other tool's data. The first-party CLI updates only its own `registry` and `tokens` fields in shared `~/.skillhub` JSON files and preserves unknown fields owned by compatible tools. Do not replace the CLI with raw HTTP downloads: the CLI validates the resolved version, package fingerprint, destination ownership, and local changes. Never rewrite or delete unknown fields in shared SkillHub configuration or credential files.
 
 Before using an operation or flag not shown in this Skill, inspect both live help surfaces for the selected CLI:
 
@@ -55,7 +56,7 @@ Repository documentation may describe unreleased behavior. If neither live help 
 - **Discover a Skill:** search this registry first. If it is unavailable or has no suitable result, report that outcome and ask before querying another registry.
 - **Check an upgrade:** inspect only the explicitly selected installed Skill. Never upgrade every installation implicitly.
 
-An explicit request to connect SkillHub and install a named Skill authorizes those two local installations. It does not authorize replacing local changes, changing registries, publishing content, or installing a global CLI.
+An explicit request to connect SkillHub authorizes installing the pinned first-party CLI globally and replacing a conflicting, current-user-owned third-party `skillhub` launcher. It does not authorize replacing Skill files with local changes, changing registries, publishing content, using elevated privileges, or deleting third-party configuration or credentials.
 
 For namespace synchronization, publishing, removal, repair, or detailed troubleshooting after this helper is installed, read `references/cli-operations.md`. Start with its read-only inspection command and keep the same registry throughout the operation.
 

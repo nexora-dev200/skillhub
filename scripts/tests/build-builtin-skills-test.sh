@@ -25,7 +25,7 @@ cmp \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" \
   "$REPO_ROOT/web/src/docs/skill.md.template"
 test -f "$REPO_ROOT/builtin-skills/skills/skillhub-cli/references/cli-operations.md"
-grep -F 'npx --yes @astron-team/skillhub@0.1.12' \
+grep -F 'npm install --global @astron-team/skillhub@0.1.12' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null
 grep -F 'installed but not yet loaded' \
   "$REPO_ROOT/builtin-skills/skills/skillhub-cli/SKILL.md" >/dev/null

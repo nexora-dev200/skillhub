@@ -114,7 +114,7 @@ printf '%s' "$guide" | grep -F 'The registry for this guide is `https://skill.ex
 printf '%s' "$guide" | grep -F 'read its sibling `.skillhub/metadata.json` before running' >/dev/null
 printf '%s' "$guide" | grep -F '  --registry https://skill.example.com/skillhub \' >/dev/null
 printf '%s' "$guide" | grep -F 'skillhub install @global/skillhub-cli' >/dev/null
-printf '%s' "$guide" | grep -F 'npx --yes @astron-team/skillhub@0.1.12 version' >/dev/null
+printf '%s' "$guide" | grep -F 'npm install --global @astron-team/skillhub@0.1.12' >/dev/null
 printf '%s' "$guide" | grep -F 'semantic version is `0.1.12` or newer' >/dev/null
 printf '%s' "$guide" | grep -F 'ask before querying another registry' >/dev/null
 printf '%s' "$guide" | grep -F 'skillhub login --registry https://skill.example.com/skillhub' >/dev/null
