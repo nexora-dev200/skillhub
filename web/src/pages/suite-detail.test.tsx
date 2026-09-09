@@ -126,6 +126,22 @@ describe('SuiteDetailPage', () => {
     expect(screen.getAllByRole('link')).toHaveLength(1)
   })
 
+  it('keeps an unavailable entry skill visible but non-navigable in the overview', () => {
+    const blockedEntrySuite = suite()
+    blockedEntrySuite.members[0] = {
+      ...blockedEntrySuite.members[0],
+      browsable: false,
+      blockingReason: 'SKILL_HIDDEN',
+    }
+    mocks.detail = { data: blockedEntrySuite, isLoading: false, error: null }
+
+    render(<SuiteDetailPage />)
+
+    expect(screen.getByText('@global/medical-records@1.0.0')).not.toBeNull()
+    expect(screen.getByText('suite.blockingReasons.SKILL_HIDDEN')).not.toBeNull()
+    expect(screen.queryByRole('link', { name: 'suite.viewEntrySkill' })).toBeNull()
+  })
+
   it.each([
     'DELETED',
     'NAMESPACE_ARCHIVED',
