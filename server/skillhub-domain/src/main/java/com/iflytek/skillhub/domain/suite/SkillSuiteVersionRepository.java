@@ -6,6 +6,7 @@ import java.util.Optional;
 /** Persistence contract for immutable Suite version snapshots. */
 public interface SkillSuiteVersionRepository {
     Optional<SkillSuiteVersion> findById(Long id);
+    Optional<SkillSuiteVersion> findByIdForDefinitionUpdate(Long id);
     Optional<SkillSuiteVersion> findBySuiteIdAndVersion(Long suiteId, String version);
     List<SkillSuiteVersion> findByIdIn(List<Long> ids);
     List<SkillSuiteVersion> findBySuiteId(Long suiteId);

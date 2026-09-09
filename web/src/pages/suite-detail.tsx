@@ -6,6 +6,7 @@ import { useSuiteDetail, useSuiteVersions, useSubmitSuite } from '@/shared/hooks
 import { suiteBlockingReasonLabel, suiteStatusLabel, suiteVisibilityLabel } from '@/features/suite/suite-labels'
 import { SuiteManagementActions } from '@/features/suite/suite-management-actions'
 import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
+import { getBaseUrl } from '@/features/skill/install-command'
 import { Card } from '@/shared/ui/card'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
@@ -23,9 +24,12 @@ export function SuiteDetailPage() {
   const { data: suite, isLoading, error } = useSuiteDetail(namespace, slug, search.version)
   const { data: versions } = useSuiteVersions(namespace, slug)
   const submitMutation = useSubmitSuite()
+  const registryUrl = useMemo(() => getBaseUrl(), [])
   const command = useMemo(
-    () => suite ? `skillhub suite install @${suite.namespace}/${suite.slug} --version ${suite.version}` : '',
-    [suite],
+    () => suite
+      ? `skillhub suite install @${suite.namespace}/${suite.slug} --version ${suite.version} --registry ${registryUrl}`
+      : '',
+    [registryUrl, suite],
   )
   const suitePath = `/suite/${encodeURIComponent(namespace)}/${encodeURIComponent(slug)}`
   const returnTo = search.version

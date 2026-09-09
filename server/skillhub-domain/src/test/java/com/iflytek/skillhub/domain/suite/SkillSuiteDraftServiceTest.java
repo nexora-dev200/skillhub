@@ -97,7 +97,7 @@ class SkillSuiteDraftServiceTest {
         setId(version, 20L);
         when(namespaceRepository.findById(1L)).thenReturn(Optional.of(namespace));
         when(suiteRepository.findById(10L)).thenReturn(Optional.of(suite));
-        when(versionRepository.findById(20L)).thenReturn(Optional.of(version));
+        when(versionRepository.findByIdForDefinitionUpdate(20L)).thenReturn(Optional.of(version));
         when(versionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(memberRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 

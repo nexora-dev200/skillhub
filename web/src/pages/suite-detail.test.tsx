@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   detail: { data: undefined as SkillSuite | undefined, isLoading: false, error: null as Error | null },
   submit: { mutateAsync: vi.fn(), isPending: false },
 }))
+const originalRuntimeConfig = window.__SKILLHUB_RUNTIME_CONFIG__
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate,
@@ -91,6 +92,7 @@ describe('SuiteDetailPage', () => {
   afterEach(() => {
     cleanup()
     vi.clearAllMocks()
+    window.__SKILLHUB_RUNTIME_CONFIG__ = originalRuntimeConfig
   })
 
   it('adds entry skill guidance to the overview and keeps the full member grid separate', () => {
@@ -172,6 +174,9 @@ describe('SuiteDetailPage', () => {
   })
 
   it('places Suite metadata and installation in the detail sidebar', () => {
+    window.__SKILLHUB_RUNTIME_CONFIG__ = {
+      appBaseUrl: 'https://registry.internal.example/skillhub',
+    }
     mocks.detail = { data: suite(), isLoading: false, error: null }
 
     render(<SuiteDetailPage />)
@@ -180,7 +185,7 @@ describe('SuiteDetailPage', () => {
     expect(within(sidebar).getByText('v1.0.0')).not.toBeNull()
     expect(within(sidebar).getByText('suite.installCommand')).not.toBeNull()
     expect(within(sidebar).getByText(
-      'skillhub suite install @global/care-workflow --version 1.0.0',
+      'skillhub suite install @global/care-workflow --version 1.0.0 --registry https://registry.internal.example/skillhub',
     )).not.toBeNull()
     expect(within(sidebar).getByLabelText('suite.copyInstallCommand')).not.toBeNull()
   })

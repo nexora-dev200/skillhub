@@ -128,7 +128,7 @@ public class SkillSuiteDraftService {
         SkillSuite suite = suiteRepository.findById(suiteId)
                 .orElseThrow(() -> new DomainNotFoundException("error.suite.notFound", suiteId));
         requireWritableNamespace(suite.getNamespaceId());
-        SkillSuiteVersion version = versionRepository.findById(versionId)
+        SkillSuiteVersion version = versionRepository.findByIdForDefinitionUpdate(versionId)
                 .orElseThrow(() -> new DomainNotFoundException("error.suite.version.notFound", versionId));
         if (!suiteId.equals(version.getSuiteId())) {
             throw new DomainBadRequestException("error.suite.version.mismatch");
