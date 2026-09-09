@@ -287,7 +287,8 @@ class SkillSuiteHardDeleteIntegrationTest {
                 new SkillSuiteMemberSelection(
                         memberSkill.getId(), memberVersion.getId(), namespace.getSlug(),
                         memberSkill.getSlug(), memberVersion.getVersion(), "a".repeat(64)),
-                0));
+                0,
+                true));
         ReviewTask reviewTask = ReviewTask.forSuiteVersion(
                 version.getId(), suite.getId(), namespace.getId(), version.getVersion(), authorId);
         reviewTask.setStatus(ReviewTaskStatus.APPROVED);

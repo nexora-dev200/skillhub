@@ -127,4 +127,18 @@ describe('SuiteEditor', () => {
       members: [{ namespace: 'global', slug: 'weather', version: '1.0.0' }],
     }))
   })
+
+  it('requires one selected member to be the entry skill', async () => {
+    const suite = sourceSuite(['EDIT'])
+    suite.members[0].entry = false
+    mocks.detail = { data: suite, isLoading: false, error: null }
+
+    render(<SuiteEditor namespace="global" slug="starter" version="1.0.0" mode="edit" />)
+    await waitFor(() => expect((screen.getByLabelText('suite.name') as HTMLInputElement).value)
+      .toBe('Starter suite'))
+    fireEvent.click(screen.getByRole('button', { name: 'suite.saveDraft' }))
+
+    expect(mocks.toast.error).toHaveBeenCalledWith('suite.entryRequired')
+    expect(mocks.update.mutateAsync).not.toHaveBeenCalled()
+  })
 })

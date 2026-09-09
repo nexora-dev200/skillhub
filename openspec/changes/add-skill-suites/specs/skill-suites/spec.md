@@ -55,9 +55,9 @@
 - **THEN** 系统拒绝该定义
 - **AND** 不创建部分成员关系
 
-### Requirement: Entry Skill SHALL be an explicit optional Member
+### Requirement: Entry Skill SHALL be one explicit ordinary Member
 
-SuiteVersion MAY 指定一个 Entry Skill。指定时，Entry Skill SHALL 精确指向该 SuiteVersion 的一个 Member；系统 SHALL NOT 根据 Suite 和 Skill 的同名关系推断入口。
+SuiteVersion SHALL 指定且仅指定一个 Entry Skill。Entry Skill SHALL 精确指向该 SuiteVersion 的一个普通 Member，保留完整 Skill 包和独立安装能力；系统 SHALL NOT 根据 Suite 和 Skill 的同名关系推断入口，也 SHALL NOT 要求 Entry 与 Suite 属于同一 Namespace。
 
 #### Scenario: Valid Entry Skill
 - **WHEN** SuiteVersion 将一个现有 Member 指定为 Entry Skill
@@ -69,9 +69,13 @@ SuiteVersion MAY 指定一个 Entry Skill。指定时，Entry Skill SHALL 精确
 - **THEN** 系统拒绝该 SuiteVersion
 
 #### Scenario: Suite has no Entry Skill
-- **WHEN** Suite 仅表示安装集合
-- **THEN** 系统允许 Entry Skill 为空
-- **AND** 安装后不生成额外的编排 Skill
+- **WHEN** 提交的 SuiteVersion 没有指定 Entry Skill
+- **THEN** 系统拒绝该 SuiteVersion
+
+#### Scenario: Public cross-Namespace Entry Skill
+- **WHEN** SuiteVersion 将其他 Namespace 中符合目标受众规则的 PUBLIC Member 指定为 Entry Skill
+- **THEN** 系统允许该 Entry Skill
+- **AND** 引用不改变该 Skill 的所有权或生命周期
 
 ### Requirement: Member candidates SHALL be filtered by the Server
 
@@ -359,6 +363,13 @@ Suite SHALL 有独立 API 和 Web URL。新的类型化资源发现结果中，�
 #### Scenario: Resolve a Suite install plan
 - **WHEN** 授权用户通过 Suite 专用接口解析某个版本
 - **THEN** 响应包含 SuiteVersion 身份以及有序的精确 Member 版本、fingerprint 和可下载状态
+
+#### Scenario: Skill detail shows visible Suite entry references
+- **WHEN** 当前 Skill 是一个或多个最新 PUBLISHED SuiteVersion 的 Entry Skill
+- **THEN** Skill 详情返回当前查看者有权读取的 Suite 摘要、精确版本和成员数量
+- **AND** Web 将其表达为“被套件用作入口”并链接到完整 Suite
+- **AND** Skill 仍保留普通的独立安装入口
+- **AND** 系统不返回对当前查看者不可见、已隐藏或已归档的 Suite 信息
 
 ### Requirement: Suite authors SHALL have a complete Web management flow
 

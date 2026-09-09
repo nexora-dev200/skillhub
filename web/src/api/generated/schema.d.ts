@@ -4410,7 +4410,7 @@ export interface components {
             /** @enum {string} */
             visibility: "PUBLIC" | "NAMESPACE_ONLY" | "PRIVATE";
             changelog?: string;
-            entrySkill?: components["schemas"]["SkillSuiteMemberRequest"];
+            entrySkill: components["schemas"]["SkillSuiteMemberRequest"];
             members: components["schemas"]["SkillSuiteMemberRequest"][];
         };
         SkillSuiteMemberRequest: {
@@ -5694,6 +5694,17 @@ export interface components {
             ownerPreviewVersion?: components["schemas"]["SkillLifecycleVersionResponse"];
             ownerPreviewReviewComment?: string;
             resolutionMode?: string;
+            entryForSuites?: components["schemas"]["SkillSuiteReferenceResponse"][];
+        };
+        SkillSuiteReferenceResponse: {
+            /** Format: int64 */
+            suiteId?: number;
+            namespace?: string;
+            slug?: string;
+            displayName?: string;
+            version?: string;
+            /** Format: int32 */
+            memberCount?: number;
         };
         ApiResponseReviewSkillDetailResponse: {
             /** Format: int32 */

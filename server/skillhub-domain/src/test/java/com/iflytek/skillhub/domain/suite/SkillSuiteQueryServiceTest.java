@@ -56,7 +56,8 @@ class SkillSuiteQueryServiceTest {
         SkillSuiteVersionMember member = new SkillSuiteVersionMember(
                 20L,
                 new SkillSuiteMemberSelection(30L, 40L, "global", "writer", "2.0.0", "sha256:abc"),
-                0);
+                0,
+                true);
         setId(namespace, 1L);
         setId(suite, 10L);
         setId(version, 20L);

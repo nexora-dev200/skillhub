@@ -24,7 +24,10 @@ public final class SkillSuiteCompositionPolicy {
             throw new DomainBadRequestException("error.suite.members.limit", MAX_MEMBERS);
         }
         Set<Long> skillIds = new HashSet<>();
-        boolean entryFound = entrySkillVersionId == null;
+        if (entrySkillVersionId == null) {
+            throw new DomainBadRequestException("error.suite.entry.required");
+        }
+        boolean entryFound = false;
         for (SkillSuiteMemberSelection member : members) {
             if (!skillIds.add(member.skillId())) {
                 throw new DomainBadRequestException("error.suite.members.duplicate");

@@ -12,7 +12,7 @@ SkillHub 的现有发布单元是一个根目录包含 `SKILL.md` 的 Skill 包�
 | Suite | Namespace 所有的、可版本化的 Skill 集合；它不是 Skill，也不是多 Skill ZIP。 |
 | SuiteVersion | Suite 在某一时刻不可变的成员快照和元数据。 |
 | Member | SuiteVersion 引用的一个精确、已发布 SkillVersion。 |
-| Entry Skill | 可选的普通 Member，用于表达工作流入口；不通过名称推断。 |
+| Entry Skill | 必填的普通 Member，用于表达工作流入口；仍是完整、可独立安装的 Skill，不通过名称推断。 |
 | Install plan | 服务端解析出的 SuiteVersion、成员精确版本、fingerprint 和下载信息。 |
 | Degraded Suite | 已发布 SuiteVersion 的至少一个成员当前不可下载；历史快照仍可查看，但不能完整安装。 |
 
@@ -53,12 +53,12 @@ skill_suite
   created_by, created_at, updated_by, updated_at
 
 skill_suite_version
-  id, suite_id, version, status, visibility, changelog, entry_skill_version_id,
+  id, suite_id, version, status, visibility, changelog,
   published_at, yanked_at, yanked_by, yank_reason,
   created_by, created_at
 
 skill_suite_version_member
-  suite_version_id, skill_version_id(nullable), position,
+  suite_version_id, skill_version_id(nullable), position, entry,
   namespace_slug_snapshot, skill_slug_snapshot,
   skill_version_snapshot, fingerprint_snapshot
 ```
@@ -241,7 +241,9 @@ Suite 操作权限为：
 <skills-root>/<suite-slug>/SKILL.md
 ```
 
-如果 Suite 表达工作流，`entrySkillVersionId` 指向一个普通 Member。Entry Skill 可以与 Suite 同名，也可以不同名；关系只来自显式 ID，不由 slug 推断。
+每个 SuiteVersion 必须把一个普通 Member 标记为 Entry Skill。Entry Skill 保留完整 Skill 包及独立安装能力，可以与 Suite 同名，也可以不同名；关系只来自成员快照上的显式 `entry` 标记，不由 slug 推断。Entry 与普通 Member 使用相同的候选、可见性和生命周期规则：跨 Namespace 的 PUBLIC Skill 可以作为 Entry，非 PUBLIC Skill 仍受同 Namespace 受众约束。
+
+Skill 详情只返回当前用户有权查看的、以该 Skill 为 Entry 的最新 PUBLISHED SuiteVersion。Web 将这些关系显示为“被套件用作入口”，并链接到完整 Suite；普通 Skill 的独立安装入口保持不变。Suite 被隐藏、归档或对当前用户不可见时，不返回其坐标或名称。
 
 这避免腾讯 SkillSet 当前把编排提示写入普通 Skill 目录造成的覆盖问题，也保证所有 Agent 只需理解标准 Skill。
 
@@ -292,7 +294,7 @@ inventory schema 增加 `suites`，并让 Skill 安装目标记录来源集合�
 
 ### 10. 查询、升级和展示保持类型明确
 
-新增的类型化资源发现入口返回 `resourceType`，Web 使用类型徽标及独立 `/skills/...`、`/suites/...` 页面。现有 Skill 搜索接口继续只返回 Skill，避免旧 CLI 或第三方客户端把 Suite 响应按 Skill 反序列化。Suite 详情显示版本、精确成员、Entry Skill、可用状态和阻塞原因。
+新增的类型化资源发现入口返回 `resourceType`，Web 使用类型徽标及独立 `/skills/...`、`/suites/...` 页面。现有 Skill 搜索接口继续只返回 Skill，避免旧 CLI 或第三方客户端把 Suite 响应按 Skill 反序列化。Suite 详情显示版本、精确成员、Entry Skill、可用状态和阻塞原因；普通 Skill 详情显示当前可见 Suite 的 Entry 反向引用，但不把 Suite 混入 Skill 搜索结果。
 
 Suite 详情响应同时返回服务端计算的管理能力，Web 不自行推断 Namespace 角色。作者可编辑草稿、显式重开被拒版本并基于已发布快照创建新版本；Namespace 管理员还可下架版本、隐藏、归档和删除 Suite。后端继续对每个命令独立鉴权，响应能力只用于正确展示入口，不作为安全边界。
 

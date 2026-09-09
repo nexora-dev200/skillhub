@@ -32,6 +32,15 @@ class SkillSuiteMemberEligibilityPolicyTest {
     }
 
     @Test
+    void suiteAcceptsPublicMemberFromAnotherNamespace() {
+        SkillSuiteMemberState member = member(2L, SkillVisibility.PUBLIC);
+
+        SkillSuiteMemberAvailability result = policy.evaluate(1L, SkillVisibility.PUBLIC, member);
+
+        assertThat(result.available()).isTrue();
+    }
+
+    @Test
     void deletedReferenceProducesTombstoneInsteadOfRelinkingByCoordinate() {
         SkillSuiteMemberState member = SkillSuiteMemberState.deleted(10L, 20L);
 
@@ -52,6 +61,54 @@ class SkillSuiteMemberEligibilityPolicyTest {
 
         assertThat(result.available()).isFalse();
         assertThat(result.reason()).isEqualTo(SkillSuiteMemberBlockingReason.VERSION_UNAVAILABLE);
+    }
+
+    @Test
+    void hiddenMemberSkillIsUnavailable() {
+        SkillSuiteMemberState member = member(
+                NamespaceStatus.ACTIVE, SkillVisibility.PUBLIC, SkillStatus.ACTIVE, true,
+                SkillVersionStatus.PUBLISHED, true, false);
+
+        SkillSuiteMemberAvailability result = policy.evaluate(1L, SkillVisibility.PUBLIC, member);
+
+        assertThat(result.available()).isFalse();
+        assertThat(result.reason()).isEqualTo(SkillSuiteMemberBlockingReason.SKILL_HIDDEN);
+    }
+
+    @Test
+    void archivedMemberSkillIsUnavailable() {
+        SkillSuiteMemberState member = member(
+                NamespaceStatus.ACTIVE, SkillVisibility.PUBLIC, SkillStatus.ARCHIVED, false,
+                SkillVersionStatus.PUBLISHED, true, false);
+
+        SkillSuiteMemberAvailability result = policy.evaluate(1L, SkillVisibility.PUBLIC, member);
+
+        assertThat(result.available()).isFalse();
+        assertThat(result.reason()).isEqualTo(SkillSuiteMemberBlockingReason.SKILL_ARCHIVED);
+    }
+
+    @Test
+    void yankedMemberVersionIsUnavailable() {
+        SkillSuiteMemberState member = member(
+                NamespaceStatus.ACTIVE, SkillVisibility.PUBLIC, SkillStatus.ACTIVE, false,
+                SkillVersionStatus.PUBLISHED, true, true);
+
+        SkillSuiteMemberAvailability result = policy.evaluate(1L, SkillVisibility.PUBLIC, member);
+
+        assertThat(result.available()).isFalse();
+        assertThat(result.reason()).isEqualTo(SkillSuiteMemberBlockingReason.VERSION_UNAVAILABLE);
+    }
+
+    @Test
+    void reversibleMemberRestrictionRecoveryMakesMemberAvailableAgain() {
+        SkillSuiteMemberState member = member(
+                NamespaceStatus.ACTIVE, SkillVisibility.PUBLIC, SkillStatus.ACTIVE, false,
+                SkillVersionStatus.PUBLISHED, true, false);
+
+        SkillSuiteMemberAvailability result = policy.evaluate(1L, SkillVisibility.PUBLIC, member);
+
+        assertThat(result.available()).isTrue();
+        assertThat(result.reason()).isNull();
     }
 
     @Test
@@ -83,5 +140,19 @@ class SkillSuiteMemberEligibilityPolicyTest {
                 10L, 20L, namespaceId, null, null,
                 NamespaceStatus.ACTIVE, visibility, SkillStatus.ACTIVE, false,
                 SkillVersionStatus.PUBLISHED, true, false, false);
+    }
+
+    private SkillSuiteMemberState member(
+            NamespaceStatus namespaceStatus,
+            SkillVisibility visibility,
+            SkillStatus skillStatus,
+            boolean hidden,
+            SkillVersionStatus versionStatus,
+            boolean downloadReady,
+            boolean yanked
+    ) {
+        return new SkillSuiteMemberState(
+                10L, 20L, 1L, null, null, namespaceStatus, visibility,
+                skillStatus, hidden, versionStatus, downloadReady, yanked, false);
     }
 }

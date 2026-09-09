@@ -84,7 +84,6 @@ class SkillSuiteAppServiceTest {
         version.setOverview("## Install in order");
         firstMember = member(11L, 101L, "first", "1.0.0", "sha256:first", 0);
         secondMember = member(12L, 102L, "second", "2.0.0", "sha256:second", 1);
-        version.setEntrySkillVersionId(101L);
     }
 
     @Test
@@ -306,7 +305,8 @@ class SkillSuiteAppServiceTest {
                 70L,
                 new com.iflytek.skillhub.domain.suite.SkillSuiteMemberSelection(
                         skillId, versionId, "global", slug, memberVersion, fingerprint),
-                position);
+                position,
+                position == 0);
     }
 
     private SkillQueryService.ResolvedVersionDTO resolved(

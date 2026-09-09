@@ -52,9 +52,6 @@ public class SkillSuiteVersion {
     @Column(columnDefinition = "TEXT")
     private String changelog;
 
-    @Column(name = "entry_skill_version_id")
-    private Long entrySkillVersionId;
-
     @Column(name = "published_at")
     private Instant publishedAt;
 
@@ -148,10 +145,6 @@ public class SkillSuiteVersion {
         return changelog;
     }
 
-    public Long getEntrySkillVersionId() {
-        return entrySkillVersionId;
-    }
-
     public Instant getPublishedAt() {
         return publishedAt;
     }
@@ -203,11 +196,6 @@ public class SkillSuiteVersion {
     public void setChangelog(String changelog) {
         assertEditable();
         this.changelog = changelog;
-    }
-
-    public void setEntrySkillVersionId(Long entrySkillVersionId) {
-        assertEditable();
-        this.entrySkillVersionId = entrySkillVersionId;
     }
 
     public void setPublishedAt(Instant publishedAt) {

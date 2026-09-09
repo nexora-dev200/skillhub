@@ -259,8 +259,7 @@ public class SkillSuiteAppService {
                 members.add(new SkillSuiteInstallMemberResponse(
                         snapshot.getSkillId(), snapshot.getSkillVersionId(),
                         resolved.namespace(), resolved.slug(), resolved.version(), resolved.fingerprint(),
-                        resolved.downloadUrl(), snapshot.getPosition(),
-                        Objects.equals(snapshot.getSkillVersionId(), detail.version().getEntrySkillVersionId())));
+                        resolved.downloadUrl(), snapshot.getPosition(), snapshot.isEntry()));
             }
         } catch (LocalizedDomainException exception) {
             // A Suite reader may no longer be allowed to inspect a restricted member. Do not expose
@@ -301,8 +300,7 @@ public class SkillSuiteAppService {
                         member.state().viewerCanRead() ? member.state().displayName() : null,
                         member.state().viewerCanRead() ? member.state().summary() : null,
                         member.snapshot().getSkillVersionSnapshot(), member.snapshot().getFingerprintSnapshot(),
-                        member.snapshot().getPosition(),
-                        Objects.equals(member.snapshot().getSkillVersionId(), detail.version().getEntrySkillVersionId()),
+                        member.snapshot().getPosition(), member.snapshot().isEntry(),
                         member.state().viewerCanRead(),
                         member.availability().reason() == null ? null : member.availability().reason().name()))
                 .toList();
@@ -526,7 +524,7 @@ public class SkillSuiteAppService {
             List<SkillSuiteMemberSelection> members
     ) {
         if (entry == null) {
-            return null;
+            throw new DomainBadRequestException("error.suite.entry.required");
         }
         return members.stream()
                 .filter(member -> Objects.equals(member.namespaceSlug(), entry.namespace())
@@ -561,8 +559,7 @@ public class SkillSuiteAppService {
             members.add(new SkillSuiteMemberResponse(
                     member.getSkillId(), member.getSkillVersionId(), member.getNamespaceSlugSnapshot(),
                     member.getSkillSlugSnapshot(), null, null, member.getSkillVersionSnapshot(),
-                    member.getFingerprintSnapshot(), member.getPosition(),
-                    Objects.equals(member.getSkillVersionId(), created.version().getEntrySkillVersionId()),
+                    member.getFingerprintSnapshot(), member.getPosition(), member.isEntry(),
                     false,
                     null));
         }

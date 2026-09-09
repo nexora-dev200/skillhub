@@ -41,6 +41,58 @@ assert_code() {
   echo "PASS: $description"
 }
 
+assert_suite_availability() {
+  local description="$1"
+  local expected_available="$2"
+  local expected_reason="${3:-}"
+  local response
+  response="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+    "${AUTH_HEADERS[@]}" \
+    "$BASE_URL/api/web/suites/global/$SUITE_SLUG?version=1.0.0")"
+  assert_code "$description" "$response" 0
+  JSON_INPUT="$response" EXPECTED_AVAILABLE="$expected_available" EXPECTED_REASON="$expected_reason" \
+    python3 - <<'PY'
+import json
+import os
+
+data = json.loads(os.environ["JSON_INPUT"])["data"]
+expected_available = os.environ["EXPECTED_AVAILABLE"] == "true"
+expected_reason = os.environ["EXPECTED_REASON"] or None
+reasons = {member.get("blockingReason") for member in data["members"]}
+if data["available"] is not expected_available:
+    raise SystemExit(1)
+if expected_reason is not None and expected_reason not in reasons:
+    raise SystemExit(1)
+PY
+  echo "PASS: $description has the expected availability"
+}
+
+assert_install_plan_rejected() {
+  local description="$1"
+  local key="$2"
+  local status
+  status="$(curl -sS -o "$WORK_DIR/blocked-plan.json" -w '%{http_code}' \
+    -b "$COOKIE_FILE" -c "$COOKIE_FILE" "${AUTH_HEADERS[@]}" \
+    -H "X-XSRF-TOKEN: $CSRF_TOKEN" -H "Idempotency-Key: $key" -X POST \
+    "$BASE_URL/api/web/suites/global/$SUITE_SLUG/install-plan?version=1.0.0")"
+  if [[ "$status" != "400" ]]; then
+    echo "FAIL: $description should return HTTP 400, got $status"
+    exit 1
+  fi
+  echo "PASS: $description"
+}
+
+assert_install_plan_available() {
+  local description="$1"
+  local key="$2"
+  local response
+  response="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+    "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
+    -H "Idempotency-Key: $key" -X POST \
+    "$BASE_URL/api/web/suites/global/$SUITE_SLUG/install-plan?version=1.0.0")"
+  assert_code "$description" "$response" 0
+}
+
 cleanup() {
   if [[ -n "$SUITE_ID" && -n "${CSRF_TOKEN:-}" ]]; then
     curl -sS -o /dev/null -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
@@ -172,6 +224,25 @@ print(json.dumps({
 }))
 PY
 )"
+MISSING_ENTRY_PAYLOAD="$(JSON_INPUT="$SUITE_PAYLOAD" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["JSON_INPUT"])
+payload.pop("entrySkill")
+print(json.dumps(payload))
+PY
+)"
+MISSING_ENTRY_STATUS="$(curl -sS -o "$WORK_DIR/missing-entry.json" -w '%{http_code}' \
+  -b "$COOKIE_FILE" -c "$COOKIE_FILE" "${AUTH_HEADERS[@]}" \
+  -H "X-XSRF-TOKEN: $CSRF_TOKEN" -H "Content-Type: application/json" \
+  -X POST "$BASE_URL/api/web/suites" -d "$MISSING_ENTRY_PAYLOAD")"
+if [[ "$MISSING_ENTRY_STATUS" != "400" ]]; then
+  echo "FAIL: creating a Suite without an Entry Skill should return HTTP 400, got $MISSING_ENTRY_STATUS"
+  exit 1
+fi
+echo "PASS: creating a Suite without an Entry Skill is rejected"
+
 CREATE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
   "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -H "Content-Type: application/json" -X POST "$BASE_URL/api/web/suites" \
@@ -204,6 +275,11 @@ PLAN_ONE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
   -H "Idempotency-Key: $IDEMPOTENCY_KEY" -X POST \
   "$BASE_URL/api/web/suites/global/$SUITE_SLUG/install-plan?version=1.0.0")"
 assert_code "issue an exact-member install plan" "$PLAN_ONE" 0
+if [[ "$(json_field "$PLAN_ONE" data.members.0.entry)" != "True" ]]; then
+  echo "FAIL: the install plan did not preserve the Entry Skill role"
+  exit 1
+fi
+echo "PASS: install plan marks the exact Entry Skill"
 PLAN_TWO="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
   "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -H "Idempotency-Key: $IDEMPOTENCY_KEY" -X POST \
@@ -227,33 +303,62 @@ raise SystemExit(0 if any(item["resourceType"] == "SKILL" and item["slug"] == sy
 PY
 echo "PASS: typed discovery still returns the ordinary Skill"
 
+ENTRY_DETAIL="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" "$BASE_URL/api/web/skills/global/$SKILL_SLUG")"
+assert_code "load the Entry Skill detail" "$ENTRY_DETAIL" 0
+JSON_INPUT="$ENTRY_DETAIL" python3 - "$SUITE_SLUG" <<'PY'
+import json
+import os
+import sys
+
+references = json.loads(os.environ["JSON_INPUT"])["data"]["entryForSuites"]
+raise SystemExit(0 if any(item["slug"] == sys.argv[1] and item["version"] == "1.0.0" for item in references) else 1)
+PY
+echo "PASS: Entry Skill detail links back to the visible Suite"
+
+HIDE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" -X POST \
+  "$BASE_URL/api/v1/admin/skills/$SKILL_ID/hide" -d '{"reason":"suite smoke"}')"
+assert_code "hide the member Skill" "$HIDE_RESPONSE" 0
+assert_suite_availability "load the Suite after its member is hidden" false SKILL_HIDDEN
+assert_install_plan_rejected "hidden member blocks a new install plan" "hidden-$TOKEN"
+
+UNHIDE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" -X POST \
+  "$BASE_URL/api/v1/admin/skills/$SKILL_ID/unhide")"
+assert_code "restore the hidden member Skill" "$UNHIDE_RESPONSE" 0
+assert_suite_availability "load the Suite after its hidden member is restored" true
+assert_install_plan_available "restored hidden member allows a new install plan" "unhidden-$TOKEN"
+
+ARCHIVE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
+  -H "Content-Type: application/json" -X POST \
+  "$BASE_URL/api/web/skills/global/$SKILL_SLUG/archive" -d '{"reason":"suite smoke"}')"
+assert_code "archive the member Skill" "$ARCHIVE_RESPONSE" 0
+assert_suite_availability "load the Suite after its member is archived" false SKILL_ARCHIVED
+assert_install_plan_rejected "archived member blocks a new install plan" "archived-$TOKEN"
+
+UNARCHIVE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" -X POST \
+  "$BASE_URL/api/web/skills/global/$SKILL_SLUG/unarchive")"
+assert_code "restore the archived member Skill" "$UNARCHIVE_RESPONSE" 0
+assert_suite_availability "load the Suite after its archived member is restored" true
+assert_install_plan_available "restored archived member allows a new install plan" "unarchived-$TOKEN"
+
 YANK_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
   "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -H "Content-Type: application/json" -X POST \
   "$BASE_URL/api/v1/admin/skills/versions/$SKILL_VERSION_ID/yank" -d '{"reason":"suite smoke"}')"
 assert_code "yank the exact member version" "$YANK_RESPONSE" 0
+assert_suite_availability "load the Suite after its exact member version is yanked" false VERSION_UNAVAILABLE
+assert_install_plan_rejected "yanked member blocks a new install plan" "yanked-$TOKEN"
 
-DEGRADED_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
-  "${AUTH_HEADERS[@]}" \
-  "$BASE_URL/api/web/suites/global/$SUITE_SLUG?version=1.0.0")"
-assert_code "load the degraded Suite snapshot" "$DEGRADED_RESPONSE" 0
-JSON_INPUT="$DEGRADED_RESPONSE" python3 - <<'PY'
-import json
-import os
-
-data = json.loads(os.environ["JSON_INPUT"])["data"]
-reasons = {member.get("blockingReason") for member in data["members"]}
-raise SystemExit(0 if data["available"] is False and "VERSION_UNAVAILABLE" in reasons else 1)
-PY
-echo "PASS: an unavailable member degrades the Suite without changing its snapshot"
-
-HTTP_RESULT="$(curl -sS -o "$WORK_DIR/blocked-plan.json" -w '%{http_code}' \
-  -b "$COOKIE_FILE" -c "$COOKIE_FILE" "${AUTH_HEADERS[@]}" \
-  -H "X-XSRF-TOKEN: $CSRF_TOKEN" -H "Idempotency-Key: blocked-$TOKEN" -X POST \
-  "$BASE_URL/api/web/suites/global/$SUITE_SLUG/install-plan?version=1.0.0")"
-if [[ "$HTTP_RESULT" != "400" ]]; then
-  echo "FAIL: degraded Suite install plan should return HTTP 400, got $HTTP_RESULT"
-  exit 1
-fi
-echo "PASS: degraded Suite cannot issue a new install plan"
+DELETE_RESPONSE="$(curl -sS -b "$COOKIE_FILE" -c "$COOKIE_FILE" \
+  "${AUTH_HEADERS[@]}" -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
+  -X DELETE "$BASE_URL/api/v1/skills/id/$SKILL_ID")"
+assert_code "hard-delete the member Skill" "$DELETE_RESPONSE" 0
+SKILL_ID=""
+assert_suite_availability "load the Suite after its member is hard-deleted" false DELETED
+assert_install_plan_rejected "deleted member blocks a new install plan" "deleted-$TOKEN"
 echo "=== Skill Suite Smoke Test Passed ==="

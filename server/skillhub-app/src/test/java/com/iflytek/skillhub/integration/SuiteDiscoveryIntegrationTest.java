@@ -3,6 +3,7 @@ package com.iflytek.skillhub.integration;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.iflytek.skillhub.domain.namespace.Namespace;
+import com.iflytek.skillhub.domain.namespace.NamespaceRole;
 import com.iflytek.skillhub.domain.skill.Skill;
 import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
@@ -17,8 +18,10 @@ import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.search.postgres.PostgresResourceDiscoveryQueryService;
 import com.iflytek.skillhub.service.ResourceDiscoveryAppService;
 import com.iflytek.skillhub.repository.MySkillSuiteQueryRepository;
+import com.iflytek.skillhub.repository.SkillSuiteReferenceQueryRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,7 +42,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ActiveProfiles("test")
 @Import({PostgresResourceDiscoveryQueryService.class, ResourceDiscoveryAppService.class,
-        MySkillSuiteQueryRepository.class})
+        MySkillSuiteQueryRepository.class, SkillSuiteReferenceQueryRepository.class})
 @Testcontainers
 @TestPropertySource(properties = {
         "spring.flyway.enabled=true",
@@ -68,6 +71,9 @@ class SuiteDiscoveryIntegrationTest {
 
     @Autowired
     private MySkillSuiteQueryRepository mySuiteRepository;
+
+    @Autowired
+    private SkillSuiteReferenceQueryRepository suiteReferenceRepository;
 
     @Autowired
     private SkillSuiteVersionMemberRepository suiteMemberRepository;
@@ -111,7 +117,8 @@ class SuiteDiscoveryIntegrationTest {
                 new SkillSuiteMemberSelection(
                         skill.getId(), skillVersion.getId(), namespace.getSlug(),
                         skill.getSlug(), skillVersion.getVersion(), "a".repeat(64)),
-                0));
+                0,
+                true));
         suite.setLatestVersionId(suiteVersion.getId());
         entityManager.persistAndFlush(suite);
         entityManager.clear();
@@ -134,6 +141,53 @@ class SuiteDiscoveryIntegrationTest {
                     assertThat(item.displayName()).isEqualTo("Published snapshot name");
                     assertThat(item.summary()).isEqualTo("Published snapshot summary");
                 });
+        assertThat(suiteReferenceRepository.findVisibleEntryReferences(
+                skill.getId(), null, Map.of(), Set.of()))
+                .singleElement()
+                .satisfies(reference -> {
+                    assertThat(reference.namespace()).isEqualTo("team-ai");
+                    assertThat(reference.slug()).isEqualTo("starter");
+                    assertThat(reference.version()).isEqualTo("2.0.0");
+                    assertThat(reference.memberCount()).isEqualTo(1);
+                });
+    }
+
+    @Test
+    void doesNotLeakPrivateSuiteEntryReferenceToUnrelatedViewers() {
+        Namespace namespace = entityManager.persistFlushFind(
+                new Namespace("private-suite-team", "Private Suite Team", "owner"));
+        Skill skill = entityManager.persistFlushFind(
+                new Skill(namespace.getId(), "entry", "owner", SkillVisibility.PUBLIC));
+        SkillVersion skillVersion = new SkillVersion(skill.getId(), "1.0.0", "owner");
+        skillVersion.setStatus(SkillVersionStatus.PUBLISHED);
+        skillVersion.setDownloadReady(true);
+        skillVersion = entityManager.persistFlushFind(skillVersion);
+        SkillSuite suite = entityManager.persistFlushFind(
+                new SkillSuite(namespace.getId(), "private-suite", "Private Suite", "author"));
+        SkillSuiteVersion suiteVersion = new SkillSuiteVersion(
+                suite.getId(), "1.0.0", SkillVisibility.PRIVATE, "author");
+        suiteVersion.setStatus(SkillSuiteVersionStatus.PUBLISHED);
+        suiteVersion = entityManager.persistFlushFind(suiteVersion);
+        entityManager.persist(new SkillSuiteVersionMember(
+                suiteVersion.getId(),
+                new SkillSuiteMemberSelection(
+                        skill.getId(), skillVersion.getId(), namespace.getSlug(),
+                        skill.getSlug(), skillVersion.getVersion(), "b".repeat(64)),
+                0,
+                true));
+        suite.setLatestVersionId(suiteVersion.getId());
+        entityManager.persistAndFlush(suite);
+        entityManager.clear();
+
+        assertThat(suiteReferenceRepository.findVisibleEntryReferences(
+                skill.getId(), null, Map.of(), Set.of())).isEmpty();
+        assertThat(suiteReferenceRepository.findVisibleEntryReferences(
+                skill.getId(), "other-author", Map.of(namespace.getId(), NamespaceRole.MEMBER), Set.of()))
+                .isEmpty();
+        assertThat(suiteReferenceRepository.findVisibleEntryReferences(
+                skill.getId(), "author", Map.of(namespace.getId(), NamespaceRole.MEMBER), Set.of()))
+                .singleElement()
+                .satisfies(reference -> assertThat(reference.slug()).isEqualTo("private-suite"));
     }
 
     @Test
@@ -213,7 +267,8 @@ class SuiteDiscoveryIntegrationTest {
                         new SkillSuiteMemberSelection(
                                 skill.getId(), skillVersion.getId(), "snapshot-team",
                                 "archived-writer", "3.1.4", "sha512:" + "b".repeat(128)),
-                        0));
+                        0,
+                        true));
 
         entityManager.getEntityManager().createNativeQuery("DELETE FROM skill_version WHERE id = :id")
                 .setParameter("id", skillVersion.getId())
@@ -226,7 +281,7 @@ class SuiteDiscoveryIntegrationTest {
 
         Object[] snapshot = (Object[]) entityManager.getEntityManager().createNativeQuery("""
                 SELECT skill_id, skill_version_id, namespace_slug_snapshot,
-                       skill_slug_snapshot, skill_version_snapshot, fingerprint_snapshot
+                       skill_slug_snapshot, skill_version_snapshot, fingerprint_snapshot, entry
                 FROM skill_suite_version_member
                 WHERE id = :id
                 """).setParameter("id", member.getId()).getSingleResult();
@@ -236,6 +291,7 @@ class SuiteDiscoveryIntegrationTest {
         assertThat(snapshot[3]).isEqualTo("archived-writer");
         assertThat(snapshot[4]).isEqualTo("3.1.4");
         assertThat(snapshot[5]).isEqualTo("sha512:" + "b".repeat(128));
+        assertThat(snapshot[6]).isEqualTo(true);
     }
 
     @Test
@@ -257,7 +313,8 @@ class SuiteDiscoveryIntegrationTest {
                 new SkillSuiteMemberSelection(
                         skill.getId(), firstVersion.getId(), "replace-team",
                         "replacement", "1.0.0", "sha256:" + "a".repeat(64)),
-                0));
+                0,
+                true));
         entityManager.clear();
 
         suiteMemberRepository.deleteBySuiteVersionId(suiteVersion.getId());
@@ -266,7 +323,8 @@ class SuiteDiscoveryIntegrationTest {
                 new SkillSuiteMemberSelection(
                         skill.getId(), secondVersion.getId(), "replace-team",
                         "replacement", "2.0.0", "sha256:" + "b".repeat(64)),
-                0)));
+                0,
+                true)));
         entityManager.clear();
 
         assertThat(suiteMemberRepository.findBySuiteVersionIdOrderByPosition(suiteVersion.getId()))

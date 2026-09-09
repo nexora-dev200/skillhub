@@ -275,6 +275,15 @@ export interface ComplianceSnapshot {
   digest?: string
 }
 
+export interface SkillSuiteReference {
+  suiteId: number
+  namespace: string
+  slug: string
+  displayName: string
+  version: string
+  memberCount: number
+}
+
 export interface SkillDetail {
   id: number
   slug: string
@@ -300,6 +309,7 @@ export interface SkillDetail {
   ownerPreviewVersion?: SkillLifecycleVersion
   ownerPreviewReviewComment?: string
   resolutionMode?: string
+  entryForSuites?: SkillSuiteReference[]
 }
 
 export interface SubmitPromotionRequest {

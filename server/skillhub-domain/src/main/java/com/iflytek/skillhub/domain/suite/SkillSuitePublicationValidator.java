@@ -26,6 +26,9 @@ public class SkillSuitePublicationValidator {
         if (members.isEmpty()) {
             throw new DomainBadRequestException("error.suite.members.empty");
         }
+        if (members.stream().filter(SkillSuiteVersionMember::isEntry).count() != 1) {
+            throw new DomainBadRequestException("error.suite.entry.required");
+        }
         SkillSuiteAvailability availability = SkillSuiteAvailability.evaluate(
                 suite.getNamespaceId(), version.getVisibility(), stateResolver.resolve(members));
         if (!availability.available()) {

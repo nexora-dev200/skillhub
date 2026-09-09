@@ -11,8 +11,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SkillSuiteCompositionPolicyTest {
 
     @Test
+    void rejectsSuiteWithoutEntrySkill() {
+        List<SkillSuiteMemberSelection> members = List.of(member(10L, 101L, "1.0.0"));
+
+        assertThatThrownBy(() -> SkillSuiteCompositionPolicy.validate(members, null))
+                .isInstanceOf(DomainBadRequestException.class)
+                .extracting("messageCode")
+                .isEqualTo("error.suite.entry.required");
+    }
+
+    @Test
     void rejectsEmptySuite() {
-        assertThatThrownBy(() -> SkillSuiteCompositionPolicy.validate(List.of(), null))
+        assertThatThrownBy(() -> SkillSuiteCompositionPolicy.validate(List.of(), 101L))
                 .isInstanceOf(DomainBadRequestException.class)
                 .extracting("messageCode")
                 .isEqualTo("error.suite.members.empty");
@@ -25,7 +35,7 @@ class SkillSuiteCompositionPolicyTest {
                 member(10L, 102L, "2.0.0")
         );
 
-        assertThatThrownBy(() -> SkillSuiteCompositionPolicy.validate(members, null))
+        assertThatThrownBy(() -> SkillSuiteCompositionPolicy.validate(members, 101L))
                 .isInstanceOf(DomainBadRequestException.class)
                 .extracting("messageCode")
                 .isEqualTo("error.suite.members.duplicate");

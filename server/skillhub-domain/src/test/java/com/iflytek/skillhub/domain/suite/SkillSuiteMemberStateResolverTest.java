@@ -46,7 +46,8 @@ class SkillSuiteMemberStateResolverTest {
                 20L,
                 new SkillSuiteMemberSelection(
                         30L, 40L, "team", "private-helper", "1.0.0", "sha256:private"),
-                0);
+                0,
+                true);
         when(versionRepository.findByIdIn(List.of(40L))).thenReturn(List.of(version));
         when(skillRepository.findByIdIn(List.of(30L))).thenReturn(List.of(skill));
         when(namespaceRepository.findByIdIn(List.of(1L))).thenReturn(List.of(namespace));

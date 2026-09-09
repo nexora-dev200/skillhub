@@ -31,6 +31,9 @@ public class SkillSuiteVersionMember {
     @Column(nullable = false)
     private Integer position;
 
+    @Column(nullable = false)
+    private boolean entry;
+
     @Column(name = "namespace_slug_snapshot", nullable = false, length = 128)
     private String namespaceSlugSnapshot;
 
@@ -47,11 +50,17 @@ public class SkillSuiteVersionMember {
     protected SkillSuiteVersionMember() {
     }
 
-    public SkillSuiteVersionMember(Long suiteVersionId, SkillSuiteMemberSelection selection, int position) {
+    public SkillSuiteVersionMember(
+            Long suiteVersionId,
+            SkillSuiteMemberSelection selection,
+            int position,
+            boolean entry
+    ) {
         this.suiteVersionId = suiteVersionId;
         this.skillId = selection.skillId();
         this.skillVersionId = selection.skillVersionId();
         this.position = position;
+        this.entry = entry;
         this.namespaceSlugSnapshot = selection.namespaceSlug();
         this.skillSlugSnapshot = selection.skillSlug();
         this.skillVersionSnapshot = selection.version();
@@ -63,6 +72,7 @@ public class SkillSuiteVersionMember {
     public Long getSkillId() { return skillId; }
     public Long getSkillVersionId() { return skillVersionId; }
     public Integer getPosition() { return position; }
+    public boolean isEntry() { return entry; }
     public String getNamespaceSlugSnapshot() { return namespaceSlugSnapshot; }
     public String getSkillSlugSnapshot() { return skillSlugSnapshot; }
     public String getSkillVersionSnapshot() { return skillVersionSnapshot; }

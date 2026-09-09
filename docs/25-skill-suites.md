@@ -33,7 +33,9 @@ DRAFT -> PENDING_REVIEW -> PUBLISHED -> YANKED
 
 ## 成员与权限
 
-一个 SuiteVersion 最多包含 100 个不同 Skill。Entry Skill 是可选成员，必须明确选自成员列表。
+一个 SuiteVersion 最多包含 100 个不同 Skill，并且必须明确选择其中一个普通成员作为 Entry Skill。
+Entry Skill 仍是完整、可独立安装的 Skill。跨 Namespace 的 PUBLIC Skill 可以作为 Entry；非 PUBLIC
+成员仍必须满足下表中的同 Namespace 受众约束。
 v1 不支持嵌套 Suite、版本范围、外部 Registry 成员或条件成员。
 
 Suite 的可见范围不能宽于成员：
@@ -113,7 +115,8 @@ SMOKE_ADMIN_PASSWORD='<configured-password>' \
 - 原有 Skill 搜索接口继续只返回 Skill。
 
 类型化发现结果通过 `resourceType=SKILL|SUITE` 区分同名资源。Suite 详情返回固定版本、按顺序排列
-的成员快照、Entry Skill、实时可安装状态和阻塞原因。
+的成员快照、Entry Skill、实时可安装状态和阻塞原因。普通 Skill 详情会列出当前用户可见、以该 Skill
+作为 Entry 的最新已发布 SuiteVersion，并链接到完整 Suite；Skill 的独立安装能力保持不变。
 
 ## 部署顺序
 

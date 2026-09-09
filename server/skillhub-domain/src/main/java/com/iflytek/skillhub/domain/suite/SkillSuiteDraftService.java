@@ -71,10 +71,10 @@ public class SkillSuiteDraftService {
                 command.visibility(), context.actorUserId());
         version.setOverview(command.overview());
         version.setChangelog(command.changelog());
-        version.setEntrySkillVersionId(command.entrySkillVersionId());
         version = versionRepository.save(version);
 
-        List<SkillSuiteVersionMember> members = saveMembers(version, command.members());
+        List<SkillSuiteVersionMember> members = saveMembers(
+                version, command.members(), command.entrySkillVersionId());
 
         // Validate after persistence so the same resolver is used for draft creation and publication.
         // The transaction rolls the draft back if any exact member changed during creation.
@@ -146,10 +146,10 @@ public class SkillSuiteDraftService {
         version.setOverview(command.overview());
         version.setVisibility(command.visibility());
         version.setChangelog(command.changelog());
-        version.setEntrySkillVersionId(command.entrySkillVersionId());
         versionRepository.save(version);
         memberRepository.deleteBySuiteVersionId(versionId);
-        List<SkillSuiteVersionMember> members = saveMembers(version, command.members());
+        List<SkillSuiteVersionMember> members = saveMembers(
+                version, command.members(), command.entrySkillVersionId());
         publicationValidator.validate(suite, version);
         auditLogService.record(
                 context.actorUserId(), "UPDATE_SKILL_SUITE_DRAFT", "SKILL_SUITE_VERSION",
@@ -215,9 +215,9 @@ public class SkillSuiteDraftService {
                 command.visibility(), context.actorUserId());
         version.setOverview(command.overview());
         version.setChangelog(command.changelog());
-        version.setEntrySkillVersionId(command.entrySkillVersionId());
         version = versionRepository.save(version);
-        List<SkillSuiteVersionMember> members = saveMembers(version, command.members());
+        List<SkillSuiteVersionMember> members = saveMembers(
+                version, command.members(), command.entrySkillVersionId());
         publicationValidator.validate(suite, version);
         auditLogService.record(
                 context.actorUserId(), "CREATE_SKILL_SUITE_VERSION_DRAFT", "SKILL_SUITE_VERSION",
@@ -231,11 +231,15 @@ public class SkillSuiteDraftService {
 
     private List<SkillSuiteVersionMember> saveMembers(
             SkillSuiteVersion version,
-            List<SkillSuiteMemberSelection> selections
+            List<SkillSuiteMemberSelection> selections,
+            Long entrySkillVersionId
     ) {
         List<SkillSuiteVersionMember> members = new ArrayList<>(selections.size());
         for (int position = 0; position < selections.size(); position++) {
-            members.add(new SkillSuiteVersionMember(version.getId(), selections.get(position), position));
+            SkillSuiteMemberSelection selection = selections.get(position);
+            members.add(new SkillSuiteVersionMember(
+                    version.getId(), selection, position,
+                    selection.skillVersionId().equals(entrySkillVersionId)));
         }
         return memberRepository.saveAll(members);
     }

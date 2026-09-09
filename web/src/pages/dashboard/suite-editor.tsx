@@ -134,12 +134,20 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
       toast.error(t('suite.validationRequired'))
       return
     }
+    if (entrySkillVersionId === null) {
+      toast.error(t('suite.entryRequired'))
+      return
+    }
     const members = selected.map(({ namespace: memberNamespace, slug: memberSlug, version: memberVersion }) => ({
       namespace: memberNamespace,
       slug: memberSlug,
       version: memberVersion,
     }))
     const entry = selected.find((member) => member.skillVersionId === entrySkillVersionId)
+    if (!entry) {
+      toast.error(t('suite.entryRequired'))
+      return
+    }
     const input = {
       namespace,
       slug: slug.trim(),
@@ -149,7 +157,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
       version: version.trim(),
       visibility,
       changelog: changelog.trim() || undefined,
-      entrySkill: entry ? { namespace: entry.namespace, slug: entry.slug, version: entry.version } : undefined,
+      entrySkill: { namespace: entry.namespace, slug: entry.slug, version: entry.version },
       members,
     }
     try {

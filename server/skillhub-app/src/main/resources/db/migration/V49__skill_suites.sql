@@ -32,7 +32,6 @@ CREATE TABLE skill_suite_version (
     status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
     visibility VARCHAR(32) NOT NULL,
     changelog TEXT,
-    entry_skill_version_id BIGINT REFERENCES skill_version(id) ON DELETE SET NULL,
     published_at TIMESTAMPTZ,
     yanked_at TIMESTAMPTZ,
     yanked_by VARCHAR(128),
@@ -51,6 +50,7 @@ CREATE TABLE skill_suite_version_member (
     skill_id BIGINT REFERENCES skill(id) ON DELETE SET NULL,
     skill_version_id BIGINT REFERENCES skill_version(id) ON DELETE SET NULL,
     position INT NOT NULL CHECK (position >= 0),
+    entry BOOLEAN NOT NULL DEFAULT FALSE,
     namespace_slug_snapshot VARCHAR(128) NOT NULL,
     skill_slug_snapshot VARCHAR(128) NOT NULL,
     skill_version_snapshot VARCHAR(64) NOT NULL,
@@ -62,6 +62,16 @@ CREATE TABLE skill_suite_version_member (
 CREATE UNIQUE INDEX uk_skill_suite_member_skill
     ON skill_suite_version_member(suite_version_id, skill_id)
     WHERE skill_id IS NOT NULL;
+
+-- Entry is a role of one exact member. Keeping it on the snapshot row preserves the role even
+-- when governance hard-deletes the referenced SkillVersion and clears its foreign keys.
+CREATE UNIQUE INDEX uk_skill_suite_member_entry
+    ON skill_suite_version_member(suite_version_id)
+    WHERE entry = TRUE;
+
+CREATE INDEX idx_skill_suite_member_entry_skill
+    ON skill_suite_version_member(skill_id)
+    WHERE entry = TRUE AND skill_id IS NOT NULL;
 
 CREATE INDEX idx_skill_suite_member_version
     ON skill_suite_version_member(skill_version_id);

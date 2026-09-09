@@ -19,7 +19,7 @@ public record SkillSuiteCreateRequest(
         @NotBlank String version,
         @NotNull SkillVisibility visibility,
         @Size(max = 4000) String changelog,
-        @Valid SkillSuiteMemberRequest entrySkill,
+        @NotNull @Valid SkillSuiteMemberRequest entrySkill,
         @NotEmpty @Size(max = 100) List<@Valid SkillSuiteMemberRequest> members
 ) {
 }

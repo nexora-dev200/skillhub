@@ -120,6 +120,35 @@ describe('SuiteDetailPage', () => {
     expect(screen.getAllByRole('link')).toHaveLength(1)
   })
 
+  it.each([
+    'DELETED',
+    'NAMESPACE_ARCHIVED',
+    'NAMESPACE_FROZEN',
+    'SKILL_HIDDEN',
+    'SKILL_ARCHIVED',
+    'VERSION_UNAVAILABLE',
+    'VISIBILITY_INCOMPATIBLE',
+  ] as const)('keeps a member blocked by %s non-navigable', (blockingReason) => {
+    const blockedSuite = suite()
+    blockedSuite.members = [{
+      namespace: 'global',
+      slug: `blocked-${blockingReason.toLowerCase()}`,
+      version: '1.0.0',
+      fingerprint: 'sha256:blocked',
+      position: 0,
+      entry: false,
+      browsable: false,
+      blockingReason,
+    }]
+    mocks.detail = { data: blockedSuite, isLoading: false, error: null }
+
+    render(<SuiteDetailPage />)
+    fireEvent.click(screen.getByRole('tab', { name: 'suite.membersTab' }))
+
+    expect(screen.getByText(`suite.blockingReasons.${blockingReason}`)).not.toBeNull()
+    expect(screen.queryByRole('link', { name: 'suite.viewMember' })).toBeNull()
+  })
+
   it('places Suite metadata and installation in the detail sidebar', () => {
     mocks.detail = { data: suite(), isLoading: false, error: null }
 

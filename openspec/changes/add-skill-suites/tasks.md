@@ -18,7 +18,7 @@
 
 - [x] 3.1 Add transport-only Suite controllers and application services for management, version history, review actions, detail, and typed resolution of install plans.
 - [x] 3.2 Add a typed resource discovery projection with `resourceType` and Suite metadata while keeping the existing Skill search endpoint Skill-only.
-- [x] 3.3 Return ordered Member snapshots, Entry Skill, availability, and degraded reasons without N+1 member resolution.
+- [x] 3.3 Return ordered Member snapshots, mandatory Entry Skill, availability, and degraded reasons without N+1 member resolution.
 - [x] 3.4 Regenerate `web/src/api/generated/schema.d.ts` with `make generate-api` and run the OpenAPI drift check.
 - [x] 3.5 Record idempotent Suite-plan statistics with a client retry key and server operation ID; keep Member counters on actual existing download requests.
 - [x] 3.6 Add a server-filtered Member candidate query scoped by caller access, Suite Namespace, target visibility, current installability, and exact versions.
@@ -26,12 +26,13 @@
 ## 4. Web experience
 
 - [x] 4.1 Add typed Skill/Suite search cards and independent Suite list/detail/version routes.
-- [x] 4.2 Add Suite creation and draft editing with the server-filtered Member picker, exact published versions, ordering, visibility, and optional Entry Skill.
+- [x] 4.2 Add Suite creation and draft editing with the server-filtered Member picker, exact published versions, ordering, visibility, and mandatory Entry Skill.
 - [x] 4.3 Extend the review center with typed Suite review details and ensure existing Skill review actions remain unchanged.
 - [x] 4.4 Add install instructions using `skillhub suite install`, degraded-member explanations, and responsive/error/loading/empty states.
 - [x] 4.5 Default Member selection to the current installable version, display the pinned exact version, and provide an explicit version-diff update action for drafts.
 - [x] 4.6 Complete Web management for new versions, rejected-version reopen, yank, hide/restore, archive/unarchive, and guarded deletion using Server-derived capabilities.
 - [x] 4.7 Add a versioned Markdown overview and browsable Member Skill cards with display metadata, pinned versions, Entry markers, and tombstone handling.
+- [x] 4.8 Show privacy-filtered current Suite references on an Entry Skill detail page while preserving standalone Skill installation.
 
 ## 5. CLI and local lifecycle
 
