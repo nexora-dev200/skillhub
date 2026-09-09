@@ -38,23 +38,20 @@ test.describe('Landing Quick Start CLI Tab (Real API)', () => {
 
     await expect(
       page.getByText(
-        'Connect SkillHub using http://127.0.0.1:3000/install/skillhub.md',
+        'Connect SkillHub using http://127.0.0.1:3000/registry/skill.md',
         { exact: true },
       ),
     ).toBeVisible()
-    const guideResponse = await page.request.get('/install/skillhub.md')
+    const guideResponse = await page.request.get('/registry/skill.md')
     expect(guideResponse.status()).toBe(200)
     const guide = await guideResponse.text()
     expect(guide).toContain('http://127.0.0.1:3000')
     expect(guideResponse.headers()['cache-control']).toContain('no-cache')
-    const legacyGuideResponse = await page.request.get('/registry/skill.md')
-    expect(legacyGuideResponse.status()).toBe(200)
-    expect(await legacyGuideResponse.text()).toBe(guide)
-    const hostileHostResponse = await page.request.get('/install/skillhub.md', {
+    const hostileHostResponse = await page.request.get('/registry/skill.md', {
       headers: { Host: 'attacker.example' },
     })
     expect(hostileHostResponse.status()).toBe(403)
-    const extensionHostResponse = await page.request.get('/install/skillhub.md', {
+    const extensionHostResponse = await page.request.get('/registry/skill.md', {
       headers: { Host: 'chrome-extension:evil;echo_injected' },
     })
     expect(extensionHostResponse.status()).toBe(400)
@@ -72,7 +69,7 @@ test.describe('Landing Quick Start CLI Tab (Real API)', () => {
     await expect(agentTab).toHaveAttribute('aria-pressed', 'true')
     await expect(
       page.getByText(
-        'Connect SkillHub using http://127.0.0.1:3000/install/skillhub.md',
+        'Connect SkillHub using http://127.0.0.1:3000/registry/skill.md',
         { exact: true },
       ),
     ).toBeVisible()
