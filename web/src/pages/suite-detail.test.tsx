@@ -93,13 +93,19 @@ describe('SuiteDetailPage', () => {
     vi.clearAllMocks()
   })
 
-  it('separates the Markdown overview from browsable member skills', () => {
+  it('adds entry skill guidance to the overview and keeps the full member grid separate', () => {
     mocks.detail = { data: suite(), isLoading: false, error: null }
 
     render(<SuiteDetailPage />)
 
     expect(screen.getByTestId('suite-overview').textContent).toContain('Run the entry skill first.')
-    expect(screen.queryByText('Medical Records')).toBeNull()
+    expect(screen.getByText('suite.startWithEntry')).not.toBeNull()
+    expect(screen.getByText('suite.startWithEntryDescription')).not.toBeNull()
+    expect(screen.getByText('Medical Records')).not.toBeNull()
+    expect(screen.getByText('@global/medical-records@1.0.0')).not.toBeNull()
+    expect(screen.getByRole('link', { name: 'suite.viewEntrySkill' }).getAttribute('href'))
+      .toContain('/space/global/medical-records')
+    expect(screen.queryByText('@global/deleted-helper')).toBeNull()
 
     fireEvent.click(screen.getByRole('tab', { name: 'suite.membersTab' }))
 

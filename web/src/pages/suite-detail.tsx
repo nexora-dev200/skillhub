@@ -7,7 +7,7 @@ import { suiteBlockingReasonLabel, suiteStatusLabel, suiteVisibilityLabel } from
 import { SuiteManagementActions } from '@/features/suite/suite-management-actions'
 import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
 import { Card } from '@/shared/ui/card'
-import { Button } from '@/shared/ui/button'
+import { Button, buttonVariants } from '@/shared/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
 import { SkeletonList } from '@/shared/components/skeleton-loader'
 import { NamespaceBadge } from '@/shared/components/namespace-badge'
@@ -53,6 +53,7 @@ export function SuiteDetailPage() {
   const hasPrimaryActions = suite.allowedActions.includes('EDIT')
     || suite.allowedActions.includes('SUBMIT')
     || suite.allowedActions.includes('PUBLISH_PRIVATE')
+  const entryMember = suite.members.find(member => member.entry)
 
   return (
     <div className={cn(APP_SHELL_PAGE_CLASS_NAME, 'mx-auto max-w-6xl')}>
@@ -94,14 +95,60 @@ export function SuiteDetailPage() {
             </TabsList>
 
             <TabsContent value="overview" className="mt-6">
-              <Card className="p-8">
-                {suite.overview ? (
-                  <MarkdownRenderer content={suite.overview} />
-                ) : (
-                  <p className="text-sm leading-7 text-muted-foreground">
-                    {suite.summary || t('suite.noOverview')}
-                  </p>
-                )}
+              <Card className="overflow-hidden">
+                <div className="p-6 sm:p-8">
+                  {suite.overview ? (
+                    <MarkdownRenderer content={suite.overview} />
+                  ) : (
+                    <p className="text-sm leading-7 text-muted-foreground">
+                      {suite.summary || t('suite.noOverview')}
+                    </p>
+                  )}
+                </div>
+
+                {entryMember ? (
+                  <section className="border-t border-border/60 bg-secondary/30 p-6 sm:p-8">
+                    <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <h2 className="font-heading text-lg font-semibold text-foreground">
+                          {t('suite.startWithEntry')}
+                        </h2>
+                        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                          {t('suite.startWithEntryDescription', { count: suite.members.length })}
+                        </p>
+                      </div>
+                      {entryMember.browsable && !entryMember.blockingReason
+                        && entryMember.skillId && entryMember.skillVersionId ? (
+                          <Link
+                            to="/space/$namespace/$slug"
+                            params={{ namespace: entryMember.namespace, slug: entryMember.slug }}
+                            search={{ returnTo }}
+                            className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'shrink-0 gap-1.5')}
+                          >
+                            {t('suite.viewEntrySkill')}
+                            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+                          </Link>
+                        ) : null}
+                    </div>
+
+                    <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                      <p className="flex min-w-0 items-center gap-2 font-semibold text-foreground">
+                        <Wrench className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        <span className="truncate">
+                          {entryMember.displayName || `@${entryMember.namespace}/${entryMember.slug}`}
+                        </span>
+                      </p>
+                      <p className="break-all font-mono text-xs text-muted-foreground">
+                        @{entryMember.namespace}/{entryMember.slug}@{entryMember.version}
+                      </p>
+                      {entryMember.blockingReason ? (
+                        <span className="text-xs font-medium text-destructive">
+                          {suiteBlockingReasonLabel(t, entryMember.blockingReason)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </section>
+                ) : null}
               </Card>
             </TabsContent>
 
