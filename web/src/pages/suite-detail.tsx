@@ -6,7 +6,7 @@ import { useSuiteDetail, useSuiteVersions, useSubmitSuite } from '@/shared/hooks
 import { suiteBlockingReasonLabel, suiteStatusLabel, suiteVisibilityLabel } from '@/features/suite/suite-labels'
 import { SuiteManagementActions } from '@/features/suite/suite-management-actions'
 import { MarkdownRenderer } from '@/features/skill/markdown-renderer'
-import { getBaseUrl } from '@/features/skill/install-command'
+import { getBaseUrl, isPortableSkillVersion } from '@/features/skill/install-command'
 import { Card } from '@/shared/ui/card'
 import { Button, buttonVariants } from '@/shared/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/shared/ui/tabs'
@@ -26,7 +26,7 @@ export function SuiteDetailPage() {
   const submitMutation = useSubmitSuite()
   const registryUrl = useMemo(() => getBaseUrl(), [])
   const command = useMemo(
-    () => suite
+    () => suite && isPortableSkillVersion(suite.version)
       ? `skillhub suite install @${suite.namespace}/${suite.slug} --version ${suite.version} --registry ${registryUrl}`
       : '',
     [registryUrl, suite],
@@ -272,18 +272,24 @@ export function SuiteDetailPage() {
               <Terminal className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               <span className="text-sm font-semibold font-heading text-foreground">{t('suite.installCommand')}</span>
             </div>
-            <div className="flex min-w-0 items-center gap-2 rounded-lg bg-secondary p-3">
-              <code className="min-w-0 flex-1 overflow-x-auto text-sm">{command}</code>
-              <Button
-                variant="outline"
-                size="sm"
-                aria-label={t('suite.copyInstallCommand')}
-                onClick={async () => {
-                  await navigator.clipboard.writeText(command)
-                  toast.success(t('suite.commandCopied'))
-                }}
-              ><Copy className="h-4 w-4" /></Button>
-            </div>
+            {command ? (
+              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-secondary p-3">
+                <code className="min-w-0 flex-1 overflow-x-auto text-sm">{command}</code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={t('suite.copyInstallCommand')}
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(command)
+                    toast.success(t('suite.commandCopied'))
+                  }}
+                ><Copy className="h-4 w-4" /></Button>
+              </div>
+            ) : (
+              <p role="alert" className="text-sm text-destructive">
+                {t('skillDetail.installCommandUnsafeVersion')}
+              </p>
+            )}
           </Card>
 
           {versions?.length ? (

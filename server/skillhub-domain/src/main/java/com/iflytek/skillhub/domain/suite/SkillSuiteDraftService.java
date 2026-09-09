@@ -17,12 +17,15 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /** Creates Suite drafts after member coordinates have been resolved to exact Skill versions. */
 @Service
 public class SkillSuiteDraftService {
 
     private static final Logger log = LoggerFactory.getLogger(SkillSuiteDraftService.class);
+    private static final Pattern PORTABLE_VERSION_PATTERN =
+            Pattern.compile("[A-Za-z0-9][A-Za-z0-9._+-]{0,63}");
 
     private final SkillSuiteRepository suiteRepository;
     private final SkillSuiteVersionRepository versionRepository;
@@ -201,6 +204,9 @@ public class SkillSuiteDraftService {
         }
         if (command.version() == null || command.version().isBlank()) {
             throw new DomainBadRequestException("error.suite.version.required");
+        }
+        if (!PORTABLE_VERSION_PATTERN.matcher(command.version()).matches()) {
+            throw new DomainBadRequestException("error.suite.version.invalid");
         }
         SkillSuiteCompositionPolicy.validate(command.members(), command.entrySkillVersionId());
     }

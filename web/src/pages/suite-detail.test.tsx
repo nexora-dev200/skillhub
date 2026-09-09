@@ -189,4 +189,17 @@ describe('SuiteDetailPage', () => {
     )).not.toBeNull()
     expect(within(sidebar).getByLabelText('suite.copyInstallCommand')).not.toBeNull()
   })
+
+  it('does not expose a copyable shell command for an unsafe legacy version', () => {
+    const unsafeSuite = suite()
+    unsafeSuite.version = '1.0.0; touch pwned'
+    mocks.detail = { data: unsafeSuite, isLoading: false, error: null }
+
+    render(<SuiteDetailPage />)
+
+    const sidebar = screen.getByRole('complementary', { name: 'suite.detailsSidebar' })
+    expect(within(sidebar).getByRole('alert').textContent)
+      .toBe('skillDetail.installCommandUnsafeVersion')
+    expect(within(sidebar).queryByLabelText('suite.copyInstallCommand')).toBeNull()
+  })
 })

@@ -4,6 +4,7 @@ import com.iflytek.skillhub.domain.audit.AuditLogService;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -124,6 +126,28 @@ class SkillSuiteDraftServiceTest {
         });
         verify(memberRepository).deleteBySuiteVersionId(20L);
         verify(publicationValidator).validate(suite, version);
+    }
+
+    @Test
+    void rejectsSuiteVersionsThatCannotBeUsedSafelyAcrossCliShells() {
+        Namespace namespace = new Namespace("team", "Team", "owner");
+        setId(namespace, 1L);
+        when(namespaceRepository.findById(1L)).thenReturn(Optional.of(namespace));
+        SkillSuiteActionContext context = new SkillSuiteActionContext(
+                "author", Map.of(1L, NamespaceRole.MEMBER), Set.of(),
+                "request-3", "127.0.0.1", "test");
+
+        for (String version : List.of("1.0.0; touch pwned", "a".repeat(65))) {
+            CreateSkillSuiteDraftCommand command = new CreateSkillSuiteDraftCommand(
+                    1L, "writers", "Writers", "Summary", null, version,
+                    SkillVisibility.PUBLIC, null, 40L,
+                    List.of(new SkillSuiteMemberSelection(
+                            30L, 40L, "global", "writer", "1.0.0", "sha256:abc")));
+
+            assertThatThrownBy(() -> service.create(command, context))
+                    .isInstanceOf(DomainBadRequestException.class)
+                    .hasMessage("error.suite.version.invalid");
+        }
     }
 
     private void setId(Object target, Long id) {
