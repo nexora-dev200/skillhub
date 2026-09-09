@@ -250,7 +250,7 @@ cli
   })
 
 cli
-  .command('suite <action> <coordinate>', 'Install and manage a Skill Suite locally')
+  .command('suite <action> <coordinate>', 'Manage Skill Suites on compatible registries')
   .option('--version <v>', 'Exact Suite version for install')
   .option('--scope <scope>', 'Install scope: user or project')
   .option('--agent <profile>', 'Agent profile (repeatable)')

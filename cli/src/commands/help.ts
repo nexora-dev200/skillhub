@@ -46,7 +46,7 @@ export const commands = {
     ]
   },
   suite: {
-    summary: 'Install and manage a Skill Suite locally',
+    summary: 'Manage Skill Suites on compatible registries',
     usage: 'skillhub suite <install|check|upgrade|remove> <coordinate> [options]',
     examples: [
       'skillhub suite install @global/marketing --scope user',
