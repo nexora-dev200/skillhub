@@ -2,8 +2,8 @@
 
 Use this reference after resolving the first-party CLI and authoritative registry in `SKILL.md`.
 Run `skillhub help <command>` and `skillhub <command> --help` against that CLI before using a flag
-not shown here. When the npm fallback is active, replace `skillhub` consistently with the pinned
-package command from `SKILL.md`; never switch to `@latest` during an operation.
+not shown here. Use the globally installed, identity-checked `skillhub` command consistently; do not
+switch to a per-operation package runner.
 
 ## Write Safety
 

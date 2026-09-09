@@ -8,7 +8,7 @@
 
 ## SkillHub modifications
 
-SkillHub adaptation version: `1.0.0`.
+SkillHub adaptation version: `2.0.0`.
 
 - Created a dedicated first-party CLI Skill instead of changing the existing ClawHub-oriented `skillhub-registry` Skill.
 - Separated anonymous bootstrap guidance from the persistent Agent installation while keeping one instruction body.

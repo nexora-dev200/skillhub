@@ -107,17 +107,17 @@ if [ "$location" != '/skillhub/' ]; then
   exit 1
 fi
 
-# The Agent bootstrap guide is generated from the instance URL and is reachable
-# through its single registry route under the configured sub-path.
+# The Agent bootstrap guide derives a configured registry from the URL used to
+# fetch it and is reachable through its single route under the configured path.
 guide=$(curl -fsS "$base/skillhub/registry/skill.md")
-printf '%s' "$guide" | grep -F 'The registry for this guide is `https://skill.example.com/skillhub`.' >/dev/null
-printf '%s' "$guide" | grep -F 'read its sibling `.skillhub/metadata.json` before running' >/dev/null
-printf '%s' "$guide" | grep -F '  --registry https://skill.example.com/skillhub \' >/dev/null
+printf '%s' "$guide" | grep -F 'removing the trailing `/registry/skill.md` from the URL used to fetch this guide' >/dev/null
+printf '%s' "$guide" | grep -F '4. `https://skill.xfyun.cn`.' >/dev/null
+printf '%s' "$guide" | grep -F 'sibling `.skillhub/metadata.json`' >/dev/null
+printf '%s' "$guide" | grep -F '  --registry <registry> \' >/dev/null
 printf '%s' "$guide" | grep -F 'skillhub install @global/skillhub-cli' >/dev/null
-printf '%s' "$guide" | grep -F 'npm install --global @astron-team/skillhub@0.1.12' >/dev/null
-printf '%s' "$guide" | grep -F 'semantic version is `0.1.12` or newer' >/dev/null
+printf '%s' "$guide" | grep -F 'npm install --global @astron-team/skillhub' >/dev/null
 printf '%s' "$guide" | grep -F 'ask before querying another registry' >/dev/null
-printf '%s' "$guide" | grep -F 'skillhub login --registry https://skill.example.com/skillhub' >/dev/null
+printf '%s' "$guide" | grep -F 'skillhub login --registry <registry>' >/dev/null
 cache_control=$(curl -sSI "$base/skillhub/registry/skill.md" | awk -F': ' 'tolower($1) == "cache-control" { print $2 }' | tr -d '\r')
 if [ "$cache_control" != 'no-cache' ]; then
   echo "Agent guide must be revalidated instead of cached indefinitely, got: $cache_control" >&2
@@ -126,7 +126,7 @@ fi
 
 # An explicit URL is authoritative and must not interpolate a hostile request Host.
 explicit_hostile=$(curl -fsS -H 'Host: evil.example;echo_injected' "$base/skillhub/registry/skill.md")
-printf '%s' "$explicit_hostile" | grep -F 'The registry for this guide is `https://skill.example.com/skillhub`.' >/dev/null
+printf '%s' "$explicit_hostile" | grep -F '4. `https://skill.xfyun.cn`.' >/dev/null
 if printf '%s' "$explicit_hostile" | grep -F 'echo_injected' >/dev/null; then
   echo 'explicit Agent guide must not interpolate the request Host' >&2
   exit 1
@@ -166,9 +166,9 @@ until curl -fsS -o /dev/null "$default_base/nginx-health" 2>/dev/null; do
   sleep 1
 done
 default_guide=$(curl -fsS "$default_base/skillhub/registry/skill.md")
-printf '%s' "$default_guide" | grep -F "The registry for this guide is \`$default_base/skillhub\`." >/dev/null
+printf '%s' "$default_guide" | grep -F 'removing the trailing `/registry/skill.md` from the URL used to fetch this guide' >/dev/null
 untrusted_https=$(curl -fsS -H 'X-Forwarded-Proto: https' "$default_base/skillhub/registry/skill.md")
-printf '%s' "$untrusted_https" | grep -F "The registry for this guide is \`$default_base/skillhub\`." >/dev/null
+printf '%s' "$untrusted_https" | grep -F '4. `https://skill.xfyun.cn`.' >/dev/null
 if printf '%s' "$default_guide" | grep -F '__SKILLHUB_PUBLIC_BASE_URL__' >/dev/null; then
   echo 'default Agent guide must not expose the runtime URL marker' >&2
   exit 1
@@ -217,9 +217,9 @@ until curl -fsS -o /dev/null "$trusted_base/nginx-health" 2>/dev/null; do
   sleep 1
 done
 trusted_https=$(curl -fsS -H 'X-Forwarded-Proto: https' "$trusted_base/skillhub/registry/skill.md")
-printf '%s' "$trusted_https" | grep -F "The registry for this guide is \`https://127.0.0.1:$port_trusted/skillhub\`." >/dev/null
+printf '%s' "$trusted_https" | grep -F 'removing the trailing `/registry/skill.md` from the URL used to fetch this guide' >/dev/null
 trusted_malformed=$(curl -fsS -H 'X-Forwarded-Proto: https,http' "$trusted_base/skillhub/registry/skill.md")
-printf '%s' "$trusted_malformed" | grep -F "The registry for this guide is \`$trusted_base/skillhub\`." >/dev/null
+printf '%s' "$trusted_malformed" | grep -F '4. `https://skill.xfyun.cn`.' >/dev/null
 docker rm -f "$name_trusted" >/dev/null 2>&1 || true
 
 # Fixed-base image served via the bundled deploy configs: assets are baked under
