@@ -138,10 +138,21 @@ export async function installSuite(options: SuiteInstallOptions): Promise<SuiteI
   )
   assertNoTargetCollisions(plan)
 
+  return installSuiteWithPlan(options, client, renameOperation, plan)
+}
+
+async function installSuiteWithPlan(
+  options: SuiteInstallOptions,
+  client: SkillHubClient,
+  renameOperation: typeof rename,
+  plan: SuiteInstallPlan,
+  expectedCurrentSuite?: InventorySuite
+): Promise<SuiteInstallResult> {
   const releaseSuiteLock = await acquireSuiteOperationLock(
     options.home, options.registry, plan.namespace, plan.slug)
   try {
-    return await installSuiteTransaction(options, client, renameOperation, plan)
+    return await installSuiteTransaction(
+      options, client, renameOperation, plan, expectedCurrentSuite)
   } finally {
     await releaseSuiteLock().catch(() => {})
   }
@@ -151,12 +162,16 @@ async function installSuiteTransaction(
   options: SuiteInstallOptions,
   client: SkillHubClient,
   renameOperation: typeof rename,
-  plan: SuiteInstallPlan
+  plan: SuiteInstallPlan,
+  expectedCurrentSuite?: InventorySuite
 ): Promise<SuiteInstallResult> {
   const store = new InventoryStore(options.home)
   const before = await store.read()
   const previousSuite = installedSuites(before).find(candidate =>
     candidate.registry === options.registry && candidate.namespace === plan.namespace && candidate.slug === plan.slug)
+  if (expectedCurrentSuite) {
+    assertSuiteSnapshotUnchanged(expectedCurrentSuite, previousSuite)
+  }
   const source = suiteSource(plan.namespace, plan.slug, plan.version)
   const stageHome = await mkdtemp(join(tmpdir(), 'skillhub-suite-inventory-'))
   const stageToken = `${process.pid}-${Date.now()}`
@@ -529,16 +544,24 @@ export async function upgradeSuite(options: {
   home?: string | undefined
   client?: SkillHubClient | undefined
 }): Promise<{ upgrade: SuiteUpgradePlan; result?: SuiteInstallResult }> {
-  const upgrade = await planSuiteUpgrade(options)
+  const client = options.client ?? new SkillHubClient(options.registry, options.token)
+  const upgrade = await planSuiteUpgrade({ ...options, client })
   if (upgrade.current.version === upgrade.remote.version && upgrade.changes.length === 0) {
     return { upgrade }
   }
-  const result = await installSuite({
+  const installPlan = await client.suiteInstallPlan(
+    options.namespace,
+    options.slug,
+    upgrade.remote.version,
+    randomUUID()
+  )
+  assertNoTargetCollisions(installPlan)
+  const result = await installSuiteWithPlan({
     ...options,
     version: upgrade.remote.version,
     targets: upgrade.targets,
     force: true
-  })
+  }, client, rename, installPlan, upgrade.current)
   return { upgrade, result }
 }
 

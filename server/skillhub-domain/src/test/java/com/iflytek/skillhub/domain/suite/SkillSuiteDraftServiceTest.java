@@ -60,21 +60,28 @@ class SkillSuiteDraftServiceTest {
 
         SkillSuiteMemberSelection member = new SkillSuiteMemberSelection(
                 30L, 40L, "global", "writer", "1.0.0", "sha256:abc");
+        SkillSuiteMemberSelection supportingMember = new SkillSuiteMemberSelection(
+                31L, 41L, "global", "editor", "1.0.0", "sha256:def");
         SkillSuiteDraftService.CreatedDraft result = service.create(
                 new CreateSkillSuiteDraftCommand(
                         1L, "writers", "Writers", "Writing tools", "## Start here", "1.0.0",
-                        SkillVisibility.PRIVATE, null, 40L, List.of(member)),
+                        SkillVisibility.PRIVATE, null, 40L, List.of(member, supportingMember)),
                 new SkillSuiteActionContext(
                         "author", Map.of(1L, NamespaceRole.MEMBER), Set.of(),
                         "request-1", "127.0.0.1", "test"));
 
-        assertThat(result.members()).singleElement().satisfies(saved -> {
+        assertThat(result.members()).filteredOn(SkillSuiteVersionMember::isEntry)
+                .singleElement().satisfies(saved -> {
             assertThat(saved.getSuiteVersionId()).isEqualTo(20L);
             assertThat(saved.getSkillVersionId()).isEqualTo(40L);
             assertThat(saved.getPosition()).isZero();
             assertThat(saved.getFingerprintSnapshot()).isEqualTo("sha256:abc");
-            assertThat(saved.isEntry()).isTrue();
         });
+        assertThat(result.members()).filteredOn(memberSnapshot -> !memberSnapshot.isEntry())
+                .singleElement().satisfies(saved -> {
+                    assertThat(saved.getSkillVersionId()).isEqualTo(41L);
+                    assertThat(saved.getPosition()).isEqualTo(1);
+                });
         assertThat(result.version().getOverview()).isEqualTo("## Start here");
         verify(publicationValidator).validate(result.suite(), result.version());
     }

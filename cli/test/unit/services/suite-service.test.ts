@@ -827,6 +827,44 @@ describe('Suite local lifecycle', () => {
     expect(inventory.items.map((item: { slug: string }) => item.slug).sort()).toEqual(['alpha', 'gamma'])
   })
 
+  test('does not reinstall a Suite removed after upgrade planning', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
+    const first = makePlan()
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(first.plan, first.downloads)
+    })
+
+    const nextPlan = { ...first.plan, operationId: 'operation-2', version: '2.0.0' }
+    const client = clientFor(nextPlan, first.downloads)
+    const fetchDetail = client.suiteDetail.bind(client)
+    let signalPlanRead: (() => void) | undefined
+    let releasePlan: (() => void) | undefined
+    const planRead = new Promise<void>((resolvePromise) => { signalPlanRead = resolvePromise })
+    const holdPlan = new Promise<void>((resolvePromise) => { releasePlan = resolvePromise })
+    client.suiteDetail = async (...args) => {
+      signalPlanRead?.()
+      await holdPlan
+      return fetchDetail(...args)
+    }
+
+    const upgrading = upgradeSuite({ registry, namespace: 'global', slug: 'starter-pack', home, client })
+    await planRead
+    await removeSuite({ registry, namespace: 'global', slug: 'starter-pack', home })
+    releasePlan?.()
+
+    await expect(upgrading).rejects.toThrow('installed Suite changed while waiting for target locks')
+    expect(await readdir(rootDir)).toEqual([])
+    const inventory = JSON.parse(await readFile(join(home, '.skillhub', 'inventory.json'), 'utf8'))
+    expect(inventory).toMatchObject({ items: [], suites: [] })
+  })
+
   test('preserves a member modified after removal starts but before locked validation', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
