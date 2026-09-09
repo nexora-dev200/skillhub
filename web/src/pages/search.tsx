@@ -241,7 +241,7 @@ export function SearchPage() {
       {/* Sort And Filters */}
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-muted-foreground">{t('search.sort.label')}</span>
             <div className="flex gap-2">
               <Button

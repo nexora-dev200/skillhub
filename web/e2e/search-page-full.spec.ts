@@ -42,13 +42,14 @@ test.describe('Search Input (Real API)', () => {
   // TC_SEARCH_INPUT_003 P0 - empty search shows the default discovery list
   test('TC_SEARCH_INPUT_003: empty search shows the default discovery list', async ({ page }) => {
     const emptyQueryResponse = page.waitForResponse((response) => {
-      if (!response.url().includes('/api/web/resources?')) {
+      if (!response.url().includes('/api/web/skills?')) {
         return false
       }
 
       const url = new URL(response.url())
       return response.status() === 200
-        && (url.searchParams.get('q') ?? '') === ''
+        && url.searchParams.has('q')
+        && url.searchParams.get('q') === ''
     })
 
     await page.goto(searchUrl(''))
