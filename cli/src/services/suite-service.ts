@@ -460,6 +460,7 @@ async function removeSuiteTransaction(options: SuiteRemoveOptions): Promise<Suit
       current.suites = installedSuites(current).filter(candidate =>
         candidate.registry !== options.registry || candidate.namespace !== options.namespace || candidate.slug !== options.slug)
       for (const item of current.items) {
+        if (item.registry !== options.registry) continue
         const deletedDirs = new Set(removable
           .filter(candidate => candidate.item.registry === item.registry &&
             candidate.item.namespace === item.namespace && candidate.item.slug === item.slug)
@@ -658,6 +659,13 @@ async function preflightExistingTargets(
       }
       const currentSuitePrefix = `suite:@${plan.namespace}/${plan.slug}@`
       const ownerTarget = owner?.targets.find(existing => resolve(existing.installDir) === installDir)
+      if (owner && ownerTarget && !force && await pathExists(installDir)
+        && (await snapshotSkillDirectory(installDir)).fingerprint !== owner.fingerprint) {
+        throw new CliError(`local changes detected at ${installDir}`, EXIT.validation, {
+          path: installDir,
+          next: 'pass --force only if replacing these local changes is intended'
+        })
+      }
       if (owner && ownerTarget && owner.version !== member.version && targetInstalledBy(owner, ownerTarget).some(source =>
         source.startsWith('suite:') && !source.startsWith(currentSuitePrefix))) {
         throw new CliError(`shared Suite member @${member.namespace}/${member.slug} cannot change version in place`, EXIT.validation, {

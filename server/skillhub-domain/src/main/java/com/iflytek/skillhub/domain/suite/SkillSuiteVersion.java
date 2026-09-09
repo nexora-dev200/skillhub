@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -25,6 +26,10 @@ public class SkillSuiteVersion {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    @Column(name = "lock_version", nullable = false)
+    private Long lockVersion;
 
     @Column(name = "suite_id", nullable = false)
     private Long suiteId;

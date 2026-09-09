@@ -677,6 +677,58 @@ describe('Suite local lifecycle', () => {
     expect(inventory.items[0].installedBy).toEqual(['suite:@global/editor-pack@1.0.0'])
   })
 
+  test('removing a Suite does not rewrite the same coordinate from another registry', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const firstRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-registry-a-'))
+    const secondRoot = await mkdtemp(join(tmpdir(), 'skillhub-suite-registry-b-'))
+    const secondRegistry = 'http://registry-b.test'
+    const { plan, downloads } = makePlan()
+    plan.members = [plan.members[0]!]
+
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir: firstRoot, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(plan, downloads)
+    })
+    await installSuite({
+      registry: secondRegistry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'claude', rootDir: secondRoot, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(plan, downloads)
+    })
+
+    await removeSuite({ registry, namespace: 'global', slug: 'starter-pack', home })
+
+    const afterFirstRemoval = await new InventoryStore(home).read()
+    expect(afterFirstRemoval.suites).toEqual([
+      expect.objectContaining({ registry: secondRegistry, slug: 'starter-pack' })
+    ])
+    expect(afterFirstRemoval.items).toEqual([
+      expect.objectContaining({
+        registry: secondRegistry,
+        slug: 'alpha',
+        installedBy: ['suite:@global/starter-pack@1.0.0']
+      })
+    ])
+    expect(await readFile(join(secondRoot, 'alpha', 'SKILL.md'), 'utf8')).toBe('# Alpha')
+
+    const secondRemoval = await removeSuite({
+      registry: secondRegistry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      home
+    })
+    expect(secondRemoval.removed).toEqual([join(secondRoot, 'alpha')])
+    expect(await exists(join(secondRoot, 'alpha'))).toBe(false)
+  })
+
   test('reuses a matching legacy direct install and preserves it when Suite is removed', async () => {
     const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
     const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
@@ -714,6 +766,35 @@ describe('Suite local lifecycle', () => {
     const inventory = JSON.parse(await readFile(join(home, '.skillhub', 'inventory.json'), 'utf8'))
     expect(inventory.suites).toEqual([])
     expect(inventory.items[0].installedBy).toEqual(['direct'])
+  })
+
+  test('requires force before replacing a locally modified same-version member', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
+    const { plan, downloads } = makePlan()
+    plan.members = [plan.members[0]!]
+    const member = plan.members[0]!
+    const skillDir = join(rootDir, member.slug)
+    await mkdir(skillDir, { recursive: true })
+    await writeFile(join(skillDir, 'SKILL.md'), '# Alpha')
+    const store = new InventoryStore(home)
+    await store.upsertTarget(registry, member.namespace, member.slug, member.version, {
+      agent: 'codex', rootDir, installDir: skillDir, installedAt: new Date().toISOString()
+    }, member.fingerprint)
+    await writeFile(join(skillDir, 'SKILL.md'), '# Locally modified Alpha')
+
+    await expect(installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(plan, downloads)
+    })).rejects.toThrow('local changes')
+
+    expect(await readFile(join(skillDir, 'SKILL.md'), 'utf8')).toBe('# Locally modified Alpha')
+    expect((await store.read()).suites ?? []).toEqual([])
   })
 
   test('tracks direct and Suite ownership independently for each Agent target', async () => {

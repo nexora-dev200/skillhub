@@ -3,6 +3,7 @@ package com.iflytek.skillhub.domain.suite;
 import com.iflytek.skillhub.domain.namespace.Namespace;
 import com.iflytek.skillhub.domain.namespace.NamespaceRepository;
 import com.iflytek.skillhub.domain.namespace.NamespaceRole;
+import com.iflytek.skillhub.domain.namespace.NamespaceStatus;
 import com.iflytek.skillhub.domain.review.ReviewPermissionChecker;
 import com.iflytek.skillhub.domain.review.ReviewSubjectType;
 import com.iflytek.skillhub.domain.review.ReviewTaskRepository;
@@ -165,6 +166,9 @@ public class SkillSuiteQueryService {
             return true;
         }
         NamespaceRole role = namespaceRoles.get(suite.getNamespaceId());
+        if (namespace.getStatus() == NamespaceStatus.ARCHIVED && role == null) {
+            return false;
+        }
         boolean namespaceAdmin = role == NamespaceRole.OWNER || role == NamespaceRole.ADMIN;
         boolean currentCreator = userId != null && userId.equals(suite.getCreatedBy()) && role != null;
 

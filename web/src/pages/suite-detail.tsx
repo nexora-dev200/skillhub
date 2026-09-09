@@ -24,7 +24,7 @@ export function SuiteDetailPage() {
   const { data: versions } = useSuiteVersions(namespace, slug)
   const submitMutation = useSubmitSuite()
   const command = useMemo(
-    () => suite ? `skillhub suite install @${suite.namespace}/${suite.slug}@${suite.version}` : '',
+    () => suite ? `skillhub suite install @${suite.namespace}/${suite.slug} --version ${suite.version}` : '',
     [suite],
   )
   const suitePath = `/suite/${encodeURIComponent(namespace)}/${encodeURIComponent(slug)}`

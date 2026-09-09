@@ -182,6 +182,34 @@ class SkillSuiteQueryServiceTest {
     }
 
     @Test
+    void archivedNamespaceHidesPublishedPublicSuiteFromAnonymousUsers() {
+        Namespace namespace = new Namespace("team", "Team", "owner");
+        namespace.setStatus(NamespaceStatus.ARCHIVED);
+        SkillSuite suite = new SkillSuite(1L, "public-suite", "Public Suite", "suite-author");
+        SkillSuiteVersion version = new SkillSuiteVersion(
+                10L, "1.0.0", SkillVisibility.PUBLIC, "suite-author");
+        setId(namespace, 1L);
+        setId(suite, 10L);
+        setId(version, 20L);
+        version.setStatus(SkillSuiteVersionStatus.PUBLISHED);
+        suite.setLatestVersionId(20L);
+
+        when(namespaceRepository.findBySlug("team")).thenReturn(Optional.of(namespace));
+        when(suiteRepository.findByNamespaceIdAndSlug(1L, "public-suite")).thenReturn(Optional.of(suite));
+        when(versionRepository.findById(20L)).thenReturn(Optional.of(version));
+
+        assertThatThrownBy(() -> service.getDetail(
+                "team", "public-suite", null, null, Map.of(), Set.of()))
+                .isInstanceOf(DomainForbiddenException.class);
+
+        when(memberRepository.findBySuiteVersionIdOrderByPosition(20L)).thenReturn(List.of());
+        assertThat(service.getDetail(
+                "team", "public-suite", null, "member",
+                Map.of(1L, NamespaceRole.MEMBER), Set.of()).version().getVersion())
+                .isEqualTo("1.0.0");
+    }
+
+    @Test
     void pendingReviewUsesTheActualSubmitterAndReviewPermissions() {
         Namespace namespace = new Namespace("team", "Team", "owner");
         SkillSuite suite = new SkillSuite(1L, "pending-suite", "Pending Suite", "suite-author");

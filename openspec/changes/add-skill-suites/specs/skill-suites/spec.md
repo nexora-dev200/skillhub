@@ -278,6 +278,12 @@ CLI SHALL 在修改目标目录前完成全部成员和全部 Agent 目标的解
 - **THEN** CLI 通过 Suite 级本地锁只允许一个操作进入事务
 - **AND** 另一个操作明确报告繁忙，不得基于旧 inventory 提交
 
+#### Scenario: Existing Member has local changes
+- **WHEN** Suite 安装将复用或替换一个已登记但 fingerprint 已变化的 Member 目录
+- **AND** 用户未明确传入 `--force`
+- **THEN** CLI 在写入任何目标或 inventory 前拒绝安装
+- **AND** 保留本地文件和现有 inventory
+
 ### Requirement: Suite installation SHALL preserve Agent Skills compatibility
 
 CLI SHALL 将每个 Member 作为普通 Skill 安装到 Agent 已支持的 Skill 根目录。CLI SHALL NOT 为 Suite 创建同名 `SKILL.md` 或要求 Agent 理解 Suite 协议。
@@ -306,6 +312,11 @@ CLI inventory SHALL 记录已安装 SuiteVersion、精确成员快照，以及�
 - **WHEN** CLI 读取升级前的 inventory schema
 - **THEN** CLI 将缺失的 Suite 和来源集合按空值处理
 - **AND** 已安装 Skill 记录和目标路径保持不变
+
+#### Scenario: Same Suite coordinate is installed from different registries
+- **WHEN** 两个 Registry 各自安装了相同 Namespace 和 slug 的 Suite
+- **THEN** inventory 按 Registry 分别记录 Suite 与 Member 来源
+- **AND** 移除其中一个 Registry 的 Suite 不得修改另一个 Registry 的来源或文件
 
 ### Requirement: Suite removal SHALL be ownership-safe
 
@@ -437,6 +448,11 @@ Suite 创建、编辑、提交、审核、发布、下架、隐藏、恢复、�
 - **THEN** 用户可以查看 Suite 公开元数据
 - **AND** 只有全部 Member 仍公开且可安装时才能获得完整安装计划
 
+#### Scenario: Anonymous user accesses a Suite in an archived Namespace
+- **WHEN** Namespace 已归档且匿名用户访问其中的 PUBLISHED PUBLIC SuiteVersion
+- **THEN** 系统拒绝查看和安装
+- **AND** Namespace 成员和平台管理员仍按现有归档 Namespace 规则访问
+
 #### Scenario: Namespace member accesses a namespace Suite
 - **WHEN** 当前 Namespace MEMBER 访问 PUBLISHED NAMESPACE_ONLY SuiteVersion
 - **THEN** 用户可以查看并在全部 Member 校验通过后安装
@@ -464,6 +480,12 @@ REJECTED SuiteVersion MAY 由有权限的管理者退回 DRAFT、修改并重新
 - **WHEN** 管理者尝试修改 PUBLISHED 或 YANKED SuiteVersion
 - **THEN** 系统拒绝修改
 - **AND** 提示创建新的 SuiteVersion
+
+#### Scenario: A stale draft edit races with publication
+- **WHEN** 一个请求读取 DRAFT 后，另一事务先将同一 SuiteVersion 发布
+- **AND** 旧请求随后尝试保存编辑结果
+- **THEN** 系统拒绝旧请求的并发更新
+- **AND** 已发布状态、发布时间和发布内容保持不变
 
 ### Requirement: Suite plan and Member download metrics SHALL remain attributable and idempotent
 

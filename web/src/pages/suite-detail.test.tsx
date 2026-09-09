@@ -179,6 +179,9 @@ describe('SuiteDetailPage', () => {
     const sidebar = screen.getByRole('complementary', { name: 'suite.detailsSidebar' })
     expect(within(sidebar).getByText('v1.0.0')).not.toBeNull()
     expect(within(sidebar).getByText('suite.installCommand')).not.toBeNull()
+    expect(within(sidebar).getByText(
+      'skillhub suite install @global/care-workflow --version 1.0.0',
+    )).not.toBeNull()
     expect(within(sidebar).getByLabelText('suite.copyInstallCommand')).not.toBeNull()
   })
 })
