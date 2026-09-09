@@ -50,6 +50,9 @@ Suite 的可见范围不能宽于成员：
 SuiteVersion 仍为 PUBLISHED，但安装计划会整体失败。硬删除只清空成员外键；坐标、版本和 fingerprint
 快照继续用于历史展示和审计。
 
+创作页面保存成员时会携带候选接口返回的精确 `skillVersionId`。服务端按 ID 读取版本，并校验坐标和
+版本一致后再保存快照，不会按名称重新解析到另一个所有者的同名 Skill。
+
 ## `suite.yaml` 定义
 
 `suite.yaml` 是可移植的 Suite 创作格式，不是上传到 Agent 的多 Skill ZIP：

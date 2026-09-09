@@ -9,8 +9,8 @@ import com.iflytek.skillhub.domain.skill.SkillVersion;
 import com.iflytek.skillhub.domain.skill.service.SkillDownloadService;
 import com.iflytek.skillhub.domain.skill.service.SkillQueryService;
 import com.iflytek.skillhub.dto.SkillSuiteReferenceResponse;
-import com.iflytek.skillhub.repository.SkillSuiteReferenceQueryRepository;
 import com.iflytek.skillhub.service.SkillLabelAppService;
+import com.iflytek.skillhub.service.SkillSuiteAppService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -53,7 +53,7 @@ class SkillControllerTest {
     private SkillLabelAppService skillLabelAppService;
 
     @MockBean
-    private SkillSuiteReferenceQueryRepository suiteReferenceQueryRepository;
+    private SkillSuiteAppService skillSuiteAppService;
 
     @Test
     void getVersionDetailShouldReturnMetadataFields() throws Exception {
@@ -188,7 +188,7 @@ class SkillControllerTest {
                         null,
                         "OWNER_PREVIEW"
                 ));
-        when(suiteReferenceQueryRepository.findVisibleEntryReferences(
+        when(skillSuiteAppService.findVisibleEntryReferences(
                 eq(1L), eq((String) null), eq(Map.of()), anySet()))
                 .thenReturn(List.of(new SkillSuiteReferenceResponse(
                         9L, "team", "demo-suite", "Demo Suite", "2.0.0", 3)));

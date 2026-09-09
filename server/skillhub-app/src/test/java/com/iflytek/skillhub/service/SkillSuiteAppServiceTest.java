@@ -11,6 +11,8 @@ import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.domain.skill.SkillStatus;
 import com.iflytek.skillhub.domain.skill.SkillVersionStatus;
 import com.iflytek.skillhub.domain.skill.service.SkillQueryService;
+import com.iflytek.skillhub.dto.SkillSuiteCreateRequest;
+import com.iflytek.skillhub.dto.SkillSuiteMemberRequest;
 import com.iflytek.skillhub.domain.suite.SkillSuite;
 import com.iflytek.skillhub.domain.suite.SkillSuiteAllowedAction;
 import com.iflytek.skillhub.domain.suite.SkillSuiteDraftService;
@@ -25,6 +27,7 @@ import com.iflytek.skillhub.domain.suite.SkillSuiteVersion;
 import com.iflytek.skillhub.domain.suite.SkillSuiteVersionMember;
 import com.iflytek.skillhub.repository.SkillSuiteCandidateQueryRepository;
 import com.iflytek.skillhub.repository.MySkillSuiteQueryRepository;
+import com.iflytek.skillhub.repository.SkillSuiteReferenceQueryRepository;
 import com.iflytek.skillhub.observability.RequestIdAccessor;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,6 +63,7 @@ class SkillSuiteAppServiceTest {
     @Mock private RequestIdAccessor requestIdAccessor;
     @Mock private SkillSuiteCandidateQueryRepository candidateQueryRepository;
     @Mock private MySkillSuiteQueryRepository mySkillSuiteQueryRepository;
+    @Mock private SkillSuiteReferenceQueryRepository referenceQueryRepository;
     @Mock private HttpServletRequest request;
     private SkillSuiteAppService service;
     private Namespace namespace;
@@ -74,7 +78,7 @@ class SkillSuiteAppServiceTest {
                 namespaceRepository, skillQueryService, draftService, lifecycleService,
                 queryService, installMetricsService, installOperationRepository, auditLogService,
                 requestIdAccessor,
-                candidateQueryRepository, mySkillSuiteQueryRepository);
+                candidateQueryRepository, mySkillSuiteQueryRepository, referenceQueryRepository);
         namespace = new Namespace("global", "Global", "admin");
         setField(namespace, "id", 1L);
         suite = new SkillSuite(1L, "starter", "Starter", "user-1");
@@ -266,6 +270,26 @@ class SkillSuiteAppServiceTest {
             assertThat(member.summary()).isNull();
             assertThat(member.browsable()).isFalse();
         });
+    }
+
+    @Test
+    void create_rejectsWhenExactVersionIdDoesNotMatchTheSubmittedCoordinate() {
+        SkillSuiteMemberRequest member = new SkillSuiteMemberRequest(
+                101L, "global", "selected", "1.0.0");
+        SkillSuiteCreateRequest createRequest = new SkillSuiteCreateRequest(
+                "global", "starter", "Starter", null, null, "1.0.0",
+                SkillVisibility.PRIVATE, null, member, List.of(member));
+        given(namespaceRepository.findBySlug("global")).willReturn(java.util.Optional.of(namespace));
+        given(skillQueryService.resolveVersionById(101L, "user-1", Map.of()))
+                .willReturn(resolved(99L, 101L, "different", "1.0.0", "sha256:different"));
+
+        assertThatThrownBy(() -> service.create(
+                createRequest, "user-1", Map.of(), Set.of(), request))
+                .isInstanceOfSatisfying(DomainBadRequestException.class, exception ->
+                        assertThat(exception.messageCode())
+                                .isEqualTo("error.suite.members.selectionMismatch"));
+
+        verify(draftService, never()).create(any(), any());
     }
 
     private SkillSuiteQueryService.Detail detail(boolean available) {

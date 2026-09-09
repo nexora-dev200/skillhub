@@ -35,6 +35,8 @@ export interface SuiteInstallOptions {
   client?: SkillHubClient | undefined
   /** Internal seam used to verify atomic rollback after a filesystem commit failure. */
   renameOperation?: typeof rename | undefined
+  /** Internal seam used to verify state observed immediately after target locking. */
+  afterTargetLocksAcquired?: (() => Promise<void>) | undefined
 }
 
 export interface SuiteInstallResult {
@@ -90,6 +92,7 @@ interface RetiredTarget {
   item: InventoryItem
   target: InventoryTarget
   backupDir: string
+  fingerprint: string
   moved: boolean
 }
 
@@ -194,9 +197,21 @@ export async function installSuite(options: SuiteInstallOptions): Promise<SuiteI
         lockedPaths.add(path)
         releases.push(await acquireSkillTargetLock(target.rootDir, target.slug))
       }
+      await options.afterTargetLocksAcquired?.()
       // Recheck after target locks so a concurrent direct install cannot invalidate preflight.
       const lockedInventory = await store.read()
+      const lockedPreviousSuite = installedSuites(lockedInventory).find(candidate =>
+        candidate.registry === options.registry && candidate.namespace === plan.namespace && candidate.slug === plan.slug)
+      assertSuiteSnapshotUnchanged(previousSuite, lockedPreviousSuite)
       await preflightExistingTargets(lockedInventory, options.registry, plan, options.targets, options.force)
+      for (const item of prepared) {
+        item.reuse = await isReusable(lockedInventory, options.registry, item.member, item.installDir)
+        item.replace = await pathExists(item.installDir) && !item.reuse
+      }
+      const lockedRetired = await prepareRetiredTargets(
+        lockedInventory, lockedPreviousSuite, plan, stageToken)
+      retired.splice(0, retired.length, ...lockedRetired.filter(item =>
+        lockedPaths.has(resolve(item.target.installDir))))
 
       for (const item of prepared) {
         if (item.reuse) {
@@ -214,6 +229,12 @@ export async function installSuite(options: SuiteInstallOptions): Promise<SuiteI
         if (await pathExists(item.target.installDir)) {
           await renameOperation(item.target.installDir, item.backupDir)
           item.moved = true
+          if ((await snapshotSkillDirectory(item.backupDir)).fingerprint !== item.fingerprint) {
+            throw new CliError(`retired Suite member changed before commit: ${item.target.installDir}`, EXIT.validation, {
+              path: item.target.installDir,
+              next: 'restore the retained directory and retry the Suite upgrade'
+            })
+          }
         }
       }
 
@@ -322,12 +343,20 @@ export async function removeSuite(options: {
   namespace: string
   slug: string
   home?: string | undefined
+  /** Internal seam used to verify state observed immediately after target locking. */
+  afterTargetLocksAcquired?: (() => Promise<void>) | undefined
 }): Promise<SuiteRemoveResult> {
   const store = new InventoryStore(options.home)
   const inventory = await store.read()
   const suite = findInstalledSuite(inventory, options.registry, options.namespace, options.slug)
   const source = suiteSource(suite.namespace, suite.slug, suite.version)
-  const removable: Array<{ item: InventoryItem; target: InventoryTarget; backupDir: string }> = []
+  const candidates: Array<{
+    item: InventoryItem
+    target: InventoryTarget
+    fingerprint: string
+    backupDir: string
+  }> = []
+  const removable: typeof candidates = []
   const preserved: SuiteRemoveResult['preserved'] = []
   const token = `${process.pid}-${Date.now()}`
 
@@ -338,43 +367,51 @@ export async function removeSuite(options: {
     for (const installDir of member.installDirs) {
       const target = item.targets.find(candidate => resolve(candidate.installDir) === resolve(installDir))
       if (!target) continue
-      const remainingSources = targetInstalledBy(item, target).filter(candidate => candidate !== source)
-      if (remainingSources.length > 0) {
-        preserved.push({ dir: installDir, reason: 'shared' })
-      } else if (!(await pathExists(installDir))) {
-        preserved.push({ dir: installDir, reason: 'missing' })
-      } else if ((await snapshotSkillDirectory(installDir)).fingerprint !== member.fingerprint) {
-        preserved.push({ dir: installDir, reason: 'modified' })
-      } else {
-        removable.push({ item, target, backupDir: `${installDir}.skillhub-suite-remove-${token}` })
-      }
+      candidates.push({
+        item,
+        target,
+        fingerprint: member.fingerprint,
+        backupDir: `${installDir}.skillhub-suite-remove-${token}`
+      })
     }
   }
 
   const releases: Array<() => Promise<void>> = []
   const moved: typeof removable = []
   try {
-    for (const candidate of [...removable].sort((a, b) => a.target.installDir.localeCompare(b.target.installDir))) {
+    for (const candidate of [...candidates].sort((a, b) => a.target.installDir.localeCompare(b.target.installDir))) {
       releases.push(await acquireSkillTargetLock(candidate.target.rootDir, candidate.item.slug))
     }
+    await options.afterTargetLocksAcquired?.()
     const lockedInventory = await store.read()
-    for (const candidate of removable) {
+    const lockedSuite = findInstalledSuite(
+      lockedInventory, options.registry, options.namespace, options.slug)
+    assertSuiteSnapshotUnchanged(suite, lockedSuite)
+    for (const candidate of candidates) {
       const current = lockedInventory.items.find(item =>
         item.registry === candidate.item.registry && item.namespace === candidate.item.namespace &&
         item.slug === candidate.item.slug)
       const target = current?.targets.find(item =>
         resolve(item.installDir) === resolve(candidate.target.installDir))
-      if (!current || !target
-          || targetInstalledBy(current, target).some(candidateSource => candidateSource !== source)) {
-        throw new CliError(`Suite member ownership changed before removal: ${candidate.target.installDir}`, EXIT.validation, {
-          path: candidate.target.installDir,
-          next: 'run `skillhub suite check` and retry'
-        })
+      if (!current || !target || !(await pathExists(candidate.target.installDir))) {
+        preserved.push({ dir: candidate.target.installDir, reason: 'missing' })
+      } else if (targetInstalledBy(current, target).some(candidateSource => candidateSource !== source)) {
+        preserved.push({ dir: candidate.target.installDir, reason: 'shared' })
+      } else if ((await snapshotSkillDirectory(candidate.target.installDir)).fingerprint !== candidate.fingerprint) {
+        preserved.push({ dir: candidate.target.installDir, reason: 'modified' })
+      } else {
+        removable.push({ ...candidate, item: current, target })
       }
     }
     for (const candidate of removable) {
       await rename(candidate.target.installDir, candidate.backupDir)
       moved.push(candidate)
+      if ((await snapshotSkillDirectory(candidate.backupDir)).fingerprint !== candidate.fingerprint) {
+        throw new CliError(`Suite member changed before removal: ${candidate.target.installDir}`, EXIT.validation, {
+          path: candidate.target.installDir,
+          next: 'restore the retained directory and run `skillhub suite check` before retrying'
+        })
+      }
     }
     await store.mutateAtomic(current => {
       current.suites = installedSuites(current).filter(candidate =>
@@ -386,10 +423,11 @@ export async function removeSuite(options: {
           .map(candidate => resolve(candidate.target.installDir)))
         item.targets = item.targets
           .filter(target => !deletedDirs.has(resolve(target.installDir)))
-          .map(target => ({
-            ...target,
-            installedBy: targetInstalledBy(item, target).filter(candidate => candidate !== source)
-          }))
+          .map(target => {
+            const remainingSources = targetInstalledBy(item, target)
+              .filter(candidate => candidate !== source)
+            return { ...target, installedBy: remainingSources.length > 0 ? remainingSources : ['direct'] }
+          })
         item.installedBy = Array.from(new Set(item.targets.flatMap(target => target.installedBy ?? [])))
       }
       current.items = current.items.filter(item => item.targets.length > 0)
@@ -678,8 +716,18 @@ function commitInventory(
   inventory.suites.push(suite)
 
   const retiredDirs = new Set(retired.map(item => resolve(item.target.installDir)))
+  const preparedDirs = new Set(prepared.map(item => resolve(item.installDir)))
   for (const item of inventory.items) {
-    item.targets = item.targets.filter(target => !retiredDirs.has(resolve(target.installDir)))
+    item.targets = item.targets
+      .filter(target => !retiredDirs.has(resolve(target.installDir)))
+      .map(target => {
+        const installDir = resolve(target.installDir)
+        if ((target.installedBy?.length ?? 0) > 0 || preparedDirs.has(installDir)) return target
+        // A retired directory that became shared or locally modified while waiting for locks is
+        // preserved as user-owned instead of becoming eligible for a later automatic deletion.
+        return { ...target, installedBy: ['direct'] }
+      })
+    item.installedBy = Array.from(new Set(item.targets.flatMap(target => target.installedBy ?? [])))
   }
   inventory.items = inventory.items.filter(item => item.targets.length > 0)
 }
@@ -743,11 +791,22 @@ async function prepareRetiredTargets(
         item,
         target,
         backupDir: `${installDir}.skillhub-suite-retired-${token}`,
+        fingerprint: member.fingerprint,
         moved: false
       })
     }
   }
   return retired
+}
+
+function assertSuiteSnapshotUnchanged(
+  before: InventorySuite | undefined,
+  locked: InventorySuite | undefined
+): void {
+  if (before?.version === locked?.version && before?.fingerprint === locked?.fingerprint) return
+  throw new CliError('installed Suite changed while waiting for target locks', EXIT.validation, {
+    next: 'run `skillhub suite check` and retry'
+  })
 }
 
 function describe(error: unknown): string {

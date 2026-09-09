@@ -206,11 +206,11 @@ if [[ -z "$SKILL_VERSION_ID" ]]; then
 fi
 echo "PASS: member Skill is published and downloadable"
 
-SUITE_PAYLOAD="$(python3 - "$SUITE_SLUG" "$SKILL_SLUG" <<'PY'
+SUITE_PAYLOAD="$(python3 - "$SUITE_SLUG" "$SKILL_SLUG" "$SKILL_VERSION_ID" <<'PY'
 import json
 import sys
 
-member = {"namespace": "global", "slug": sys.argv[2], "version": "1.0.0"}
+member = {"skillVersionId": int(sys.argv[3]), "namespace": "global", "slug": sys.argv[2], "version": "1.0.0"}
 print(json.dumps({
     "namespace": "global",
     "slug": sys.argv[1],

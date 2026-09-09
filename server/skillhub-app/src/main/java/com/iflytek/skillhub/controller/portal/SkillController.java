@@ -25,7 +25,7 @@ import com.iflytek.skillhub.metrics.SkillHubMetrics;
 import com.iflytek.skillhub.ratelimit.RateLimit;
 import com.iflytek.skillhub.service.SkillLabelAppService;
 import com.iflytek.skillhub.service.ComplianceSnapshotProjectionService;
-import com.iflytek.skillhub.repository.SkillSuiteReferenceQueryRepository;
+import com.iflytek.skillhub.service.SkillSuiteAppService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -56,7 +56,7 @@ public class SkillController extends BaseApiController {
     private final SkillDownloadService skillDownloadService;
     private final SkillLabelAppService skillLabelAppService;
     private final ComplianceSnapshotProjectionService complianceSnapshotProjectionService;
-    private final SkillSuiteReferenceQueryRepository suiteReferenceQueryRepository;
+    private final SkillSuiteAppService skillSuiteAppService;
     private final SkillHubMetrics metrics;
 
     public SkillController(
@@ -64,7 +64,7 @@ public class SkillController extends BaseApiController {
             SkillDownloadService skillDownloadService,
             SkillLabelAppService skillLabelAppService,
             ComplianceSnapshotProjectionService complianceSnapshotProjectionService,
-            SkillSuiteReferenceQueryRepository suiteReferenceQueryRepository,
+            SkillSuiteAppService skillSuiteAppService,
             SkillHubMetrics metrics,
             ApiResponseFactory responseFactory) {
         super(responseFactory);
@@ -72,7 +72,7 @@ public class SkillController extends BaseApiController {
         this.skillDownloadService = skillDownloadService;
         this.skillLabelAppService = skillLabelAppService;
         this.complianceSnapshotProjectionService = complianceSnapshotProjectionService;
-        this.suiteReferenceQueryRepository = suiteReferenceQueryRepository;
+        this.skillSuiteAppService = skillSuiteAppService;
         this.metrics = metrics;
     }
 
@@ -118,7 +118,7 @@ public class SkillController extends BaseApiController {
                 toLifecycleVersion(detail.ownerPreviewVersion()),
                 detail.ownerPreviewReviewComment(),
                 detail.resolutionMode(),
-                suiteReferenceQueryRepository.findVisibleEntryReferences(
+                skillSuiteAppService.findVisibleEntryReferences(
                         detail.id(), userId, namespaceRoles,
                         principal == null || principal.platformRoles() == null
                                 ? Set.of() : principal.platformRoles())

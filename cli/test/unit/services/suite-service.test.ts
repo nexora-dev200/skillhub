@@ -747,4 +747,83 @@ describe('Suite local lifecycle', () => {
     expect(inventory.suites[0]).toMatchObject({ version: '2.0.0', fingerprint: 'sha256:suite-v2' })
     expect(inventory.items.map((item: { slug: string }) => item.slug).sort()).toEqual(['alpha', 'gamma'])
   })
+
+  test('preserves a member modified after removal starts but before locked validation', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
+    const { plan, downloads } = makePlan()
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(plan, downloads)
+    })
+
+    const removed = await removeSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      home,
+      afterTargetLocksAcquired: async () => {
+        await writeFile(join(rootDir, 'beta', 'SKILL.md'), '# Locally modified Beta')
+      }
+    })
+
+    expect(removed.removed).toEqual([join(rootDir, 'alpha')])
+    expect(removed.preserved).toEqual([{ dir: join(rootDir, 'beta'), reason: 'modified' }])
+    expect(await readFile(join(rootDir, 'beta', 'SKILL.md'), 'utf8')).toBe('# Locally modified Beta')
+    const inventory = await new InventoryStore(home).read()
+    expect(inventory.items).toEqual([expect.objectContaining({
+      slug: 'beta',
+      installedBy: ['direct']
+    })])
+  })
+
+  test('preserves a retired member that gains direct ownership before locked upgrade validation', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'skillhub-suite-home-'))
+    const rootDir = await mkdtemp(join(tmpdir(), 'skillhub-suite-root-'))
+    const first = makePlan()
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: false,
+      home,
+      client: clientFor(first.plan, first.downloads)
+    })
+
+    const second: SuiteInstallPlan = {
+      ...first.plan,
+      operationId: 'operation-2',
+      version: '2.0.0',
+      fingerprint: 'sha256:suite-v2',
+      members: [first.plan.members[0]!]
+    }
+    const beta = first.plan.members[1]!
+    const betaDir = join(rootDir, beta.slug)
+    await installSuite({
+      registry,
+      namespace: 'global',
+      slug: 'starter-pack',
+      version: '2.0.0',
+      targets: [{ agent: 'codex', rootDir, scope: 'project', source: 'explicit' }],
+      force: true,
+      home,
+      client: clientFor(second, first.downloads),
+      afterTargetLocksAcquired: async () => {
+        await new InventoryStore(home).upsertTarget(
+          registry, beta.namespace, beta.slug, beta.version,
+          { agent: 'codex', rootDir, installDir: betaDir, installedAt: new Date().toISOString() },
+          beta.fingerprint)
+      }
+    })
+
+    expect(await readFile(join(betaDir, 'SKILL.md'), 'utf8')).toBe('# Beta')
+    const inventory = await new InventoryStore(home).read()
+    expect(inventory.items.find(item => item.slug === 'beta')).toMatchObject({ installedBy: ['direct'] })
+  })
 })

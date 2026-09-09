@@ -622,6 +622,33 @@ public class SkillQueryService {
         );
     }
 
+    /** Resolves the exact version selected by an authenticated authoring flow. */
+    public ResolvedVersionDTO resolveVersionById(
+            Long versionId,
+            String currentUserId,
+            Map<Long, NamespaceRole> userNsRoles
+    ) {
+        SkillVersion version = skillVersionRepository.findById(versionId)
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.version.notFound", versionId));
+        Skill skill = skillRepository.findById(version.getSkillId())
+                .orElseThrow(() -> new DomainBadRequestException("error.skill.notFound", version.getSkillId()));
+        Namespace namespace = namespaceRepository.findById(skill.getNamespaceId())
+                .orElseThrow(() -> new DomainBadRequestException(
+                        "error.namespace.id.notFound", skill.getNamespaceId()));
+        assertPublishedAccessible(namespace, skill, currentUserId, userNsRoles);
+        assertInstallableVersion(version, version.getVersion());
+        String fingerprint = computeFingerprint(version);
+        return new ResolvedVersionDTO(
+                skill.getId(), namespace.getSlug(), skill.getSlug(), version.getVersion(), version.getId(),
+                fingerprint, null,
+                String.format(
+                        "/api/v1/skills/%s/%s/versions/%s/download",
+                        encodePathSegment(namespace.getSlug()),
+                        encodePathSegment(skill.getSlug()),
+                        encodePathSegment(version.getVersion()))
+        );
+    }
+
     private Namespace findNamespace(String slug) {
         return namespaceRepository.findBySlug(slug)
                 .orElseThrow(() -> new DomainBadRequestException("error.namespace.slug.notFound", slug));

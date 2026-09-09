@@ -4414,6 +4414,8 @@ export interface components {
             members: components["schemas"]["SkillSuiteMemberRequest"][];
         };
         SkillSuiteMemberRequest: {
+            /** Format: int64 */
+            skillVersionId: number;
             namespace: string;
             slug: string;
             version: string;

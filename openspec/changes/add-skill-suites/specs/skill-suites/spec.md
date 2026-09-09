@@ -22,12 +22,17 @@
 
 ### Requirement: SuiteVersion SHALL reference immutable published Skill versions
 
-系统 SHALL 只允许 SuiteVersion 引用同一 Registry 中状态为 PUBLISHED 的精确 SkillVersion，并 SHALL 保存成员坐标、版本和 fingerprint 快照。一个 SuiteVersion SHALL 最多包含 100 个不同 Skill。
+系统 SHALL 只允许 SuiteVersion 引用同一 Registry 中状态为 PUBLISHED 的精确 SkillVersion。创作请求 SHALL 携带候选接口返回的 `skillVersionId`，服务端 SHALL 按该 ID 读取版本并校验随请求提交的坐标与版本一致，避免同名 Skill 被重新解析到其他所有者。系统 SHALL 保存成员坐标、版本和 fingerprint 快照。一个 SuiteVersion SHALL 最多包含 100 个不同 Skill。
 
 #### Scenario: Create a valid SuiteVersion
 - **WHEN** 管理者提交不超过 100 个不同的已发布 SkillVersion
 - **THEN** 系统创建 DRAFT SuiteVersion
 - **AND** 每个 Member 保存精确 SkillVersion ID、坐标、版本、fingerprint 和顺序
+
+#### Scenario: Reject mismatched member identity
+- **WHEN** 请求中的 `skillVersionId` 与同时提交的坐标或版本不一致
+- **THEN** 系统拒绝该 SuiteVersion 定义
+- **AND** 不按坐标重新解析到另一个同名 SkillVersion
 
 #### Scenario: Add a Member without choosing a version
 - **WHEN** 作者添加一个 Skill 且没有显式选择版本

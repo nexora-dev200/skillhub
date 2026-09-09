@@ -118,13 +118,13 @@ spec:
       version: 2.1.0
 ```
 
-该文件不是下载到 Agent 的包。v1 通过 Web/API 提交等价字段；CLI 导入 `suite.yaml` 属于后续增量能力。服务端在创建 SuiteVersion 时解析并保存精确 `skillVersionId` 和 fingerprint。一个 SuiteVersion 最多包含 100 个不同 Skill；同一 Skill 不允许重复出现。
+该文件不是下载到 Agent 的包。v1 通过 Web/API 提交等价字段；CLI 导入 `suite.yaml` 属于后续增量能力。候选接口返回精确 `skillVersionId`，创作请求原样携带该 ID；服务端按 ID 读取版本，并校验请求中的坐标和版本与该记录一致后保存 fingerprint。服务端不按坐标二次解析版本，避免同一 Namespace 和 slug 下的历史所有权冲突绑定到错误 Skill。一个 SuiteVersion 最多包含 100 个不同 Skill；同一 Skill 不允许重复出现。
 
 SuiteVersion 同时保存短 `summary` 和可选的 Markdown `overview`。`summary` 用于搜索卡片和详情页首屏摘要；`overview` 用于说明成员组合方式、推荐顺序、输入输出和使用边界，并作为审核快照的一部分随 SuiteVersion 冻结。详情页将概述与成员列表分开呈现，成员列表批量解析实时展示名称和摘要，但仅向有权读取该 Skill 的当前查看者返回；安装与审计仍以快照坐标、精确版本和 fingerprint 为准，受限或硬删除成员只保留不可点击且不含实时元数据的历史快照。
 
 成员发布新版本不会改变已有 SuiteVersion。采用新版本、添加、删除、重排成员或修改 Entry Skill 都必须创建新的 SuiteVersion。
 
-为了降低创作成本，Web 在添加 Member 时默认推荐该 Skill 当前可安装的最新版本，但保存时立即解析为精确 `skillVersionId`、version 和 fingerprint，并向作者展示实际固定的版本。作者可以显式选择其他仍处于 PUBLISHED 的历史版本。
+为了降低创作成本，Web 在添加 Member 时默认推荐该 Skill 当前可安装的最新版本，但保存时提交候选结果中的精确 `skillVersionId`、version 和坐标，服务端校验三者一致后固定 fingerprint，并向作者展示实际固定的版本。作者可以显式选择其他仍处于 PUBLISHED 的历史版本。
 
 不得在已发布 SuiteVersion 中保存 `latest` 或在安装时重新解析最新版本。可以提供“更新成员版本”辅助操作，但该操作必须先展示版本差异，并创建或修改 DRAFT SuiteVersion；它不是后台自动升级。
 

@@ -7,6 +7,7 @@ import com.iflytek.skillhub.domain.namespace.NamespaceStatus;
 import com.iflytek.skillhub.domain.audit.AuditDetail;
 import com.iflytek.skillhub.domain.audit.AuditLogService;
 import com.iflytek.skillhub.domain.shared.exception.DomainBadRequestException;
+import com.iflytek.skillhub.domain.shared.exception.DomainForbiddenException;
 import com.iflytek.skillhub.domain.shared.exception.LocalizedDomainException;
 import com.iflytek.skillhub.domain.skill.service.SkillQueryService;
 import com.iflytek.skillhub.domain.suite.CreateSkillSuiteDraftCommand;
@@ -28,9 +29,11 @@ import com.iflytek.skillhub.dto.SkillSuiteInstallMemberResponse;
 import com.iflytek.skillhub.dto.SkillSuiteInstallPlanResponse;
 import com.iflytek.skillhub.dto.SkillSuiteMemberCandidateResponse;
 import com.iflytek.skillhub.dto.SkillSuiteVersionSummaryResponse;
+import com.iflytek.skillhub.dto.SkillSuiteReferenceResponse;
 import com.iflytek.skillhub.domain.skill.SkillVisibility;
 import com.iflytek.skillhub.observability.RequestIdAccessor;
 import com.iflytek.skillhub.repository.SkillSuiteCandidateQueryRepository;
+import com.iflytek.skillhub.repository.SkillSuiteReferenceQueryRepository;
 import com.iflytek.skillhub.repository.MySkillSuiteQueryRepository;
 import com.iflytek.skillhub.dto.MySkillSuiteSummaryResponse;
 import com.iflytek.skillhub.dto.PageResponse;
@@ -67,6 +70,7 @@ public class SkillSuiteAppService {
     private final RequestIdAccessor requestIdAccessor;
     private final SkillSuiteCandidateQueryRepository candidateQueryRepository;
     private final MySkillSuiteQueryRepository mySkillSuiteQueryRepository;
+    private final SkillSuiteReferenceQueryRepository referenceQueryRepository;
 
     public SkillSuiteAppService(
             NamespaceRepository namespaceRepository,
@@ -79,7 +83,8 @@ public class SkillSuiteAppService {
             AuditLogService auditLogService,
             RequestIdAccessor requestIdAccessor,
             SkillSuiteCandidateQueryRepository candidateQueryRepository,
-            MySkillSuiteQueryRepository mySkillSuiteQueryRepository
+            MySkillSuiteQueryRepository mySkillSuiteQueryRepository,
+            SkillSuiteReferenceQueryRepository referenceQueryRepository
     ) {
         this.namespaceRepository = namespaceRepository;
         this.skillQueryService = skillQueryService;
@@ -92,6 +97,7 @@ public class SkillSuiteAppService {
         this.requestIdAccessor = requestIdAccessor;
         this.candidateQueryRepository = candidateQueryRepository;
         this.mySkillSuiteQueryRepository = mySkillSuiteQueryRepository;
+        this.referenceQueryRepository = referenceQueryRepository;
     }
 
     public PageResponse<MySkillSuiteSummaryResponse> listMine(
@@ -128,7 +134,7 @@ public class SkillSuiteAppService {
         }
         boolean superAdmin = platformRoles.contains("SUPER_ADMIN");
         if (!superAdmin && !namespaceRoles.containsKey(namespace.getId())) {
-            throw new DomainBadRequestException("error.suite.lifecycle.noPermission");
+            throw new DomainForbiddenException("error.suite.lifecycle.noPermission");
         }
         int boundedSize = Math.max(1, Math.min(size, 100));
         List<Long> memberNamespaceIds = List.copyOf(namespaceRoles.keySet());
@@ -140,6 +146,16 @@ public class SkillSuiteAppService {
         return candidateQueryRepository.search(
                 namespace.getId(), visibility, query, userId, memberNamespaceIds,
                 adminNamespaceIds, superAdmin, boundedSize);
+    }
+
+    public List<SkillSuiteReferenceResponse> findVisibleEntryReferences(
+            Long skillId,
+            String userId,
+            Map<Long, NamespaceRole> namespaceRoles,
+            Set<String> platformRoles
+    ) {
+        return referenceQueryRepository.findVisibleEntryReferences(
+                skillId, userId, namespaceRoles, platformRoles);
     }
 
     @Transactional
@@ -496,8 +512,13 @@ public class SkillSuiteAppService {
             String userId,
             Map<Long, NamespaceRole> namespaceRoles
     ) {
-        SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersion(
-                member.namespace(), member.slug(), member.version(), null, null, userId, namespaceRoles);
+        SkillQueryService.ResolvedVersionDTO resolved = skillQueryService.resolveVersionById(
+                member.skillVersionId(), userId, namespaceRoles);
+        if (!Objects.equals(resolved.namespace(), member.namespace())
+                || !Objects.equals(resolved.slug(), member.slug())
+                || !Objects.equals(resolved.version(), member.version())) {
+            throw new DomainBadRequestException("error.suite.members.selectionMismatch");
+        }
         return new SkillSuiteMemberSelection(
                 resolved.skillId(), resolved.versionId(), resolved.namespace(), resolved.slug(),
                 resolved.version(), resolved.fingerprint());
@@ -527,7 +548,8 @@ public class SkillSuiteAppService {
             throw new DomainBadRequestException("error.suite.entry.required");
         }
         return members.stream()
-                .filter(member -> Objects.equals(member.namespaceSlug(), entry.namespace())
+                .filter(member -> Objects.equals(member.skillVersionId(), entry.skillVersionId())
+                        && Objects.equals(member.namespaceSlug(), entry.namespace())
                         && Objects.equals(member.skillSlug(), entry.slug())
                         && Objects.equals(member.version(), entry.version()))
                 .map(SkillSuiteMemberSelection::skillVersionId)

@@ -13,6 +13,7 @@ import {
 import { useMyNamespaces } from '@/shared/hooks/use-namespace-queries'
 import { useDebounce } from '@/shared/hooks/use-debounce'
 import { DashboardPageHeader } from '@/shared/components/dashboard-page-header'
+import { ConfirmDialog } from '@/shared/components/confirm-dialog'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Input } from '@/shared/ui/input'
@@ -49,6 +50,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
   const [candidateQuery, setCandidateQuery] = useState('')
   const [selected, setSelected] = useState<SelectedMember[]>([])
   const [entrySkillVersionId, setEntrySkillVersionId] = useState<number | null>(null)
+  const [pendingVersionUpdate, setPendingVersionUpdate] = useState<SkillSuiteMemberCandidate | null>(null)
   const debouncedQuery = useDebounce(candidateQuery.trim(), 250)
   const { data: candidates, isLoading: isLoadingCandidates } = useSuiteMemberCandidates(
     namespace, visibility, debouncedQuery, Boolean(namespace),
@@ -96,7 +98,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
     }])
   }
 
-  const updateCandidate = (candidate: SkillSuiteMemberCandidate) => {
+  const applyCandidateUpdate = (candidate: SkillSuiteMemberCandidate) => {
     const previous = selected.find((member) => member.skillId === candidate.skillId)
     if (previous && entrySkillVersionId === previous.skillVersionId) {
       setEntrySkillVersionId(candidate.skillVersionId)
@@ -138,7 +140,8 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
       toast.error(t('suite.entryRequired'))
       return
     }
-    const members = selected.map(({ namespace: memberNamespace, slug: memberSlug, version: memberVersion }) => ({
+    const members = selected.map(({ skillVersionId, namespace: memberNamespace, slug: memberSlug, version: memberVersion }) => ({
+      skillVersionId,
       namespace: memberNamespace,
       slug: memberSlug,
       version: memberVersion,
@@ -157,7 +160,12 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
       version: version.trim(),
       visibility,
       changelog: changelog.trim() || undefined,
-      entrySkill: { namespace: entry.namespace, slug: entry.slug, version: entry.version },
+      entrySkill: {
+        skillVersionId: entry.skillVersionId,
+        namespace: entry.namespace,
+        slug: entry.slug,
+        version: entry.version,
+      },
       members,
     }
     try {
@@ -269,7 +277,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
                 className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={selectedIds.has(candidate.skillVersionId)}
                 onClick={() => selectedSkillIds.has(candidate.skillId)
-                  ? updateCandidate(candidate)
+                  ? setPendingVersionUpdate(candidate)
                   : addCandidate(candidate)}
               >
                 <span><span className="block font-medium">{candidate.displayName}</span><span className="text-xs text-muted-foreground">@{candidate.namespace}/{candidate.slug}</span></span>
@@ -287,7 +295,7 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
 
         <Card className="p-6">
           <h2 className="font-semibold">{t('suite.selectedMembers', { count: selected.length })}</h2>
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2" role="radiogroup" aria-label={t('suite.entrySkill')}>
             {selected.map((member, index) => (
               <div key={member.skillVersionId} className="rounded-lg border p-3">
                 <div className="flex items-center gap-2">
@@ -295,12 +303,12 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
                     <span className="block truncate font-medium">{member.displayName}</span>
                     <span className="text-xs text-muted-foreground">@{member.namespace}/{member.slug}@{member.version}</span>
                   </button>
-                  <Button variant="outline" size="sm" disabled={index === 0} onClick={() => moveMember(index, -1)}><ArrowUp className="h-4 w-4" /></Button>
-                  <Button variant="outline" size="sm" disabled={index === selected.length - 1} onClick={() => moveMember(index, 1)}><ArrowDown className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="sm" onClick={() => removeMember(member.skillVersionId)}><Trash2 className="h-4 w-4" /></Button>
+                  <Button aria-label={t('suite.moveMemberUp', { name: member.displayName })} variant="outline" size="sm" disabled={index === 0} onClick={() => moveMember(index, -1)}><ArrowUp className="h-4 w-4" aria-hidden="true" /></Button>
+                  <Button aria-label={t('suite.moveMemberDown', { name: member.displayName })} variant="outline" size="sm" disabled={index === selected.length - 1} onClick={() => moveMember(index, 1)}><ArrowDown className="h-4 w-4" aria-hidden="true" /></Button>
+                  <Button aria-label={t('suite.removeMember', { name: member.displayName })} variant="ghost" size="sm" onClick={() => removeMember(member.skillVersionId)}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
                 </div>
                 <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <input type="radio" checked={entrySkillVersionId === member.skillVersionId} onChange={() => setEntrySkillVersionId(member.skillVersionId)} />
+                  <input type="radio" name="suite-entry-skill" aria-label={t('suite.setEntryFor', { name: member.displayName })} checked={entrySkillVersionId === member.skillVersionId} onChange={() => setEntrySkillVersionId(member.skillVersionId)} />
                   {t('suite.setEntry')}
                 </label>
               </div>
@@ -317,6 +325,21 @@ export function SuiteEditor({ namespace: routeNamespace, slug: routeSlug, versio
           onClick={save}
         >{t('suite.saveDraft')}</Button>
       </div>
+
+      <ConfirmDialog
+        open={pendingVersionUpdate !== null}
+        onOpenChange={(open) => { if (!open) setPendingVersionUpdate(null) }}
+        title={t('suite.confirmVersionUpdateTitle')}
+        description={pendingVersionUpdate ? t('suite.confirmVersionUpdateDescription', {
+          coordinate: `@${pendingVersionUpdate.namespace}/${pendingVersionUpdate.slug}`,
+          from: selected.find((member) => member.skillId === pendingVersionUpdate.skillId)?.version,
+          to: pendingVersionUpdate.version,
+        }) : undefined}
+        confirmText={t('suite.confirmVersionUpdate')}
+        onConfirm={() => {
+          if (pendingVersionUpdate) applyCandidateUpdate(pendingVersionUpdate)
+        }}
+      />
     </div>
   )
 }

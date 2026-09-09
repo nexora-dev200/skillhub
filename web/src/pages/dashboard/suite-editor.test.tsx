@@ -3,7 +3,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { SkillSuite } from '@/api/types'
+import type { SkillSuite, SkillSuiteMemberCandidate } from '@/api/types'
 import { SuiteEditor } from './suite-editor'
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   createVersion: { mutateAsync: vi.fn(), isPending: false },
   update: { mutateAsync: vi.fn(), isPending: false },
   toast: { success: vi.fn(), error: vi.fn() },
+  candidates: [] as SkillSuiteMemberCandidate[],
 }))
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => mocks.navigate }))
@@ -26,7 +27,7 @@ vi.mock('@/shared/hooks/use-suite-queries', () => ({
   useCreateSuite: () => mocks.create,
   useCreateSuiteVersion: () => mocks.createVersion,
   useSuiteDetail: () => mocks.detail,
-  useSuiteMemberCandidates: () => ({ data: [], isLoading: false }),
+  useSuiteMemberCandidates: () => ({ data: mocks.candidates, isLoading: false }),
   useUpdateSuiteDraft: () => mocks.update,
 }))
 vi.mock('@/shared/ui/select', () => ({
@@ -72,6 +73,7 @@ describe('SuiteEditor', () => {
     cleanup()
     vi.clearAllMocks()
     mocks.detail = { data: undefined, isLoading: false, error: null }
+    mocks.candidates = []
   })
 
   it('shows a source error instead of submitting with a zero Suite id', () => {
@@ -123,8 +125,8 @@ describe('SuiteEditor', () => {
       version: '2.0.0',
       visibility: 'PUBLIC',
       changelog: undefined,
-      entrySkill: { namespace: 'global', slug: 'weather', version: '1.0.0' },
-      members: [{ namespace: 'global', slug: 'weather', version: '1.0.0' }],
+      entrySkill: { skillVersionId: 90, namespace: 'global', slug: 'weather', version: '1.0.0' },
+      members: [{ skillVersionId: 90, namespace: 'global', slug: 'weather', version: '1.0.0' }],
     }))
   })
 
@@ -140,5 +142,29 @@ describe('SuiteEditor', () => {
 
     expect(mocks.toast.error).toHaveBeenCalledWith('suite.entryRequired')
     expect(mocks.update.mutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('shows the pinned version change before replacing a selected member', async () => {
+    mocks.detail = { data: sourceSuite(['EDIT']), isLoading: false, error: null }
+    mocks.candidates = [{
+      skillId: 9,
+      skillVersionId: 91,
+      namespace: 'global',
+      slug: 'weather',
+      displayName: 'Weather',
+      version: '2.0.0',
+      visibility: 'PUBLIC',
+      recommended: true,
+    }]
+
+    render(<SuiteEditor namespace="global" slug="starter" version="1.0.0" mode="edit" />)
+    await waitFor(() => expect(screen.getByText('@global/weather@1.0.0')).not.toBeNull())
+    fireEvent.click(screen.getByText('suite.updatePinnedVersion').closest('button')!)
+
+    expect(screen.getByRole('dialog', { name: 'suite.confirmVersionUpdateTitle' })).not.toBeNull()
+    expect(screen.getByText('@global/weather@1.0.0')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'suite.confirmVersionUpdate' }))
+
+    await waitFor(() => expect(screen.getByText('@global/weather@2.0.0')).not.toBeNull())
   })
 })
