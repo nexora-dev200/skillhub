@@ -27,6 +27,26 @@ function toArray(val: string | string[] | undefined): string[] | undefined {
   return Array.isArray(val) ? val : [val]
 }
 
+/** Read a string option before cac/mri coerces numeric-looking values to numbers. */
+function rawStringOption(argv: string[], name: string): string | undefined {
+  const optionWithEquals = `${name}=`
+  const end = argv.indexOf('--')
+  const args = end === -1 ? argv : argv.slice(0, end)
+  let value: string | undefined
+
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index]!
+    if (argument === name) {
+      value = args[index + 1]
+      index += 1
+    } else if (argument.startsWith(optionWithEquals)) {
+      value = argument.slice(optionWithEquals.length)
+    }
+  }
+
+  return value
+}
+
 async function runCommand(action: () => Promise<string>, json = false): Promise<void> {
   try {
     const output = await action()
@@ -246,7 +266,11 @@ cli
   .option('--token <token>', 'API token')
   .option('--json', 'Output JSON')
   .action((slug: string, options: InstallCommandOptions & { agent?: string | string[] }) => {
-    return runCommand(() => installCommand(slug, { ...options, agent: toArray(options.agent) }), Boolean(options.json))
+    return runCommand(() => installCommand(slug, {
+      ...options,
+      version: rawStringOption(process.argv.slice(2), '--version'),
+      agent: toArray(options.agent)
+    }), Boolean(options.json))
   })
 
 cli
@@ -262,7 +286,11 @@ cli
   .option('--json', 'Output JSON')
   .action((action: string, coordinate: string, options: SuiteCommandOptions & { agent?: string | string[] }) => {
     return runCommand(
-      () => suiteCommand(action, coordinate, { ...options, agent: toArray(options.agent) }),
+      () => suiteCommand(action, coordinate, {
+        ...options,
+        version: rawStringOption(process.argv.slice(2), '--version'),
+        agent: toArray(options.agent)
+      }),
       Boolean(options.json)
     )
   })

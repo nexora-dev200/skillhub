@@ -43,9 +43,36 @@ describe('--version parsing', () => {
     expect(registry.received.resolve?.version).toBe(TIMESTAMP_VERSION)
   })
 
+  test('install preserves trailing zeros with the --version=value form', async () => {
+    const env = await createTempHome()
+    const registry = await startFakeRegistry({
+      token: 'sk_ok',
+      skills: [{
+        namespace: 'global',
+        slug: 'timestamped-equals',
+        version: TIMESTAMP_VERSION,
+        zipBytes: zipSync({ 'SKILL.md': strToU8('# timestamped equals') })
+      }]
+    })
+    stopServer = registry.stop
+    const installDir = join(env.cwd, 'skills-equals')
+    await mkdir(installDir, { recursive: true })
+
+    const result = await runCli([
+      'install', '@global/timestamped-equals',
+      `--version=${TIMESTAMP_VERSION}`,
+      '--dir', installDir,
+      '--registry', registry.url,
+      '--token', 'sk_ok'
+    ], { HOME: env.home, USERPROFILE: env.home })
+
+    expect(result.exitCode).toBe(0)
+    expect(registry.received.resolve?.version).toBe(TIMESTAMP_VERSION)
+  })
+
   test('suite install preserves trailing zeros in a numeric-looking version', async () => {
     const env = await createTempHome()
-    let requestedVersion: string | null = null
+    const received = { version: null as string | null }
     const server = Bun.serve({
       port: 0,
       fetch(request) {
@@ -54,7 +81,7 @@ describe('--version parsing', () => {
           return Response.json({ apiBase: '/api/v1', capabilities: ['skill-suite-v1'] })
         }
         if (url.pathname === '/api/v1/suites/global/starter-pack/install-plan') {
-          requestedVersion = url.searchParams.get('version')
+          received.version = url.searchParams.get('version')
           return Response.json({ code: 404, message: 'stop after capturing version' }, { status: 404 })
         }
         return Response.json({ code: 404, message: 'not found' }, { status: 404 })
@@ -73,6 +100,6 @@ describe('--version parsing', () => {
     ], { HOME: env.home, USERPROFILE: env.home })
 
     expect(result.exitCode).not.toBe(0)
-    expect(requestedVersion).toBe(TIMESTAMP_VERSION)
+    expect(received.version).toBe(TIMESTAMP_VERSION)
   })
 })
