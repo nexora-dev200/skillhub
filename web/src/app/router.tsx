@@ -90,6 +90,8 @@ const RegisterPage = createLazyRouteComponent(() => import('@/pages/register'), 
 const ResetPasswordPage = createLazyRouteComponent(() => import('@/pages/reset-password'), 'ResetPasswordPage')
 const PrivacyPolicyPage = createLazyRouteComponent(() => import('@/pages/privacy'), 'PrivacyPolicyPage')
 const SearchPage = createLazyRouteComponent(() => import('@/pages/search'), 'SearchPage')
+const SuitesPage = createLazyRouteComponent(() => import('@/pages/suites'), 'SuitesPage')
+const SuiteDetailPage = createLazyRouteComponent(() => import('@/pages/suite-detail'), 'SuiteDetailPage')
 const TermsOfServicePage = createLazyRouteComponent(() => import('@/pages/terms'), 'TermsOfServicePage')
 const NamespacePage = createLazyRouteComponent(() => import('@/pages/namespace'), 'NamespacePage')
 const SkillDetailPage = createLazyRouteComponent(() => import('@/pages/skill-detail'), 'SkillDetailPage')
@@ -99,6 +101,26 @@ const dashboardRouteOptions = { silentFallback: true } satisfies LazyRouteOption
 const DashboardPage = createLazyRouteComponent(() => import('@/pages/dashboard'), 'DashboardPage', dashboardRouteOptions)
 const MySkillsPage = createLazyRouteComponent(() => import('@/pages/dashboard/my-skills'), 'MySkillsPage', dashboardRouteOptions)
 const PublishPage = createLazyRouteComponent(() => import('@/pages/dashboard/publish'), 'PublishPage', dashboardRouteOptions)
+const SuiteCreatePage = createLazyRouteComponent(
+  () => import('@/pages/dashboard/suite-editor'),
+  'SuiteCreatePage',
+  dashboardRouteOptions,
+)
+const SuiteEditPage = createLazyRouteComponent(
+  () => import('@/pages/dashboard/suite-editor'),
+  'SuiteEditPage',
+  dashboardRouteOptions,
+)
+const SuiteVersionCreatePage = createLazyRouteComponent(
+  () => import('@/pages/dashboard/suite-editor'),
+  'SuiteVersionCreatePage',
+  dashboardRouteOptions,
+)
+const MySuitesPage = createLazyRouteComponent(
+  () => import('@/pages/dashboard/my-suites'),
+  'MySuitesPage',
+  dashboardRouteOptions,
+)
 const MyNamespacesPage = createLazyRouteComponent(
   () => import('@/pages/dashboard/my-namespaces'),
   'MyNamespacesPage',
@@ -255,6 +277,21 @@ const searchRoute = createRoute({
   },
 })
 
+const suitesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'suites',
+  component: SuitesPage,
+})
+
+const suiteDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/suite/$namespace/$slug',
+  validateSearch: (search: Record<string, unknown>): { version?: string } => ({
+    version: typeof search.version === 'string' && search.version ? search.version : undefined,
+  }),
+  component: SuiteDetailPage,
+})
+
 const termsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'terms',
@@ -327,6 +364,42 @@ const dashboardPublishRoute = createRoute({
       : undefined,
   }),
   component: PublishPage,
+})
+
+const dashboardSuiteCreateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard/suites/new',
+  beforeLoad: requireAuth,
+  component: SuiteCreatePage,
+})
+
+const dashboardSuitesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard/suites',
+  beforeLoad: requireAuth,
+  component: MySuitesPage,
+})
+
+const dashboardSuiteEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard/suites/$namespace/$slug/edit',
+  beforeLoad: requireAuth,
+  validateSearch: (search: Record<string, unknown>): { version: string } => ({
+    version: typeof search.version === 'string' ? search.version : '',
+  }),
+  component: SuiteEditPage,
+})
+
+const dashboardSuiteVersionCreateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'dashboard/suites/$namespace/$slug/new-version',
+  beforeLoad: requireAuth,
+  validateSearch: (search: Record<string, unknown>): { sourceVersion?: string } => ({
+    sourceVersion: typeof search.sourceVersion === 'string' && search.sourceVersion
+      ? search.sourceVersion
+      : undefined,
+  }),
+  component: SuiteVersionCreatePage,
 })
 
 const dashboardNamespacesRoute = createRoute({
@@ -528,6 +601,8 @@ const routeTree = rootRoute.addChildren([
   resetPasswordRoute,
   privacyRoute,
   searchRoute,
+  suitesRoute,
+  suiteDetailRoute,
   termsRoute,
   namespaceRoute,
   skillDetailRoute,
@@ -535,6 +610,10 @@ const routeTree = rootRoute.addChildren([
   dashboardRoute,
   dashboardSkillsRoute,
   dashboardPublishRoute,
+  dashboardSuitesRoute,
+  dashboardSuiteCreateRoute,
+  dashboardSuiteEditRoute,
+  dashboardSuiteVersionCreateRoute,
   dashboardNamespacesRoute,
   dashboardNamespaceMembersRoute,
   dashboardNamespaceReviewsRoute,

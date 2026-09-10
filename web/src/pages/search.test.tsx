@@ -291,6 +291,7 @@ describe('SearchPage', () => {
     const html = renderToStaticMarkup(<SearchPage />)
 
     expect(html).toContain('skill-card')
+    expect(html).not.toContain('suite.resourceTypeSuite')
     expect(html).not.toContain('empty-state')
   })
 
@@ -318,5 +319,21 @@ describe('SearchPage', () => {
     expect(html).toContain('empty-state')
     expect(html).toContain('search.noResults')
     expect(html).not.toContain('search.enterKeyword')
+  })
+
+  it('keeps search skill-only when an obsolete Suite type query parameter is present', () => {
+    useSearchMock.mockReturnValue({
+      q: 'workflow',
+      resourceType: 'SUITE',
+      sort: 'newest',
+      page: 0,
+      starredOnly: false,
+    })
+
+    const html = renderToStaticMarkup(<SearchPage />)
+
+    expect(searchSkillParams[0]).not.toHaveProperty('resourceType')
+    expect(html).toContain('skill-card')
+    expect(html).not.toContain('suite.resourceTypeSuite')
   })
 })
