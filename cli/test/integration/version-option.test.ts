@@ -70,7 +70,61 @@ describe('--version parsing', () => {
     expect(registry.received.resolve?.version).toBe(TIMESTAMP_VERSION)
   })
 
-  test('suite install preserves trailing zeros in a numeric-looking version', async () => {
+  test('install preserves an ordinary text version', async () => {
+    const env = await createTempHome()
+    const registry = await startFakeRegistry({
+      token: 'sk_ok',
+      skills: [{
+        namespace: 'global',
+        slug: 'text-version',
+        version: 'release-a',
+        zipBytes: zipSync({ 'SKILL.md': strToU8('# text version') })
+      }]
+    })
+    stopServer = registry.stop
+    const installDir = join(env.cwd, 'skills-text-version')
+    await mkdir(installDir, { recursive: true })
+
+    const result = await runCli([
+      'install', '@global/text-version',
+      '--version', 'release-a',
+      '--dir', installDir,
+      '--registry', registry.url,
+      '--token', 'sk_ok'
+    ], { HOME: env.home, USERPROFILE: env.home })
+
+    expect(result.exitCode).toBe(0)
+    expect(registry.received.resolve?.version).toBe('release-a')
+  })
+
+  test('ignores --version after the option terminator', async () => {
+    const env = await createTempHome()
+    const registry = await startFakeRegistry({
+      token: 'sk_ok',
+      skills: [{
+        namespace: 'global',
+        slug: 'latest',
+        version: '1.0.0',
+        zipBytes: zipSync({ 'SKILL.md': strToU8('# latest') })
+      }]
+    })
+    stopServer = registry.stop
+    const installDir = join(env.cwd, 'skills-latest')
+    await mkdir(installDir, { recursive: true })
+
+    const result = await runCli([
+      'install', '@global/latest',
+      '--dir', installDir,
+      '--registry', registry.url,
+      '--token', 'sk_ok',
+      '--', '--version', TIMESTAMP_VERSION
+    ], { HOME: env.home, USERPROFILE: env.home })
+
+    expect(result.exitCode).toBe(0)
+    expect(registry.received.resolve?.version).toBeNull()
+  })
+
+  test.each(['separate', 'equals'])('suite install preserves trailing zeros with %s syntax', async syntax => {
     const env = await createTempHome()
     const received = { version: null as string | null }
     const server = Bun.serve({
@@ -93,7 +147,7 @@ describe('--version parsing', () => {
 
     const result = await runCli([
       'suite', 'install', '@global/starter-pack',
-      '--version', TIMESTAMP_VERSION,
+      ...(syntax === 'equals' ? [`--version=${TIMESTAMP_VERSION}`] : ['--version', TIMESTAMP_VERSION]),
       '--dir', installDir,
       '--registry', `http://localhost:${server.port}`,
       '--token', 'sk_ok'
@@ -101,5 +155,35 @@ describe('--version parsing', () => {
 
     expect(result.exitCode).not.toBe(0)
     expect(received.version).toBe(TIMESTAMP_VERSION)
+  })
+
+  test.each([
+    ['a missing value', ['--version']],
+    ['a missing repeated value', ['--version', '1.0.0', '--version']],
+    ['repeated values', ['--version', '1.0.0', '--version', '2.0.0']],
+    ['an empty equals value', ['--version=']]
+  ])('rejects %s before contacting the registry', async (_description, versionArgs) => {
+    const env = await createTempHome()
+    const registry = await startFakeRegistry({
+      token: 'sk_ok',
+      skills: [{
+        namespace: 'global',
+        slug: 'rejected',
+        version: '1.0.0',
+        zipBytes: zipSync({ 'SKILL.md': strToU8('# rejected') })
+      }]
+    })
+    stopServer = registry.stop
+
+    const result = await runCli([
+      'install', '@global/rejected',
+      ...versionArgs,
+      '--json',
+      '--registry', registry.url,
+      '--token', 'sk_ok'
+    ], { HOME: env.home, USERPROFILE: env.home })
+
+    expect(result.exitCode).toBe(5)
+    expect(registry.received.resolves).toBe(0)
   })
 })

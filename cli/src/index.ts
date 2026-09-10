@@ -33,17 +33,30 @@ function rawStringOption(argv: string[], name: string): string | undefined {
   const end = argv.indexOf('--')
   const args = end === -1 ? argv : argv.slice(0, end)
   let value: string | undefined
+  let occurrences = 0
 
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]!
     if (argument === name) {
-      value = args[index + 1]
+      occurrences += 1
+      const candidate = args[index + 1]
+      if (candidate === undefined || candidate.startsWith('-')) {
+        throw new CliError(`option "${name}" value is missing`, EXIT.usage)
+      }
+      value = candidate
       index += 1
     } else if (argument.startsWith(optionWithEquals)) {
+      occurrences += 1
       value = argument.slice(optionWithEquals.length)
+      if (!value) {
+        throw new CliError(`option "${name}" value is missing`, EXIT.usage)
+      }
     }
   }
 
+  if (occurrences > 1) {
+    throw new CliError(`option "${name}" cannot be repeated`, EXIT.usage)
+  }
   return value
 }
 
