@@ -129,15 +129,23 @@ class SkillSuiteDraftServiceTest {
     }
 
     @Test
-    void rejectsSuiteVersionsThatCannotBeUsedSafelyAcrossCliShells() {
+    void rejectsUnsafeSuiteVersionsAtEveryDraftWriteEntryPoint() {
         Namespace namespace = new Namespace("team", "Team", "owner");
         setId(namespace, 1L);
+        SkillSuite suite = new SkillSuite(1L, "writers", "Writers", "author");
+        setId(suite, 10L);
         when(namespaceRepository.findById(1L)).thenReturn(Optional.of(namespace));
+        when(suiteRepository.findById(10L)).thenReturn(Optional.of(suite));
         SkillSuiteActionContext context = new SkillSuiteActionContext(
                 "author", Map.of(1L, NamespaceRole.MEMBER), Set.of(),
                 "request-3", "127.0.0.1", "test");
 
         for (String version : List.of("1.0.0; touch pwned", "a".repeat(65))) {
+            SkillSuiteVersion existingVersion = new SkillSuiteVersion(
+                    10L, version, SkillVisibility.PUBLIC, "author");
+            setId(existingVersion, 20L);
+            when(versionRepository.findByIdForDefinitionUpdate(20L))
+                    .thenReturn(Optional.of(existingVersion));
             CreateSkillSuiteDraftCommand command = new CreateSkillSuiteDraftCommand(
                     1L, "writers", "Writers", "Summary", null, version,
                     SkillVisibility.PUBLIC, null, 40L,
@@ -145,6 +153,12 @@ class SkillSuiteDraftServiceTest {
                             30L, 40L, "global", "writer", "1.0.0", "sha256:abc")));
 
             assertThatThrownBy(() -> service.create(command, context))
+                    .isInstanceOf(DomainBadRequestException.class)
+                    .hasMessage("error.suite.version.invalid");
+            assertThatThrownBy(() -> service.createVersion(10L, command, context))
+                    .isInstanceOf(DomainBadRequestException.class)
+                    .hasMessage("error.suite.version.invalid");
+            assertThatThrownBy(() -> service.updateDraft(10L, 20L, command, context))
                     .isInstanceOf(DomainBadRequestException.class)
                     .hasMessage("error.suite.version.invalid");
         }
