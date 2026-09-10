@@ -4,9 +4,8 @@ This directory contains the reviewed source used to build SkillHub's official st
 packages. Each child of `skills/` is a complete package; generated ZIP files are release artifacts
 and are not committed.
 
-The reviewed source collection contains general-purpose Skills covering study, office work,
-personal productivity, content creation, weather, media, external tools, and frontend design.
-Every package includes:
+The reviewed collection contains general-purpose Skills and focused operational Skills maintained
+for SkillHub itself. Every package includes:
 
 - a `SKILL.md` adapted for SkillHub;
 - `LICENSE.txt` and `NOTICE.md` with pinned upstream provenance;
