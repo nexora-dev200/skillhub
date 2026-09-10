@@ -33,6 +33,9 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 SHAPE_SOLO_THRESHOLD = 0.62  # calibrated, see calibrate.py --shape
+MAX_BATCH_FILES = 1_000
+MAX_BATCH_FILE_BYTES = 10 * 1024 * 1024
+MAX_BATCH_TOTAL_BYTES = 100 * 1024 * 1024
 
 
 # Where personal voice profiles live — outside the repo, since they are the
@@ -1156,6 +1159,51 @@ def facts(text, _other=""):
     return out
 
 
+LIMITATION_RX = re.compile(
+    r"\b(?:not|no|never|without|unmeasured|unknown|uncertain|unable|cannot|can't|"
+    r"didn't|doesn't|isn't|wasn't|weren't|hasn't|haven't|hadn't)\b",
+    re.I,
+)
+LIMITATION_STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "did",
+    "do", "does", "for", "from", "had", "has", "have", "he", "her", "his",
+    "i", "in", "is", "it", "its", "no", "not", "of", "on", "or", "our",
+    "she", "that", "the", "their", "they", "this", "to", "was", "we", "were",
+    "with", "without", "you", "never", "unable", "cannot", "unknown", "uncertain",
+}
+LIMITATION_CANON = {
+    "measure": "measure", "measured": "measure", "measuring": "measure",
+    "measurement": "measure", "measurements": "measure",
+    "track": "track", "tracked": "track", "tracking": "track",
+    "test": "test", "tested": "test", "testing": "test",
+    "verify": "verify", "verified": "verify", "verifying": "verify",
+    "verification": "verify",
+    "assess": "assess", "assessed": "assess", "assessing": "assess",
+    "assessment": "assess",
+}
+
+
+def limitation_claims(text):
+    """Conservative signatures for explicitly qualified or negative claims.
+
+    These signatures are intentionally a backstop, not semantic equivalence.
+    If a rewrite substantially rephrases a limitation, the assistant must
+    compare it manually rather than silently accepting a possible reversal.
+    """
+    out = set()
+    for sentence in sentences(text):
+        if not LIMITATION_RX.search(sentence):
+            continue
+        words = []
+        for word in re.findall(r"[A-Za-z][A-Za-z'-]*", sentence.lower()):
+            canonical = LIMITATION_CANON.get(word, word)
+            if canonical not in LIMITATION_STOP_WORDS and len(canonical) > 1:
+                words.append(canonical)
+        if words:
+            out.add(" ".join(sorted(set(words))))
+    return out
+
+
 # Interior states the author has to have supplied. The benchmark's one
 # fabrication was exactly this shape — "by test day the real thing felt
 # familiar" — and an entity check cannot see it, because no name or figure moved.
@@ -1488,6 +1536,16 @@ def fidelity(before, after, adjudicated=None):
             kept_all = False
         if added:
             invented_any = True
+    before_limitations = limitation_claims(before)
+    after_limitations = limitation_claims(after)
+    kept_limitations = before_limitations & after_limitations
+    dropped_limitations = before_limitations - after_limitations
+    added_limitations = after_limitations - before_limitations
+    if before_limitations or after_limitations:
+        rows.append(("qualifier", kept_limitations, dropped_limitations,
+                     added_limitations))
+        kept_all = kept_all and not dropped_limitations
+        invented_any = invented_any or bool(added_limitations)
     if new_interior:
         rows.append(("feeling", set(), set(), new_interior))
         invented_any = True
@@ -1628,7 +1686,8 @@ def render_fidelity(before, after, adjudicated=None):
                              if r["preserved"] and not r["invented"] else
                              ("SOURCE CONTENT CHANGED" if not r["preserved"] else "")
                              + (" · CONTENT INVENTED" if r["invented"] else "")),
-            "  This checks figures, names, quotes, links, stated feelings, code,",
+            "  This checks figures, names, quotes, links, explicit limitations,",
+            "  stated feelings, code,",
             "  front matter, tables, blockquotes, inline identifiers, paths, and headings.",
             "  Your AI assistant still compares the full meaning because a changed claim",
             "  or emphasis may use all the same names and numbers.", ""]
@@ -1700,8 +1759,35 @@ def _text_files(root_arg):
         raise SystemExit(f"directory does not exist: {root}")
     if not root.is_dir():
         raise SystemExit(f"expected a directory, got: {root}")
-    return sorted(p for p in root.rglob("*") if p.suffix.lower() in
-                  (".md", ".txt", ".markdown") and p.is_file())
+    root = root.resolve()
+    files = []
+    total_bytes = 0
+    for path in root.rglob("*"):
+        if path.suffix.lower() not in (".md", ".txt", ".markdown"):
+            continue
+        if path.is_symlink():
+            raise SystemExit(f"symbolic links are not allowed in recursive input: {path}")
+        try:
+            resolved = path.resolve(strict=True)
+            resolved.relative_to(root)
+        except (OSError, ValueError) as exc:
+            raise SystemExit(f"input resolves outside the selected directory: {path}") from exc
+        if not resolved.is_file():
+            continue
+        size = resolved.stat().st_size
+        if size > MAX_BATCH_FILE_BYTES:
+            raise SystemExit(
+                f"input file exceeds {MAX_BATCH_FILE_BYTES} bytes: {path}"
+            )
+        files.append(resolved)
+        total_bytes += size
+        if len(files) > MAX_BATCH_FILES:
+            raise SystemExit(f"recursive input exceeds {MAX_BATCH_FILES} text files")
+        if total_bytes > MAX_BATCH_TOTAL_BYTES:
+            raise SystemExit(
+                f"recursive input exceeds {MAX_BATCH_TOTAL_BYTES} total bytes"
+            )
+    return sorted(files)
 
 
 def main():

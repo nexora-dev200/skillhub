@@ -168,6 +168,8 @@ for artifact in data["artifacts"]:
 PY
 )
 
+python3 "$REPO_ROOT/scripts/tests/test_zero_slop.py"
+
 mini_source="$tmp/mini-source"
 mkdir -p "$mini_source"
 cp -R "$REPO_ROOT/builtin-skills/skills/exam-ready" "$mini_source/exam-ready"
