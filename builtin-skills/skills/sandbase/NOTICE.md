@@ -10,16 +10,10 @@
 
 ## SkillHub modifications
 
-SkillHub adaptation version: `0.1.17`.
+SkillHub package version: `0.1.17`.
 
-- Added explicit SPDX license metadata while retaining the upstream name and version.
-- Removed host-specific invocation metadata and kept the Skill scoped to orchestration of the
-  six SandBase MCP tools.
-- Made installer download, local MCP configuration, and browser authentication require prior
-  user approval.
-- Replaced example prices with a requirement to inspect current schema and pricing.
-- Added explicit confirmation, privacy-minimization, untrusted-content, charged-retry, and
-  asynchronous polling boundaries.
-- Removed promotional examples and generic catalog lists that did not change agent decisions.
+- Preserved the upstream `SKILL.md` instructions from the fixed revision.
+- Added only the `license: Apache-2.0` frontmatter field required by SkillHub's deterministic
+  built-in package validator; no workflow instructions were changed.
 
 SandBase and its contributors do not endorse this modified distribution.
