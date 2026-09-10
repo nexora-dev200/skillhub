@@ -308,7 +308,7 @@ A: SkillHub 默认的 Compose 和 `runtime.sh` 使用 Docker named volume（`pos
 按以下顺序排查：
 
 1. 优先恢复为 Docker named volume，或使用官方 `runtime.sh`，避免手写 Compose 时漏配权限。
-2. 如果必须使用 bind mount，先运行 `docker run --rm postgres:16-alpine id postgres`，确认当前镜像中 `postgres` 用户的 UID/GID，再按实际值调整数据目录属主，例如 `chown -R <uid>:<gid> <数据目录>`。不要固定假设所有环境都是 `999:999`。
+2. 如果必须使用 bind mount，先确认 `.env.release` 或 `runtime.sh` 参数最终选择的 `POSTGRES_IMAGE`，将该值导出到当前 shell 后运行 `docker run --rm "$POSTGRES_IMAGE" id postgres`。再按输出的实际 UID/GID 调整数据目录属主，例如 `chown -R <uid>:<gid> <数据目录>`。不要固定假设镜像是 `postgres:16-alpine`，也不要假设所有环境都是 `999:999`。
 3. 在 RHEL/CentOS 上检查 SELinux；使用 AppArmor、rootless Docker、NFS、CIFS 或 NAS 时，也要确认宿主文件系统允许 PostgreSQL 写入、加锁和更改权限。
 4. 不建议把 PostgreSQL `PGDATA` 放在缺少完整 POSIX 权限语义的网络文件系统上。生产环境优先使用本地盘、Docker named volume、块存储或外部 PostgreSQL。
 

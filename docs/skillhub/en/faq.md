@@ -308,7 +308,7 @@ A: SkillHub's default Compose and `runtime.sh` use a Docker named volume (`postg
 Check the following in order:
 
 1. Prefer switching back to a Docker named volume, or use the official `runtime.sh` to avoid missing permission settings in a hand-written Compose file.
-2. If a bind mount is required, run `docker run --rm postgres:16-alpine id postgres` to identify the actual UID/GID of the `postgres` user in the selected image. Then change the data-directory owner accordingly, for example `chown -R <uid>:<gid> <data-dir>`. Do not assume every environment uses `999:999`.
+2. If a bind mount is required, first identify the effective `POSTGRES_IMAGE` selected by `.env.release` or the `runtime.sh` options. Export that value in the current shell, then run `docker run --rm "$POSTGRES_IMAGE" id postgres`. Change the data-directory owner to the reported UID/GID, for example `chown -R <uid>:<gid> <data-dir>`. Do not assume the image is `postgres:16-alpine`, or that every environment uses `999:999`.
 3. Check SELinux on RHEL/CentOS. With AppArmor, rootless Docker, NFS, CIFS, or NAS storage, also verify that the host filesystem permits PostgreSQL to write, lock files, and change permissions.
 4. Avoid placing PostgreSQL `PGDATA` on network filesystems without full POSIX permission semantics. For production, prefer local disks, Docker named volumes, block storage, or an external PostgreSQL service.
 
