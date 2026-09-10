@@ -126,7 +126,7 @@ export function SearchPage() {
     page,
     size: PAGE_SIZE,
     starredOnly,
-  })
+  }, !starredOnly)
   const { data: labels } = useVisibleLabels()
   const {
     data: starredSkills,
@@ -215,10 +215,16 @@ export function SearchPage() {
     : data
       ? Math.ceil(data.total / data.size)
       : 0
-  const displayItems = starredOnly ? starredPageItems : (data?.items ?? [])
+  const displayItems = starredOnly
+    ? starredPageItems
+    : (data?.items ?? [])
   const isPageLoading = starredOnly ? isLoadingStarred : isLoading
-  const isUpdatingResults = starredOnly ? isFetchingStarred && !isLoadingStarred : isFetching && !isLoading
-  const resultCount = starredOnly ? filteredStarredSkills.length : (data?.total ?? 0)
+  const isUpdatingResults = starredOnly
+    ? isFetchingStarred && !isLoadingStarred
+    : isFetching && !isLoading
+  const resultCount = starredOnly
+    ? filteredStarredSkills.length
+    : (data?.total ?? 0)
 
   return (
     <div className={APP_SHELL_PAGE_CLASS_NAME}>

@@ -37,6 +37,16 @@ describe('help command', () => {
     expect(result.stdout).toContain('skillhub search')
   })
 
+  test('states that Suite commands require a compatible registry', async () => {
+    const topic = await runCli(['help', 'suite'])
+    expect(topic.exitCode).toBe(0)
+    expect(topic.stdout).toContain('Manage Skill Suites on compatible registries')
+
+    const root = await runCli(['--help'])
+    expect(root.exitCode).toBe(0)
+    expect(root.stdout).toContain('Manage Skill Suites on compatible registries')
+  })
+
   test('distinguishes skill upgrade from CLI self-update and namespace sync', async () => {
     const upgrade = await runCli(['help', 'upgrade'])
     expect(upgrade.exitCode).toBe(0)
