@@ -26,7 +26,9 @@ the matching SHA-256 so the backend can reject changed or incorrectly uploaded b
 extraction.
 
 Every released package is pinned in the runtime manifest. A clean deployment initializes these
-packages alongside the existing built-in Skills in the public `@global` namespace.
+packages alongside the existing built-in Skills in the public `@global` namespace. Newly reviewed
+source packages remain outside the runtime manifest until their immutable CDN artifact and matching
+SHA-256 are available.
 
 ## Share a Skill with the Community
 
