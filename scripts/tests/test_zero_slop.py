@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import ast
 import json
 from pathlib import Path
 import subprocess
@@ -73,7 +74,9 @@ class ZeroSlopTests(unittest.TestCase):
             root = Path(directory)
             (root / "one.md").write_text("one", encoding="utf-8")
             (root / "two.md").write_text("two", encoding="utf-8")
-            old_count, old_size = SCORER.MAX_BATCH_FILES, SCORER.MAX_BATCH_FILE_BYTES
+            old_count = SCORER.MAX_BATCH_FILES
+            old_size = SCORER.MAX_BATCH_FILE_BYTES
+            old_total = SCORER.MAX_BATCH_TOTAL_BYTES
             try:
                 SCORER.MAX_BATCH_FILES = 1
                 with self.assertRaisesRegex(SystemExit, "exceeds 1 text files"):
@@ -82,9 +85,47 @@ class ZeroSlopTests(unittest.TestCase):
                 SCORER.MAX_BATCH_FILE_BYTES = 2
                 with self.assertRaisesRegex(SystemExit, "exceeds 2 bytes"):
                     SCORER._text_files(root)
+                SCORER.MAX_BATCH_FILE_BYTES = old_size
+                SCORER.MAX_BATCH_TOTAL_BYTES = 5
+                with self.assertRaisesRegex(SystemExit, "exceeds 5 total bytes"):
+                    SCORER._text_files(root)
             finally:
                 SCORER.MAX_BATCH_FILES = old_count
                 SCORER.MAX_BATCH_FILE_BYTES = old_size
+                SCORER.MAX_BATCH_TOTAL_BYTES = old_total
+
+    def test_offline_imports_no_persistent_writes_and_profile_is_opt_in(self) -> None:
+        tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+        imports = {
+            alias.name.split(".", 1)[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imports.update(
+            node.module.split(".", 1)[0]
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        self.assertEqual(
+            {"bisect", "functools", "hashlib", "json", "math", "os", "pathlib", "re", "sys"},
+            imports,
+        )
+        forbidden_calls = {"write_text", "write_bytes", "system", "popen", "urlopen"}
+        called_attributes = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        self.assertTrue(forbidden_calls.isdisjoint(called_attributes))
+        original = SCORER._apply_voice
+        try:
+            SCORER._apply_voice = lambda *_args, **_kwargs: self.fail(
+                "private profile must not load without --voice"
+            )
+            SCORER.load_patterns()
+        finally:
+            SCORER._apply_voice = original
 
     def test_all_reviewed_patterns_compile_and_batch_gate_exit_codes(self) -> None:
         data = SCORER.load_patterns()
@@ -111,6 +152,22 @@ class ZeroSlopTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertEqual(1_000, json.loads(result.stdout)["documents"])
             self.assertLess(elapsed, 30, f"batch regression: {elapsed:.2f}s")
+
+    def test_invalid_cli_requests_fail_cleanly_and_valid_run_recovers(self) -> None:
+        invalid = [
+            ("--gate", "101"),
+            ("--batch", "--portfolio"),
+            ("--batch", "/definitely/not/a/zero-slop-directory"),
+        ]
+        expected = ["finite threshold", "choose only one mode", "directory does not exist"]
+        for args, message in zip(invalid, expected):
+            result = self.run_cli(*args)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn(message, result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+        recovered = self.run_cli("--json", "-", stdin="A direct sentence.")
+        self.assertEqual(0, recovered.returncode, recovered.stderr)
+        json.loads(recovered.stdout)
 
 
 if __name__ == "__main__":
