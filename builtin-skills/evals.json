@@ -148,6 +148,20 @@
       ]
     },
     {
+      "slug": "sandbase",
+      "prompt": "Find a low-cost image-generation API for one 1024x1024 product mockup. Compare the current options and price, but do not run anything.",
+      "acceptance": [
+        "Uses sandbase_discover and sandbase_inspect before proposing a run",
+        "Reports the selected provider, required arguments, and current price",
+        "Uses a small discovery limit and respects the instruction not to execute the endpoint"
+      ],
+      "forbidden": [
+        "Calling sandbase_run despite the user's explicit instruction",
+        "Guessing arguments instead of using the inspected input schema",
+        "Replacing an existing dedicated tool or user-provided API key"
+      ]
+    },
+    {
       "slug": "skillhub-cli",
       "prompt": "Connect this Codex Agent to https://skills.example.com and install @team-a/code-review version 2.1.0 from that SkillHub instance.",
       "acceptance": [
