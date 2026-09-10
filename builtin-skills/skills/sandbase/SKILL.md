@@ -41,33 +41,44 @@ explicit approval.
 For the pinned upstream release, prefer a checksum-verified local archive. On POSIX systems:
 
 ```sh
+client_id='codex' # Replace with the identified current Agent client ID.
 curl -fLO https://github.com/sandbaseai/cli/releases/download/v0.1.17/sandbaseai-cli-0.1.17.tgz
 printf '%s  %s\n' '1ad535b2899ca460b57b3c268aef278fee28fd28e649a89b92951514fd71fffa' 'sandbaseai-cli-0.1.17.tgz' | shasum -a 256 -c -
-npx -y ./sandbaseai-cli-0.1.17.tgz connect --client <client-id>
+npx -y ./sandbaseai-cli-0.1.17.tgz connect --client "$client_id"
 ```
 
 On PowerShell 7:
 
 ```powershell
+$clientId = 'codex' # Replace with the identified current Agent client ID.
 $archive = Join-Path $PWD 'sandbaseai-cli-0.1.17.tgz'
 Invoke-WebRequest -Uri 'https://github.com/sandbaseai/cli/releases/download/v0.1.17/sandbaseai-cli-0.1.17.tgz' -OutFile $archive
 if ((Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant() -ne '1ad535b2899ca460b57b3c268aef278fee28fd28e649a89b92951514fd71fffa') { throw 'SandBase archive checksum mismatch' }
-npx -y $archive connect --client <client-id>
+npx -y $archive connect --client $clientId
 ```
 
 Authentication occurs in the browser. The CLI stores a local session record and installs its MCP
 bridge. It may also attempt to install its upstream `sandbase` Skill. When this curated Skill is
-already present, an ownership warning or `skill=failed` result is acceptable: do not delete,
-replace, or rename the curated Skill, and do not repeat `connect`. Verify the MCP entry instead:
+already present, the CLI may preserve it and report a non-zero overall result. Treat that result as
+the expected coexistence case only when the detailed readback simultaneously reports the credential
+as present, the MCP entry as configured, and the sole Skill problem as the unchanged curated Skill
+being modified or not CLI-owned. Do not delete, replace, or rename the curated Skill. Any missing
+credential, MCP failure, additional error, or ambiguous output is a setup failure: stop and report
+it without repeating `connect`.
+
+Verify the detailed state even when the coexistence case makes `doctor` exit with status 1:
 
 ```sh
-npx -y ./sandbaseai-cli-0.1.17.tgz doctor --client <client-id>
+npx -y ./sandbaseai-cli-0.1.17.tgz doctor --client "$client_id"
+rm -f ./sandbaseai-cli-0.1.17.tgz
 ```
 
-Use the equivalent `$archive` path on PowerShell. A successful configuration does not add tools to
-the current session. Tell the user setup is configured but not loaded, ask them to restart or reload
-the target Agent, and verify all six tools in the new session before continuing the workflow. If the
-user declines setup, stop and provide the commands for manual use instead.
+On PowerShell, run `npx -y $archive doctor --client $clientId`, inspect the same detailed fields, then
+run `Remove-Item -LiteralPath $archive`. Do not use the overall exit code alone as the Oracle. A
+successful MCP configuration does not add tools to the current session. Tell the user setup is
+configured but not loaded, ask them to restart or reload the target Agent, and verify all six tools
+in the new session before continuing the workflow. If the user declines setup, stop and provide the
+commands for manual use instead.
 
 ## Tools
 
