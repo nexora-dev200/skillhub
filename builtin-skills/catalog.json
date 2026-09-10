@@ -12,6 +12,16 @@
       }
     },
     {
+      "slug": "cue-omni-reader",
+      "version": "1.0.0",
+      "license": "MIT",
+      "upstream": {
+        "repository": "https://github.com/sensedeal/cue-skills",
+        "commit": "475c249f5d966dd9a4aba02d8af16b90e33ad1fe",
+        "path": "cue-omni-reader"
+      }
+    },
+    {
       "slug": "daily-standup-journal",
       "version": "1.0.0",
       "license": "MIT",

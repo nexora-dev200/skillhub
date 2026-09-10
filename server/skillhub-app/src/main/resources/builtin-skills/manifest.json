@@ -19,6 +19,12 @@
       "sha256": "19fd699fc5e67469bb764d5f695894c1a39e49055060152aa6168629ca0f0ea5"
     },
     {
+      "slug": "cue-omni-reader",
+      "version": "1.0.0",
+      "url": "https://bjcdn.openstorage.cn/open_res/xfyundoc/2026-09-10/005725ab-145f-44c1-8325-aea268086156/1789021777994/3db1824b213292c7b858e84f591ead0b07fc6862aec33fb6cc95ab6dfc086c83.zip",
+      "sha256": "3db1824b213292c7b858e84f591ead0b07fc6862aec33fb6cc95ab6dfc086c83"
+    },
+    {
       "slug": "daily-standup-journal",
       "version": "1.0.0",
       "url": "https://bjcdn.openstorage.cn/open_res/xfyundoc/2026-07-31/c6dc807b-5255-4aa9-8bdd-a708b9d159a6/skillhub-builtin-skills/daily-standup-journal/1.0.0/fd365dd3e1a4302044839bf3317c262c4bad650e0a677b7a1ca1d1ad5b8ab1bd.zip",
