@@ -307,6 +307,17 @@ A: PostgreSQL and Redis are required. Object storage supports both `local` and S
 
 The release Compose file already bundles PostgreSQL and Redis, bound to `127.0.0.1` by default.
 
+## Q: What should I do when PostgreSQL reports `operation not permitted` while writing `postmaster.pid` or `pg_wal`?
+
+A: SkillHub's default Compose and `runtime.sh` use a Docker named volume (`postgres_data`), so host-directory permissions normally do not need manual changes. This error is more common after replacing that volume with a host bind mount, such as `/data/skillhub/postgres:/var/lib/postgresql/data`.
+
+Check the following in order:
+
+1. Prefer switching back to a Docker named volume, or use the official `runtime.sh` to avoid missing permission settings in a hand-written Compose file.
+2. If a bind mount is required, first identify the effective `POSTGRES_IMAGE` selected by `.env.release` or the `runtime.sh` options. Export that value in the current shell, then run `docker run --rm "$POSTGRES_IMAGE" id postgres`. Change the data-directory owner to the reported UID/GID, for example `chown -R <uid>:<gid> <data-dir>`. Do not assume the image is `postgres:16-alpine`, or that every environment uses `999:999`.
+3. Check SELinux on RHEL/CentOS. With AppArmor, rootless Docker, NFS, CIFS, or NAS storage, also verify that the host filesystem permits PostgreSQL to write, lock files, and change permissions.
+4. Avoid placing PostgreSQL `PGDATA` on network filesystems without full POSIX permission semantics. For production, prefer local disks, Docker named volumes, block storage, or an external PostgreSQL service.
+
 ## Q: How does an account created through OAuth (GitHub / GitLab, etc.) get admin rights?
 
 A: The first OAuth login creates a regular user. An existing `SUPER_ADMIN` (for example the bootstrap admin created during initialization) has to promote it from the admin console.

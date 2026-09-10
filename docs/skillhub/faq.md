@@ -307,6 +307,17 @@ A: 必需 PostgreSQL 和 Redis；对象存储支持 `local` 与 S3 两种模式�
 
 发布版 Compose 已内置 PostgreSQL 与 Redis，默认只绑定在 `127.0.0.1`。
 
+## Q: PostgreSQL 容器写入 `postmaster.pid` 或 `pg_wal` 时报告 `operation not permitted` 怎么办？
+
+A: SkillHub 默认的 Compose 和 `runtime.sh` 使用 Docker named volume（`postgres_data`），通常不需要手工处理宿主机目录权限。这个错误更常见于将 PostgreSQL 数据目录改成宿主机 bind mount，例如 `/data/skillhub/postgres:/var/lib/postgresql/data`。
+
+按以下顺序排查：
+
+1. 优先恢复为 Docker named volume，或使用官方 `runtime.sh`，避免手写 Compose 时漏配权限。
+2. 如果必须使用 bind mount，先确认 `.env.release` 或 `runtime.sh` 参数最终选择的 `POSTGRES_IMAGE`，将该值导出到当前 shell 后运行 `docker run --rm "$POSTGRES_IMAGE" id postgres`。再按输出的实际 UID/GID 调整数据目录属主，例如 `chown -R <uid>:<gid> <数据目录>`。不要固定假设镜像是 `postgres:16-alpine`，也不要假设所有环境都是 `999:999`。
+3. 在 RHEL/CentOS 上检查 SELinux；使用 AppArmor、rootless Docker、NFS、CIFS 或 NAS 时，也要确认宿主文件系统允许 PostgreSQL 写入、加锁和更改权限。
+4. 不建议把 PostgreSQL `PGDATA` 放在缺少完整 POSIX 权限语义的网络文件系统上。生产环境优先使用本地盘、Docker named volume、块存储或外部 PostgreSQL。
+
 ## Q: 通过 OAuth（GitHub / GitLab 等）登录的账号，如何取得管理员权限？
 
 A: OAuth 首次登录创建的是普通用户。需要由已有的 `SUPER_ADMIN`（例如初始化时的 bootstrap admin）在后台将其提升为管理员。
