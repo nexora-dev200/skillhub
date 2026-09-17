@@ -622,6 +622,7 @@ window.location.href = '/oauth2/authorization/github'
 | `POST /api/v1/skills/{ns}/{slug}/archive` | namespace ADMIN 以上 或 owner | `namespace_member.role` 或 `skill.owner_id` |
 | `POST .../versions/{ver}/rerelease` | namespace ADMIN 以上 或 owner；源版本必须 `PUBLISHED` | `namespace_member.role` 或 `skill.owner_id` + `skill_version.status` |
 | `DELETE .../versions/{ver}` | namespace ADMIN 以上 或 owner（仅 `DRAFT` / `REJECTED`） | `namespace_member.role` 或 `skill.owner_id` + `skill_version.status` |
+| `POST .../versions/{ver}/yank` | namespace ADMIN 以上 或 owner；版本必须 `PUBLISHED`；API Token 需 `skill:publish` | `namespace_member.role` 或 `skill.owner_id` + `skill_version.status` |
 
 ### 10.3 CLI API
 

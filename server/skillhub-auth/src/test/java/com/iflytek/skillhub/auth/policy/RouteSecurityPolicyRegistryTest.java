@@ -167,6 +167,24 @@ class RouteSecurityPolicyRegistryTest {
     }
 
     @Test
+    void authorizeApiToken_requiresPublishScopeForOwnerYankEndpoint() {
+        for (String prefix : List.of("/api/v1", "/api/web")) {
+            String path = prefix + "/skills/global/demo-skill/versions/1.2.3/yank";
+            var denied = registry.authorizeApiToken("POST", path, Set.of("skill:read", "skill:delete"));
+            var allowed = registry.authorizeApiToken("POST", path, Set.of("skill:publish"));
+
+            assertFalse(denied.allowed(), path);
+            assertEquals("skill:publish", denied.requiredScope(), path);
+            assertTrue(allowed.allowed(), path);
+        }
+    }
+
+    @Test
+    void authorizeApiToken_keepsAdminYankSessionOnly() {
+        assertFalse(registry.authorizeApiToken("POST", "/api/v1/admin/skills/versions/42/yank", ALL_SCOPES).allowed());
+    }
+
+    @Test
     void authorizeApiToken_requiresPublishScopeForOwnerLifecycleEndpoints() {
         for (String prefix : List.of("/api/v1", "/api/web")) {
             for (String path : List.of(

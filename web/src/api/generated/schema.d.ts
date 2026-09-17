@@ -1100,6 +1100,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/skills/{namespace}/{slug}/versions/{version}/yank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["yankVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/web/skills/{namespace}/{slug}/versions/{version}/yank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["yankVersion_1"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/skills/{namespace}/{slug}/versions/{version}/withdraw-review": {
         parameters: {
             query?: never;
@@ -2229,7 +2261,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["yankVersion"];
+        post: operations["yankVersion_2"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5277,6 +5309,9 @@ export interface components {
             /** @enum {string} */
             visibility?: "PUBLIC" | "NAMESPACE_ONLY" | "PRIVATE";
         };
+        AdminSkillActionRequest: {
+            reason?: string;
+        };
         ApiResponseSkillLifecycleMutationResponse: {
             /** Format: int32 */
             code?: number;
@@ -5322,9 +5357,6 @@ export interface components {
         };
         ConfirmPublishRequest: {
             version: string;
-        };
-        AdminSkillActionRequest: {
-            reason?: string;
         };
         ApiResponsePublishResponse: {
             /** Format: int32 */
@@ -9583,6 +9615,62 @@ export interface operations {
             };
         };
     };
+    yankVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminSkillActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSkillLifecycleMutationResponse"];
+                };
+            };
+        };
+    };
+    yankVersion_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                namespace: string;
+                slug: string;
+                version: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminSkillActionRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseSkillLifecycleMutationResponse"];
+                };
+            };
+        };
+    };
     withdrawReview: {
         parameters: {
             query?: never;
@@ -11585,7 +11673,7 @@ export interface operations {
             };
         };
     };
-    yankVersion: {
+    yankVersion_2: {
         parameters: {
             query?: never;
             header?: never;
