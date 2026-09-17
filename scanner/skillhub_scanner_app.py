@@ -3,8 +3,11 @@
 import asyncio
 import logging
 import os
+import re
 import shutil
 import tempfile
+from functools import wraps
+from importlib import import_module
 from pathlib import Path
 from typing import NoReturn
 
@@ -13,19 +16,56 @@ from fastapi.responses import JSONResponse
 from skill_scanner.api.api import app
 
 
+_upstream_router = import_module("skill_scanner.api.router")
 _MAX_CONCURRENT_SCANS = max(1, int(os.getenv("SKILLHUB_SCANNER_MAX_CONCURRENT_SCANS", "1")))
 _HARD_TIMEOUT_SECONDS = max(1, int(os.getenv("SKILLHUB_SCANNER_HARD_TIMEOUT_SECONDS", "930")))
+_upstream_router.MAX_UPLOAD_SIZE_BYTES = max(
+    1, int(os.getenv("SKILLHUB_SCANNER_MAX_UPLOAD_SIZE_BYTES", "110100480"))
+)
 _active_scans = 0
 _active_scans_guard = asyncio.Lock()
 _SCAN_PATHS = {"/scan", "/scan-upload"}
+_SUPPORTED_TOKEN_PATTERN = re.compile(
+    r"\b(?:gh[pousr]_[A-Za-z0-9]{20,255}|sk-(?:proj-)?[A-Za-z0-9_-]{20,255})\b"
+)
 _log = logging.getLogger(__name__)
+
+
+def _redact_supported_tokens(value):
+    if isinstance(value, str):
+        return _SUPPORTED_TOKEN_PATTERN.sub("<redacted>", value)
+    if isinstance(value, list):
+        return [_redact_supported_tokens(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _redact_supported_tokens(item) for key, item in value.items()}
+    return value
+
+
+def _install_scan_response_redaction() -> None:
+    """Redact supported token forms before FastAPI serializes scan findings."""
+    for route in _upstream_router.router.routes:
+        if getattr(route, "path", None) not in _SCAN_PATHS or "POST" not in getattr(route, "methods", set()):
+            continue
+        endpoint = route.endpoint
+
+        @wraps(endpoint)
+        async def redacting_endpoint(*args, __endpoint=endpoint, **kwargs):
+            response = await __endpoint(*args, **kwargs)
+            findings = getattr(response, "findings", None)
+            if isinstance(findings, list):
+                response.findings = _redact_supported_tokens(findings)
+            return response
+
+        route.endpoint = redacting_endpoint
+        route.dependant.call = redacting_endpoint
 
 
 def _cleanup_stale_scan_directories(temp_root: Path | None = None) -> None:
     """Remove incomplete upstream extraction directories left by a process restart."""
     root = temp_root or Path(tempfile.gettempdir())
+    current_upload_root = Path(_upstream_router._API_UPLOAD_ROOT).resolve()
     for candidate in root.glob("skill_scanner_*"):
-        if not candidate.is_dir():
+        if not candidate.is_dir() or candidate.resolve() == current_upload_root:
             continue
         try:
             shutil.rmtree(candidate)
@@ -54,6 +94,7 @@ async def _await_scan_until(scan_task: asyncio.Task, deadline: float, request_pa
         _restart_after_hard_timeout(request_path)
 
 
+_install_scan_response_redaction()
 app.router.add_event_handler("startup", _cleanup_stale_scan_directories)
 
 
