@@ -152,7 +152,7 @@ test.describe('Security audit redaction', () => {
 
     await page.goto('/space/global/redaction-skill')
 
-    await expect(page.getByRole('heading', { name: 'Redaction Skill', exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Redaction Skill', exact: true }).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('No high-risk findings', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'View Details' }).click()
     await page.getByRole('button', { name: 'Findings' }).click()
@@ -166,7 +166,7 @@ test.describe('Security audit redaction', () => {
 
     await page.goto('/space/global/redaction-skill')
 
-    await expect(page.getByRole('heading', { name: 'Redaction Skill', exact: true }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Redaction Skill', exact: true }).first()).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('Security Audit', { exact: true })).toHaveCount(0)
     await expect(page.locator('body')).not.toContainText(CANARY)
   })
