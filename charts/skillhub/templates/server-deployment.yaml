@@ -381,6 +381,20 @@ spec:
               value: {{ . | quote }}
             {{- end }}
 
+            # OAuth2 DingTalk (optional)
+            - name: OAUTH2_DINGTALK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: oauth2-dingtalk-client-id
+                  optional: true
+            - name: OAUTH2_DINGTALK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "skillhub.secretName" . }}
+                  key: oauth2-dingtalk-client-secret
+                  optional: true
+
             {{- if .Values.server.javaOpts }}
             - name: JAVA_OPTS
               value: {{ .Values.server.javaOpts }}

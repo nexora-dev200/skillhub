@@ -314,11 +314,13 @@ services:
     兼容回退。`OAUTH2_FEISHU_TOKEN_URI` 必须指向支持 JSON authorization-code
     exchange 的 endpoint。`OAUTH2_FEISHU_PROTOCOL_VERSION` 只允许 `v2` 或 `v3`，
     默认 `v3`，不会自动 fallback。
+  - 钉钉：`OAUTH2_DINGTALK_CLIENT_ID` / `OAUTH2_DINGTALK_CLIENT_SECRET`
+    （分别填应用的 AppKey 与 AppSecret）
 
-  留空即不展示该入口，无需改配置文件。注意：飞书邮箱由企业管理员导入、未经用户
-  确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把
+  留空即不展示该入口，无需改配置文件。注意：飞书和钉钉的邮箱都由企业管理员导入、
+  未经用户确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把
   `skillhub.access-policy.mode` 设为 `EMAIL_DOMAIN`，该策略会拒绝所有未验证邮箱，
-  飞书登录将一律失败。启用飞书时请保留默认的 `OPEN` 或改用其他准入模式。
+  这两个入口的登录将一律失败。启用它们时请保留默认的 `OPEN` 或改用其他准入模式。
 
   启用飞书前，使用一个测试租户完成一次真实回调验收。不要把真实 client secret
   写入仓库、报告或聊天记录；只在受控的 `.env.release`、CI Secret 或 Kubernetes

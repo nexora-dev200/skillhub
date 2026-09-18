@@ -248,6 +248,20 @@ spec:
               value: "https://accounts.feishu.cn/oauth/v3/token"
             - name: OAUTH2_FEISHU_USER_INFO_URI
               value: "https://open.feishu.cn/open-apis/authen/v1/user_info"
+
+            # OAuth2 DingTalk (optional)
+            - name: OAUTH2_DINGTALK_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: skillhub-secret
+                  key: oauth2-dingtalk-client-id
+                  optional: true
+            - name: OAUTH2_DINGTALK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: skillhub-secret
+                  key: oauth2-dingtalk-client-secret
+                  optional: true
           volumeMounts:
             - name: skillhub-storage
               mountPath: /var/lib/skillhub/storage
