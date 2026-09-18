@@ -216,7 +216,7 @@ A: 不是。Scanner 返回 `is_safe=true`、UI 显示“未发现高风险问题
 
 A: 必须先部署兼容 2.1.0 协议的 Server，在旧 Scanner 仍运行时排空并下线所有旧 Server 实例及其进行中的扫描，然后再升级 Scanner，最后验证 `/health` 和一次 upload mode 扫描。不要让旧 Server 连接 Scanner 2.1.0。
 
-混合版本期间，upload mode 应保持 AI Defense 关闭（默认 `SKILLHUB_SCANNER_USE_AI_DEFENSE=false`）。如果升级前必须继续使用 AI Defense，应按旧 Scanner 版本支持的环境变量把凭据直接配置到旧 Scanner 环境中；不要把 AI Defense key 放入 URL query 参数。
+混合版本期间，upload 和 local mode 都应保持 AI Defense 关闭（默认 `SKILLHUB_SCANNER_USE_AI_DEFENSE=false`）。如果升级前必须继续使用 AI Defense，应按旧 Scanner 版本支持的环境变量把凭据直接配置到旧 Scanner 环境中；不要把 AI Defense key 放入 URL query 参数或请求体。
 
 ## Q: 使用 CLI `skillhub publish` 报错 `registry returned 400` 怎么排查？
 

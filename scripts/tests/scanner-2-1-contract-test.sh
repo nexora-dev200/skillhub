@@ -186,6 +186,48 @@ MAIN_PORT="$SCANNER_PORT"
 MAIN_URL="http://127.0.0.1:$MAIN_PORT"
 wait_for_health "$MAIN_URL"
 
+docker exec -i "$MAIN_CONTAINER" python - <<'PY'
+from skill_scanner.core.analyzers.llm_analyzer import LLMProvider
+from skillhub_scanner_app import _redact_supported_tokens
+
+canaries = {
+    "aws": "AKIA1234567890ABCDEF",
+    "github": "github_pat_abcdefghijklmnopqrstuvwxyz",
+    "jwt": "eyJabcde.abcdefgh.ijklmnop",
+    "labeled": "custom-secret-1234567890",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nabc123\n-----END PRIVATE KEY-----",
+}
+findings = {
+    "aws": canaries["aws"],
+    "github": canaries["github"],
+    "authorization": f"Bearer {canaries['jwt']}",
+    "labeled": f"api_key={canaries['labeled']}",
+    "private_key": canaries["private_key"],
+}
+redacted = str(_redact_supported_tokens(findings))
+for label, canary in canaries.items():
+    if canary in redacted:
+        raise SystemExit(f"{label} canary was not redacted")
+
+safe_values = ["line one\n\tline two", "x" * 5000]
+if _redact_supported_tokens(safe_values) != safe_values:
+    raise SystemExit("redaction changed safe multiline or long finding text")
+mixed = "before\napi_key=custom-secret-1234567890\tafter"
+if _redact_supported_tokens(mixed) != "before\napi_key=<redacted>\tafter":
+    raise SystemExit("redaction changed non-secret characters around a credential")
+if not LLMProvider.is_valid_provider("azure-openai") or LLMProvider.is_valid_provider("azure"):
+    raise SystemExit("unexpected Scanner 2.1 Azure provider contract")
+PY
+
+docker exec "$MAIN_CONTAINER" python -c \
+  'from pathlib import Path; Path("/tmp/skillhub-scanner-runtime/stale-after-timeout").write_text("stale")'
+docker restart "$MAIN_CONTAINER" >/dev/null
+MAIN_PORT="$(docker port "$MAIN_CONTAINER" 8000/tcp | awk -F: 'END {print $NF}')"
+MAIN_URL="http://127.0.0.1:$MAIN_PORT"
+wait_for_health "$MAIN_URL"
+docker exec "$MAIN_CONTAINER" python -c \
+  'from pathlib import Path; assert not Path("/tmp/skillhub-scanner-runtime/stale-after-timeout").exists()'
+
 post_zip "$MAIN_URL" "$TMP_DIR/safe.zip" "$TMP_DIR/safe.json"
 post_zip "$MAIN_URL" "$TMP_DIR/javascript-secret.zip" "$TMP_DIR/javascript-secret.json"
 post_zip "$MAIN_URL" "$TMP_DIR/dotenv-secret.zip" "$TMP_DIR/dotenv-secret.json"

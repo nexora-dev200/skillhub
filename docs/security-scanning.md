@@ -114,11 +114,11 @@ The Server and Scanner HTTP contracts must be upgraded in this order:
 3. upgrade the Scanner to 2.1.0
 4. verify `/health` and an upload-mode scan before restoring normal traffic
 
-Do not run an old Server against Scanner 2.1.0. During a mixed-version rollout in `upload` mode,
+Do not run an old Server against Scanner 2.1.0. During a mixed-version rollout in either scan mode,
 keep AI Defense disabled (`SKILLHUB_SCANNER_USE_AI_DEFENSE=false`, the default). If AI Defense must
 remain enabled before the old Scanner is retired, configure its credential directly in the old
 Scanner environment using the variable supported by that Scanner version. Never place an AI Defense
-key in URL query parameters.
+key in URL query parameters or request bodies.
 
 ## Verification
 

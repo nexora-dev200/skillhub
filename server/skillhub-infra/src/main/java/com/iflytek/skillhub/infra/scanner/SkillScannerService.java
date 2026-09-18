@@ -75,9 +75,6 @@ public class SkillScannerService {
         body.put("policy", options.policyPreset());
         body.put("enable_meta", options.enableMeta());
         body.put("use_aidefense", options.useAidefense());
-        if (options.useAidefense() && !options.aidefenseApiKey().isEmpty()) {
-            body.put("aidefense_api_key", options.aidefenseApiKey());
-        }
         body.put("use_virustotal", options.useVirusTotal());
         body.put("use_trigger", options.useTrigger());
         return body;

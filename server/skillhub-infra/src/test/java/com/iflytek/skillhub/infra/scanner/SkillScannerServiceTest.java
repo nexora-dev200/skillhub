@@ -128,7 +128,7 @@ class SkillScannerServiceTest {
     }
 
     @Test
-    void scanDirectory_keepsLegacyAidefenseBodyFieldAndSendsHeader() {
+    void scanDirectory_sendsAidefenseApiKeyOnlyViaHeader() {
         FakeHttpClient httpClient = new FakeHttpClient();
         httpClient.postResponse = new SkillScannerApiResponse(
                 "scan-4", "test-skill", true, "LOW", 0, null, 0.5, "2026-03-22T07:00:00");
@@ -141,7 +141,7 @@ class SkillScannerServiceTest {
 
         @SuppressWarnings("unchecked")
         Map<String, Object> body = (Map<String, Object>) httpClient.lastPostBody;
-        assertThat(body.get("aidefense_api_key")).isEqualTo("secret-key");
+        assertThat(body).doesNotContainKey("aidefense_api_key");
         assertThat(httpClient.lastPostHeaders.getFirst("X-AIDefense-Key")).isEqualTo("secret-key");
         assertThat(httpClient.lastPostUri).doesNotContain("secret-key");
         assertThat(body.get("llm_consensus_runs")).isEqualTo(3);

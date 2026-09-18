@@ -14,6 +14,14 @@ public record ScanOptions(
 ) {
 
     public ScanOptions {
+        if ("azure".equals(llmProvider)) {
+            llmProvider = "azure-openai";
+        }
+        if (!"anthropic".equals(llmProvider)
+                && !"openai".equals(llmProvider)
+                && !"azure-openai".equals(llmProvider)) {
+            throw new IllegalArgumentException("llmProvider must be anthropic, openai, or azure");
+        }
         if (llmConsensusRuns < 1) {
             throw new IllegalArgumentException("llmConsensusRuns must be at least 1");
         }

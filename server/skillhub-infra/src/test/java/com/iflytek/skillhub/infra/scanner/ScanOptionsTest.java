@@ -30,4 +30,20 @@ class ScanOptionsTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("policyPreset");
     }
+
+    @Test
+    void rejectsUnknownLlmProvider() {
+        assertThatThrownBy(() -> new ScanOptions(
+                false, false, "openai&unexpected=value", 1, "balanced", false, false, "", false, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("llmProvider");
+    }
+
+    @Test
+    void acceptsDocumentedAzureLlmProvider() {
+        ScanOptions options = new ScanOptions(
+                false, true, "azure", 1, "balanced", false, false, "", false, false);
+
+        assertThat(options.llmProvider()).isEqualTo("azure-openai");
+    }
 }

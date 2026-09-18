@@ -216,7 +216,7 @@ A: No. A Scanner response with `is_safe=true`, rendered in the UI as “No high-
 
 A: First deploy the Server release that is compatible with the 2.1.0 protocol. While the old Scanner is still running, drain and remove every old Server instance and its in-flight scans. Then upgrade the Scanner and verify `/health` plus one upload-mode scan. Do not connect an old Server to Scanner 2.1.0.
 
-During the mixed-version window, keep AI Defense disabled in upload mode (the default is `SKILLHUB_SCANNER_USE_AI_DEFENSE=false`). If AI Defense must remain enabled before the upgrade, configure its credential directly in the old Scanner environment using the variable supported by that Scanner version; never put an AI Defense key in URL query parameters.
+During the mixed-version window, keep AI Defense disabled in both upload and local modes (the default is `SKILLHUB_SCANNER_USE_AI_DEFENSE=false`). If AI Defense must remain enabled before the upgrade, configure its credential directly in the old Scanner environment using the variable supported by that Scanner version; never put an AI Defense key in URL query parameters or request bodies.
 
 ## Q: How do I troubleshoot a `registry returned 400` error from `skillhub publish` (CLI)?
 
