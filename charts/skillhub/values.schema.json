@@ -466,7 +466,7 @@
           "properties": {
             "enabled": { "type": "boolean" },
             "replicaCount": { "type": "integer", "minimum": 1 },
-            "maxUploadSizeBytes": { "type": "integer", "minimum": 1 },
+            "maxUploadSizeBytes": { "type": "integer", "minimum": 110100480 },
             "image": { "$ref": "#/definitions/image" },
             "service": {
               "type": "object",
