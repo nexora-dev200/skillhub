@@ -35,6 +35,7 @@ public class DingTalkAuthorizationRequestCustomizer implements ProviderAuthoriza
         String authorizationRequestUri = UriComponentsBuilder
                 .fromUriString(builder.build().getAuthorizationRequestUri())
                 .replaceQueryParam("scope", DingTalkOAuth2Constants.AUTHORIZATION_SCOPE)
+                .replaceQueryParam("prompt", "consent")
                 .build(true)
                 .toUriString();
         builder.authorizationRequestUri(authorizationRequestUri);

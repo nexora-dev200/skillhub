@@ -1,12 +1,17 @@
 package com.iflytek.skillhub.auth.oauth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,9 +97,13 @@ public class DingTalkOAuth2UserService implements ProviderOAuth2UserService {
                     )
                     .exchange((request, clientResponse) -> {
                         if (!clientResponse.getStatusCode().is2xxSuccessful()) {
+                            SafeErrorSummary summary = readSafeErrorSummary(clientResponse.getBody());
                             log.warn(
-                                    "DingTalk user info returned HTTP {}; response body omitted",
-                                    clientResponse.getStatusCode().value());
+                                    "DingTalk user info returned HTTP {}; code={}, requiredScopes={}, requestId={}",
+                                    clientResponse.getStatusCode().value(),
+                                    summary.code(),
+                                    summary.requiredScopes(),
+                                    summary.requestId());
                             throw new IOException(
                                     "DingTalk user info returned HTTP " + clientResponse.getStatusCode().value());
                         }
@@ -128,6 +137,88 @@ public class DingTalkOAuth2UserService implements ProviderOAuth2UserService {
         }
         return OBJECT_MAPPER.readValue(bytes, new com.fasterxml.jackson.core.type.TypeReference<>() {
         });
+    }
+
+    /** Extracts provider diagnostics without logging tokens, messages, or the upstream body. */
+    private static SafeErrorSummary readSafeErrorSummary(InputStream body) {
+        try {
+            byte[] bytes = body.readNBytes(MAX_RESPONSE_BYTES + 1);
+            if (bytes.length > MAX_RESPONSE_BYTES) {
+                return SafeErrorSummary.UNKNOWN;
+            }
+            JsonNode root = OBJECT_MAPPER.readTree(bytes);
+            if (root == null) {
+                return SafeErrorSummary.UNKNOWN;
+            }
+            String code = text(findNode(root, Set.of("code")));
+            String requestId = text(findNode(root, Set.of("requestid")));
+            JsonNode data = findNode(root, Set.of("data"));
+            if (data != null && data.isTextual()) {
+                try {
+                    JsonNode nested = OBJECT_MAPPER.readTree(data.asText());
+                    if (nested != null) {
+                        root = nested;
+                    }
+                } catch (Exception ignored) {
+                    // Keep the outer diagnostic fields when Data is not JSON.
+                }
+            }
+            code = valueOrUnknown(code);
+            requestId = valueOrUnknown(requestId != null ? requestId : text(findNode(root, Set.of("requestid"))));
+            JsonNode scopes = findNode(root, Set.of("requiredscopes"));
+            String requiredScopes = scopes != null && scopes.isArray()
+                    ? String.join(",", textValues(scopes))
+                    : "-";
+            return new SafeErrorSummary(code, requiredScopes, requestId);
+        } catch (Exception ignored) {
+            return SafeErrorSummary.UNKNOWN;
+        }
+    }
+
+    private static JsonNode findNode(JsonNode node, Set<String> names) {
+        if (node.isObject()) {
+            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            while (fields.hasNext()) {
+                Map.Entry<String, JsonNode> field = fields.next();
+                if (names.contains(field.getKey().toLowerCase())) {
+                    return field.getValue();
+                }
+                JsonNode nested = findNode(field.getValue(), names);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+        } else if (node.isArray()) {
+            for (JsonNode child : node) {
+                JsonNode nested = findNode(child, names);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static List<String> textValues(JsonNode array) {
+        List<String> values = new ArrayList<>();
+        array.forEach(value -> {
+            if (value.isTextual() && !value.asText().isBlank()) {
+                values.add(value.asText());
+            }
+        });
+        return values;
+    }
+
+    private static String text(JsonNode node) {
+        return node != null && node.isValueNode() ? node.asText() : null;
+    }
+
+    private static String valueOrUnknown(String value) {
+        return value == null || value.isBlank() ? "-" : value;
+    }
+
+    private record SafeErrorSummary(String code, String requiredScopes, String requestId) {
+        private static final SafeErrorSummary UNKNOWN = new SafeErrorSummary("-", "-", "-");
     }
 
     /**

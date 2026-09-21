@@ -58,7 +58,7 @@ spring:
             scope:
               - read:user
               - user:email
-            redirect-uri: "${OAUTH2_DINGTALK_REDIRECT_URI:{baseUrl}/login/oauth2/code/{registrationId}}"
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
             client-name: GitHub
             authorization-grant-type: authorization_code
           gitlab:
@@ -93,7 +93,7 @@ spring:
             # description; "none" would additionally make Spring apply PKCE, and the DingTalk token
             # request sends no code_verifier to match the challenge.
             client-authentication-method: client_secret_post
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: "${OAUTH2_DINGTALK_REDIRECT_URI:{baseUrl}/login/oauth2/code/{registrationId}}"
             client-name: ${OAUTH2_DINGTALK_DISPLAY_NAME:钉钉}
         provider:
           github:

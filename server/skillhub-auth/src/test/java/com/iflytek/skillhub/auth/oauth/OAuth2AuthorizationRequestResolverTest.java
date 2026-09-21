@@ -99,6 +99,7 @@ class OAuth2AuthorizationRequestResolverTest {
         assertThat(authorizationRequest).isNotNull();
         // DingTalk's authorize endpoint requires scope=openid on the wire.
         assertThat(authorizationRequest.getAuthorizationRequestUri()).contains("scope=openid");
+        assertThat(authorizationRequest.getAuthorizationRequestUri()).contains("prompt=consent");
 
         // But getScopes() must stay empty. OAuth2LoginAuthenticationProvider.authenticate returns
         // null when the authorization request's scopes contain "openid", which hands the callback to
