@@ -315,7 +315,12 @@ services:
     exchange 的 endpoint。`OAUTH2_FEISHU_PROTOCOL_VERSION` 只允许 `v2` 或 `v3`，
     默认 `v3`，不会自动 fallback。
   - 钉钉：`OAUTH2_DINGTALK_CLIENT_ID` / `OAUTH2_DINGTALK_CLIENT_SECRET`
-    （分别填应用的 AppKey 与 AppSecret）
+    （分别填应用的 AppKey 与 AppSecret）。在钉钉开发者后台登记
+    `https://<公网域名>/login/oauth2/code/dingtalk`，并为用户信息接口开通所需权限。
+    `OAUTH2_DINGTALK_REDIRECT_URI` 可在动态端口或特殊反向代理场景显式覆盖；Compose
+    默认根据 `SKILLHUB_PUBLIC_BASE_URL` 生成回调，Helm/K8s 未设置时由 Spring 使用
+    `{baseUrl}`。国际版或网关场景可覆盖 `OAUTH2_DINGTALK_AUTHORIZE_URI` 与
+    `OAUTH2_DINGTALK_BASE_URI`。
 
   留空即不展示该入口，无需改配置文件。注意：飞书和钉钉的邮箱都由企业管理员导入、
   未经用户确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把

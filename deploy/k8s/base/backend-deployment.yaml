@@ -262,6 +262,12 @@ spec:
                   name: skillhub-secret
                   key: oauth2-dingtalk-client-secret
                   optional: true
+            - name: OAUTH2_DINGTALK_AUTHORIZE_URI
+              value: "https://login.dingtalk.com"
+            - name: OAUTH2_DINGTALK_BASE_URI
+              value: "https://api.dingtalk.com"
+            - name: OAUTH2_DINGTALK_DISPLAY_NAME
+              value: "钉钉"
           volumeMounts:
             - name: skillhub-storage
               mountPath: /var/lib/skillhub/storage

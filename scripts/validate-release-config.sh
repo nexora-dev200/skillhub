@@ -406,6 +406,15 @@ for feishu_endpoint in OAUTH2_FEISHU_AUTHORIZATION_URI OAUTH2_FEISHU_TOKEN_URI O
   fi
 done
 
+for dingtalk_endpoint in OAUTH2_DINGTALK_AUTHORIZE_URI OAUTH2_DINGTALK_BASE_URI OAUTH2_DINGTALK_REDIRECT_URI; do
+  eval "dingtalk_endpoint_value=\${$dingtalk_endpoint:-}"
+  if [ -n "$dingtalk_endpoint_value" ]; then
+    validate_url "$dingtalk_endpoint"
+  fi
+done
+validate_no_trailing_slash OAUTH2_DINGTALK_AUTHORIZE_URI
+validate_no_trailing_slash OAUTH2_DINGTALK_BASE_URI
+
 if [ "$errors" -gt 0 ]; then
   echo "Release config validation failed: $errors error(s), $warnings warning(s)." >&2
   exit 1

@@ -288,7 +288,9 @@ spring:
             # 故意不声明 scope：钉钉的授权端点要 scope=openid，但在这里声明会让
             # Spring 把该注册当成 OIDC 客户端并附加 nonce，而钉钉不接受 nonce。
             # scope 由 DingTalkAuthorizationRequestCustomizer 在请求阶段补上。
-            client-authentication-method: none
+            # 钉钉是 confidential client，只是由自定义 token client 把 secret 放进 JSON body。
+            # 不使用 none，避免 Spring 自动添加本实现无法应答的 PKCE challenge。
+            client-authentication-method: client_secret_post
             authorization-grant-type: authorization_code
         provider:
           feishu:
