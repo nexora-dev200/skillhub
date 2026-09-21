@@ -358,6 +358,23 @@ services:
 
   本地 mock 回调只能证明 SkillHub 与协议形状的集成，不能替代上述真实租户验收。
   没有可用飞书租户时，应将该项记录为“未验证”，不要宣称 Feishu 登录已通过。
+
+  钉钉登录使用同样的验收边界，但协议配置不同：在钉钉开发者后台创建企业内部
+  H5 微应用，使用应用的 AppKey/AppSecret，进入“钉钉登录与分享”登记
+  `https://<公网域名>/login/oauth2/code/dingtalk`，并开通个人信息读取权限。
+  验收前设置：
+
+  ```dotenv
+  OAUTH2_DINGTALK_CLIENT_ID=<AppKey>
+  OAUTH2_DINGTALK_CLIENT_SECRET=<AppSecret>
+  OAUTH2_DINGTALK_REDIRECT_URI=https://<公网域名>/login/oauth2/code/dingtalk
+  ```
+
+  登录请求必须包含 `scope=openid`，但配置文件不能声明 `openid` scope；实现会把
+  它仅写入外发授权 URL，避免 Spring 将回调路由到 OIDC。验收时应确认 token 请求为
+  JSON body，userinfo 请求使用 `x-acs-dingtalk-access-token`，重复登录仍绑定同一
+  `unionId`，且日志不出现 AppSecret、access token、unionId 或上游错误 body。
+  没有钉钉测试应用凭据时，这些只能标记为“协议测试通过、真实厂商往返未验证”。
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 
 ## 8 OIDC 登录配置
