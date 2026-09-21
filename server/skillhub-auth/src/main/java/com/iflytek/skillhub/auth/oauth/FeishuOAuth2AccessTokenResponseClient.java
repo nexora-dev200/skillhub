@@ -33,7 +33,7 @@ import org.springframework.web.client.RestClient;
  */
 @Component
 public class FeishuOAuth2AccessTokenResponseClient
-        implements OAuth2AccessTokenResponseClient<OAuth2AuthorizationCodeGrantRequest> {
+        implements ProviderTokenResponseClient {
 
     private static final Logger log = LoggerFactory.getLogger(FeishuOAuth2AccessTokenResponseClient.class);
     private static final String FEISHU_PROVIDER = "feishu";
@@ -76,6 +76,11 @@ public class FeishuOAuth2AccessTokenResponseClient
         this.restClient = restClientBuilder.build();
         this.standardClient = standardClient;
         this.protocolVersion = normalizeProtocolVersion(protocolVersion);
+    }
+
+    @Override
+    public String getProvider() {
+        return FEISHU_PROVIDER;
     }
 
     @Override

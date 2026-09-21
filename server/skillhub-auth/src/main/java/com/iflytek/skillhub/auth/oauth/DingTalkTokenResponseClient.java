@@ -72,6 +72,7 @@ public class DingTalkTokenResponseClient implements ProviderTokenResponseClient 
             ClientHttpResponse response = execution.execute(request, body);
             byte[] bytes = response.getBody().readNBytes(MAX_RESPONSE_BYTES + 1);
             if (bytes.length > MAX_RESPONSE_BYTES) {
+                response.close();
                 throw new IOException("DingTalk token response exceeds " + MAX_RESPONSE_BYTES + " bytes");
             }
             return new BoundedClientHttpResponse(response, bytes);

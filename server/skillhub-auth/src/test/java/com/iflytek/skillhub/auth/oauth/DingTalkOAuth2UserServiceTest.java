@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -96,6 +98,26 @@ class DingTalkOAuth2UserServiceTest {
                 .isInstanceOf(OAuth2AuthenticationException.class)
                 .satisfies(ex -> assertThat(((OAuth2AuthenticationException) ex).getError().getErrorCode())
                         .isEqualTo("dingtalk_userinfo_error"));
+        server.verify();
+    }
+
+    @Test
+    void loadUser_rejectsNonSuccessfulHttpStatusWithoutExposingBody() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://api.dingtalk.com/v1.0/contact/users/me"))
+                .andRespond(withStatus(HttpStatus.FORBIDDEN)
+                        .body("access denied for token-123")
+                        .contentType(MediaType.APPLICATION_JSON));
+        DingTalkOAuth2UserService service = new DingTalkOAuth2UserService(builder);
+
+        assertThatThrownBy(() -> service.loadUser(userRequest()))
+                .isInstanceOf(OAuth2AuthenticationException.class)
+                .satisfies(ex -> {
+                    var error = ((OAuth2AuthenticationException) ex).getError();
+                    assertThat(error.getErrorCode()).isEqualTo("dingtalk_userinfo_error");
+                    assertThat(error.getDescription()).doesNotContain("token-123", "access denied");
+                });
         server.verify();
     }
 

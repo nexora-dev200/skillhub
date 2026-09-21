@@ -177,6 +177,8 @@
         "oauth2GithubClientSecret": { "type": "string" },
         "oauth2FeishuClientId": { "type": "string" },
         "oauth2FeishuClientSecret": { "type": "string" },
+        "oauth2DingtalkClientId": { "type": "string" },
+        "oauth2DingtalkClientSecret": { "type": "string" },
         "scannerLlmApiKey": { "type": "string" },
         "scannerLlmBaseUrl": { "type": "string" },
         "scannerLlmModel": { "type": "string" }

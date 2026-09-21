@@ -90,7 +90,16 @@ public class DingTalkOAuth2UserService implements ProviderOAuth2UserService {
                             DingTalkOAuth2Constants.ACCESS_TOKEN_HEADER,
                             userRequest.getAccessToken().getTokenValue()
                     )
-                    .exchange((request, clientResponse) -> readBounded(clientResponse.getBody()));
+                    .exchange((request, clientResponse) -> {
+                        if (!clientResponse.getStatusCode().is2xxSuccessful()) {
+                            log.warn(
+                                    "DingTalk user info returned HTTP {}; response body omitted",
+                                    clientResponse.getStatusCode().value());
+                            throw new IOException(
+                                    "DingTalk user info returned HTTP " + clientResponse.getStatusCode().value());
+                        }
+                        return readBounded(clientResponse.getBody());
+                    });
         } catch (Exception e) {
             // Exception class only: the message can quote the request URI, which holds the token.
             log.warn("DingTalk user info request failed with {}", e.getClass().getSimpleName());

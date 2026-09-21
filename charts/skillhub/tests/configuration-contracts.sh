@@ -74,6 +74,17 @@ render stable "$CHART_DIR" "${stable_args[@]}" >"$TMP_DIR/stable-a.yaml"
 render stable "$CHART_DIR" "${stable_args[@]}" >"$TMP_DIR/stable-b.yaml"
 cmp "$TMP_DIR/stable-a.yaml" "$TMP_DIR/stable-b.yaml"
 
+render dingtalk "$CHART_DIR" "${stable_args[@]}" \
+  --set-string secrets.oauth2DingtalkClientId=ding-test \
+  --set-string secrets.oauth2DingtalkClientSecret=dingtalk-test-secret \
+  >"$TMP_DIR/dingtalk.yaml"
+grep -Fq 'oauth2-dingtalk-client-id: "ding-test"' "$TMP_DIR/dingtalk.yaml" \
+  || fail "Helm must render the configured DingTalk client id"
+grep -Fq 'oauth2-dingtalk-client-secret: "dingtalk-test-secret"' "$TMP_DIR/dingtalk.yaml" \
+  || fail "Helm must render the configured DingTalk client secret"
+grep -Fq 'name: OAUTH2_DINGTALK_CLIENT_ID' "$TMP_DIR/dingtalk.yaml" \
+  || fail "server deployment must inject the DingTalk client id"
+
 render private-registry "$CHART_DIR" \
   --set server.dependencyWait.image.registry=registry.example.com \
   --set server.dependencyWait.image.repository=library/busybox \

@@ -61,7 +61,7 @@ class ProviderStrategyWiringTest {
         // standard OAuth2 behaviour its endpoints reject.
         assertThat(tokenResponseClients)
                 .extracting(ProviderTokenResponseClient::getProvider)
-                .contains(DingTalkOAuth2Constants.REGISTRATION_ID);
+                .contains(DingTalkOAuth2Constants.REGISTRATION_ID, "feishu");
         assertThat(authorizationCustomizers)
                 .extracting(ProviderAuthorizationRequestCustomizer::getProvider)
                 .contains(DingTalkOAuth2Constants.REGISTRATION_ID);
