@@ -17,6 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
@@ -35,7 +37,10 @@ import org.springframework.stereotype.Service;
 @Service
 public class OAuthLoginFlowService {
 
+    private static final Logger log = LoggerFactory.getLogger(OAuthLoginFlowService.class);
+
     private final Map<String, OAuthClaimsExtractor> extractors;
+    private final Map<String, ProviderOAuth2UserService> userServiceOverrides;
     private final AccessPolicy accessPolicy;
     private final IdentityBindingService identityBindingService;
     private final LegacyPlatformIdentityCore identityCore;
@@ -44,12 +49,14 @@ public class OAuthLoginFlowService {
 
     @Autowired
     public OAuthLoginFlowService(List<OAuthClaimsExtractor> extractorList,
+                                 List<ProviderOAuth2UserService> userServiceList,
                                  AccessPolicy accessPolicy,
                                  IdentityBindingService identityBindingService,
                                  LegacyPlatformIdentityCore identityCore,
                                  RemoteIdentityIoExecutor remoteIdentityIo) {
         this(
                 extractorList,
+                userServiceList,
                 accessPolicy,
                 identityBindingService,
                 identityCore,
@@ -59,6 +66,7 @@ public class OAuthLoginFlowService {
     }
 
     OAuthLoginFlowService(List<OAuthClaimsExtractor> extractorList,
+                          List<ProviderOAuth2UserService> userServiceList,
                           AccessPolicy accessPolicy,
                           IdentityBindingService identityBindingService,
                           LegacyPlatformIdentityCore identityCore,
@@ -66,6 +74,8 @@ public class OAuthLoginFlowService {
                           RemoteIdentityIoExecutor remoteIdentityIo) {
         this.extractors = extractorList.stream()
                 .collect(Collectors.toMap(OAuthClaimsExtractor::getProvider, Function.identity()));
+        this.userServiceOverrides = userServiceList.stream()
+                .collect(Collectors.toMap(ProviderOAuth2UserService::getProvider, Function.identity()));
         this.accessPolicy = accessPolicy;
         this.identityBindingService = identityBindingService;
         this.identityCore = identityCore;
@@ -79,6 +89,7 @@ public class OAuthLoginFlowService {
                           LegacyPlatformIdentityCore identityCore) {
         this(
                 extractorList,
+                List.of(),
                 accessPolicy,
                 identityBindingService,
                 identityCore,
@@ -95,27 +106,34 @@ public class OAuthLoginFlowService {
 
     public AuthenticatedLoginContext loadLoginContext(OAuth2UserRequest request) {
         LoadedProviderIdentity loadedIdentity = remoteIdentityIo.execute(() -> {
-            OAuth2User upstreamUser = delegate.loadUser(request);
             String registrationId = request.getClientRegistration().getRegistrationId();
+            ProviderOAuth2UserService override = userServiceOverrides.get(registrationId);
+            OAuth2User upstreamUser = (override != null ? override : delegate).loadUser(request);
             OAuthClaimsExtractor extractor = extractors.get(registrationId);
             if (extractor == null) {
                 throw new OAuth2AuthenticationException(
                         new OAuth2Error("unsupported_provider", "Unsupported: " + registrationId, null)
                 );
             }
-            return new LoadedProviderIdentity(
-                    upstreamUser,
-                    extractor.extract(request, upstreamUser)
-            );
+            OAuthClaims claims = extractor.extract(request, upstreamUser);
+            log.info("OAuth provider identity loaded: provider={}, subjectPresent={}, emailPresent={}, displayNamePresent={}",
+                    registrationId,
+                    claims.subject() != null && !claims.subject().isBlank(),
+                    claims.email() != null && !claims.email().isBlank(),
+                    claims.providerLogin() != null && !claims.providerLogin().isBlank());
+            return new LoadedProviderIdentity(upstreamUser, claims);
         });
 
         PlatformPrincipal principal = authenticate(loadedIdentity.claims());
+        log.info("OAuth identity authenticated: provider={}, principalCreated=true, rolesCount={}",
+                loadedIdentity.claims().provider(), principal.platformRoles().size());
         return new AuthenticatedLoginContext(loadedIdentity.upstreamUser(), principal);
     }
 
     public PlatformPrincipal authenticate(OAuthClaims claims) {
         AccessDecision decision = accessPolicy.evaluate(claims);
 
+        log.info("OAuth access policy evaluated: provider={}, decision={}", claims.provider(), decision);
         if (decision == AccessDecision.PENDING_APPROVAL) {
             LegacyPlatformIdentityDecision identityDecision = identityCore.evaluate(claims);
             ensureActiveCoreAllowsPlatformLogin(identityDecision);

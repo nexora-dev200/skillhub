@@ -271,18 +271,69 @@ spring:
             client-id: ${OAUTH2_GITHUB_CLIENT_ID}
             client-secret: ${OAUTH2_GITHUB_CLIENT_SECRET}
             scope: read:user,user:email
-          # 二期扩展示例:
-          # gitlab:
-          #   client-id: ...
-          #   authorization-grant-type: authorization_code
-          # google:
-          #   client-id: ...
+          gitlab:
+            client-id: ${OAUTH2_GITLAB_CLIENT_ID}
+            client-secret: ${OAUTH2_GITLAB_CLIENT_SECRET}
+            authorization-grant-type: authorization_code
+          feishu:
+            provider: feishu
+            client-id: ${OAUTH2_FEISHU_CLIENT_ID}
+            client-secret: ${OAUTH2_FEISHU_CLIENT_SECRET}
+            # 飞书的 scope 配在开放平台应用上，不在这里传
+            client-authentication-method: client_secret_post
+            authorization-grant-type: authorization_code
+        provider:
+          feishu:
+            # Full endpoints are configurable for Lark, private deployments, and gateways.
+            authorization-uri: ${OAUTH2_FEISHU_AUTHORIZATION_URI:${OAUTH2_FEISHU_AUTHORIZE_URI:https://accounts.feishu.cn}/open-apis/authen/v1/authorize}
+            # OAUTH2_FEISHU_PROTOCOL_VERSION supports v2 and v3; default is v3.
+            token-uri: ${OAUTH2_FEISHU_TOKEN_URI:https://accounts.feishu.cn/oauth/v3/token}
+            user-info-uri: ${OAUTH2_FEISHU_USER_INFO_URI:${OAUTH2_FEISHU_BASE_URI:https://open.feishu.cn}/open-apis/authen/v1/user_info}
 ```
 
 Spring Security OAuth2 Client 原生支持多 Provider 并存，新增 Provider 只需：
-1. `application.yml` 添加 registration 配置
-2. `CustomOAuth2UserService` 中按 `registrationId` 分支处理用户属性映射
-3. 前端登录页增加对应按钮（通过 `/api/v1/auth/providers` 自动发现）
+1. `application.yml` 添加 registration 与 provider 配置
+2. 实现一个 `OAuthClaimsExtractor`，把该 Provider 的属性映射成统一的 `OAuthClaims`
+3. 登录页无需改代码：`/api/v1/auth/methods` 只返回配置了真实 client id 的注册，
+   图标按 provider 名解析为 `/{provider}-logo.svg`
+
+第 2 步是按 Provider 注册一个 Bean，而不是在某个类里按 `registrationId` 分支。
+账号匹配、建号、资料权威和账号守卫都在 `OAuthClaims` 之后共享，Provider 自己不做这些决策。
+
+如果该 Provider 的 userinfo 响应不是标准的扁平结构（例如飞书用
+`{code, msg, data}` 信封，且以 HTTP 200 返回错误），再额外实现一个
+`ProviderOAuth2UserService`：它声明自己负责哪个 `registrationId`，
+接管 userinfo 的加载步骤，其余流程不变。该覆盖运行在
+`RemoteIdentityIoExecutor` 边界内，因此 Provider 的 HTTP 调用不会持有数据库事务。
+
+Provider 侧还需遵守：subject 必须稳定（不要用可能在两次登录间变化的字段做
+fallback，否则同一个人会被拆成两个平台账号）、只有在 Provider 真正证明了邮箱
+所有权时才置 `emailVerified=true`、远程调用要有超时与响应大小上限、
+claims 提取过程不记录 subject/email/token。
+
+#### 飞书 token 协议版本
+
+飞书 token client 支持显式选择 `v2` 或 `v3`，默认值为 `v3`：
+
+```bash
+OAUTH2_FEISHU_PROTOCOL_VERSION=v3
+OAUTH2_FEISHU_AUTHORIZATION_URI=https://accounts.feishu.cn/open-apis/authen/v1/authorize
+OAUTH2_FEISHU_TOKEN_URI=https://accounts.feishu.cn/oauth/v3/token
+OAUTH2_FEISHU_USER_INFO_URI=https://open.feishu.cn/open-apis/authen/v1/user_info
+OAUTH2_FEISHU_REDIRECT_URI=
+
+# 历史 v2 应用可显式切换：
+# OAUTH2_FEISHU_PROTOCOL_VERSION=v2
+# OAUTH2_FEISHU_TOKEN_URI=https://open.feishu.cn/open-apis/authen/v2/oauth/token
+```
+
+两个版本都使用 JSON authorization-code exchange，当前实现会根据协议版本
+选择对应的标准 token endpoint；如需代理、区域或私有化 endpoint，可通过
+`OAUTH2_FEISHU_TOKEN_URI` 覆盖。授权和 userinfo endpoint 也分别通过
+`OAUTH2_FEISHU_AUTHORIZATION_URI`、`OAUTH2_FEISHU_USER_INFO_URI` 配置。协议版本不合法
+时发布配置校验失败，应用也会拒绝启动。不会在 v3 失败后自动使用 v2，因为 authorization code 只能使用一次，
+自动重试可能造成重复请求并掩盖配置错误。旧的 `OAUTH2_FEISHU_AUTHORIZE_URI` 和
+`OAUTH2_FEISHU_BASE_URI` 仍作为 base-URI 兼容回退，但新部署应使用完整 endpoint 变量。
 
 ## 4. 核心接口设计
 

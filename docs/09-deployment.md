@@ -163,13 +163,26 @@ Sentinel 配置优先于 Cluster 和单机 `host`/`port`。在 Kubernetes 等 Se
   - 使用发布镜像，不在用户机器上执行本地构建
   - 负责拉起 PostgreSQL、Redis、server、web
   - PostgreSQL、Redis 默认只绑定到 `127.0.0.1`
-  - Web 和后端都支持运行时环境变量注入，不需要为每个环境重建镜像
+  - Web 和后端都支持运行时环境变量注入，不需要为每个环境重建镜像；S3/OSS 的
+    `SKILLHUB_STORAGE_S3_*` 变量会透传到 server
 - `.env.release.example`
   - 运行时变量模板
   - 包含镜像名、镜像版本、端口、数据库凭证、外部 OSS、站点公网地址和首登管理员参数
 - `scripts/validate-release-config.sh`
   - 在启动前校验 `.env.release`
   - 可提前拦截占位值、URL 格式错误、缺失的 OSS 凭据、危险的明文默认值
+
+阿里云 OSS 等不支持 AWS chunked encoding 的对象存储，需要在 `.env.release` 中设置：
+
+```dotenv
+SKILLHUB_STORAGE_S3_DISABLE_CHUNKED_ENCODING=true
+```
+
+该变量由 `compose.release.yml` 透传到 server；修改后需要重新创建 server 容器：
+
+```bash
+docker compose --env-file .env.release -f compose.release.yml up -d --force-recreate server
+```
 
 ### 5.5 镜像标签约定
 
@@ -283,7 +296,61 @@ services:
   - `SKILLHUB_WEB_API_BASE_URL=/skillhub`
   - `SKILLHUB_PUBLIC_BASE_URL=https://example.com/skillhub`
   网关可以在转发到 Web 容器前将该前缀重写掉，但公网 URL 仍必须保留前缀，确保 OAuth、CLI 和 registry 链接正确。
-- 如果要开放真实登录，再补充 `OAUTH2_GITHUB_CLIENT_ID` / `OAUTH2_GITHUB_CLIENT_SECRET`
+- 如果要开放真实登录，再补充对应 Provider 的 client id/secret：
+  - GitHub：`OAUTH2_GITHUB_CLIENT_ID` / `OAUTH2_GITHUB_CLIENT_SECRET`
+  - GitLab：`OAUTH2_GITLAB_CLIENT_ID` / `OAUTH2_GITLAB_CLIENT_SECRET`（自建实例再设 `OAUTH2_GITLAB_BASE_URI`）
+  - 飞书：`OAUTH2_FEISHU_CLIENT_ID` / `OAUTH2_FEISHU_CLIENT_SECRET`。
+    Endpoint 默认配置为：
+    - `OAUTH2_FEISHU_AUTHORIZATION_URI=https://accounts.feishu.cn/open-apis/authen/v1/authorize`
+    - `OAUTH2_FEISHU_PROTOCOL_VERSION=v3`
+    - `OAUTH2_FEISHU_TOKEN_URI=https://accounts.feishu.cn/oauth/v3/token`
+    - `OAUTH2_FEISHU_USER_INFO_URI=https://open.feishu.cn/open-apis/authen/v1/user_info`
+    - `OAUTH2_FEISHU_REDIRECT_URI=`（可选；Compose 默认根据
+      `SKILLHUB_PUBLIC_BASE_URL` 生成 `/login/oauth2/code/feishu`，Helm/K8s 未设置时由
+      Spring 使用 `{baseUrl}`；经过特殊反向代理或本地动态端口时应显式设置完整回调 URL）
+
+    Lark 国际版、私有化部署或企业网关可分别覆盖这三个完整 endpoint；历史的
+    `OAUTH2_FEISHU_AUTHORIZE_URI` / `OAUTH2_FEISHU_BASE_URI` 仍可作为 base-URI
+    兼容回退。`OAUTH2_FEISHU_TOKEN_URI` 必须指向支持 JSON authorization-code
+    exchange 的 endpoint。`OAUTH2_FEISHU_PROTOCOL_VERSION` 只允许 `v2` 或 `v3`，
+    默认 `v3`，不会自动 fallback。
+
+  留空即不展示该入口，无需改配置文件。注意：飞书邮箱由企业管理员导入、未经用户
+  确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把
+  `skillhub.access-policy.mode` 设为 `EMAIL_DOMAIN`，该策略会拒绝所有未验证邮箱，
+  飞书登录将一律失败。启用飞书时请保留默认的 `OPEN` 或改用其他准入模式。
+
+  启用飞书前，使用一个测试租户完成一次真实回调验收。不要把真实 client secret
+  写入仓库、报告或聊天记录；只在受控的 `.env.release`、CI Secret 或 Kubernetes
+  Secret 中注入：
+
+  1. 在飞书自建应用中登记
+     `https://<公网域名>/login/oauth2/code/feishu`，并开启用户信息所需权限；如果使用
+     本地预览，则把 `OAUTH2_FEISHU_REDIRECT_URI` 设置为预览 Web 地址对应的完整回调 URL。
+  2. 在受控环境设置 `OAUTH2_FEISHU_CLIENT_ID`、`OAUTH2_FEISHU_CLIENT_SECRET`，确认
+     `OAUTH2_FEISHU_PROTOCOL_VERSION` 与 token endpoint 匹配，然后运行：
+
+     ```bash
+     make validate-release-config
+     docker compose --env-file .env.release -f compose.release.yml up -d
+     curl -fsS http://127.0.0.1:8080/actuator/health
+     curl -fsS http://127.0.0.1:8080/api/v1/auth/methods
+     ```
+
+  3. 在登录页选择“飞书”，确认浏览器跳转到配置的授权域名；完成授权后应回到
+     `/login/oauth2/code/feishu`，最终进入 `/` 或原始的 root-relative `returnTo`。
+  4. 用同一个飞书账号再次登录，确认仍绑定同一个 SkillHub 账号；再用已禁用的
+     SkillHub 账号登录，预期跳转 `/access-denied`，且不创建新 Session。
+  5. 检查日志中只有 provider、HTTP 状态、错误码和阶段信息，不应出现 client secret、
+     authorization code、access token、`open_id` 或上游错误文本：
+
+     ```bash
+     docker compose -f compose.release.yml logs --tail=200 server \
+       | rg -i 'client_secret|authorization code|access[_-]?token|open_id|secret|token'
+     ```
+
+  本地 mock 回调只能证明 SkillHub 与协议形状的集成，不能替代上述真实租户验收。
+  没有可用飞书租户时，应将该项记录为“未验证”，不要宣称 Feishu 登录已通过。
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 
 ## 8 OIDC 登录配置
