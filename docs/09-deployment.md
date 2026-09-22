@@ -317,6 +317,10 @@ services:
   - 钉钉：`OAUTH2_DINGTALK_CLIENT_ID` / `OAUTH2_DINGTALK_CLIENT_SECRET`
     （分别填应用的 AppKey 与 AppSecret）。在钉钉开发者后台登记
     `https://<公网域名>/login/oauth2/code/dingtalk`，并为用户信息接口开通所需权限。
+    同时将钉钉开发者后台的“服务器出口 IP”配置为实际运行 SkillHub 后端并调用
+    DingTalk API 的机器公网 IP；仅将回调域名或反向隧道服务器 IP 加入白名单并不能
+    改变本地后端的出站 IP。使用 SSH 反向隧道做本地预览时，应临时加入本机出站 IP，
+    或让后端出站流量经过已加入白名单的服务器；生产环境应只配置生产后端的固定出口 IP。
     `OAUTH2_DINGTALK_REDIRECT_URI` 可在动态端口或特殊反向代理场景显式覆盖；Compose
     默认根据 `SKILLHUB_PUBLIC_BASE_URL` 生成回调，Helm/K8s 未设置时由 Spring 使用
     `{baseUrl}`。国际版或网关场景可覆盖 `OAUTH2_DINGTALK_AUTHORIZE_URI` 与
@@ -370,10 +374,11 @@ services:
   OAUTH2_DINGTALK_REDIRECT_URI=https://<公网域名>/login/oauth2/code/dingtalk
   ```
 
-  登录请求必须包含 `scope=openid`，但配置文件不能声明 `openid` scope；实现会把
-  它仅写入外发授权 URL，避免 Spring 将回调路由到 OIDC。验收时应确认 token 请求为
-  JSON body，userinfo 请求使用 `x-acs-dingtalk-access-token`，重复登录仍绑定同一
-  `unionId`，且日志不出现 AppSecret、access token、unionId 或上游错误 body。
+  登录请求必须包含 `scope=openid` 和 `prompt=consent`，但配置文件不能声明 `openid`
+  scope；实现会把它们仅写入外发授权 URL，避免 Spring 将回调路由到 OIDC。验收时应
+  确认 token 请求为 JSON body，userinfo 请求使用 `x-acs-dingtalk-access-token`，重复
+  登录仍绑定同一 `unionId`。上游失败时日志只记录 HTTP 状态、错误码、requiredScopes
+  和 requestId，不记录 AppSecret、authorization code、access token、unionId 或完整错误正文。
   没有钉钉测试应用凭据时，这些只能标记为“协议测试通过、真实厂商往返未验证”。
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 
