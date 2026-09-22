@@ -4336,6 +4336,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listOrganizations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organizationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getOrganization"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{organizationId}/login-connections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listLoginConnections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -7065,6 +7113,113 @@ export interface components {
         ClawHubResolveResponse: {
             match?: components["schemas"]["VersionInfo"];
             latestVersion?: components["schemas"]["VersionInfo"];
+        };
+        ApiResponsePageResponseOrganizationSummaryResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["PageResponseOrganizationSummaryResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        OrganizationPermissionsResponse: {
+            canViewManagement?: boolean;
+            canViewRoles?: boolean;
+            canViewDomains?: boolean;
+            canViewMembers?: boolean;
+            canViewLoginConnections?: boolean;
+            canManageLoginConnections?: boolean;
+            canRotateLoginSecrets?: boolean;
+            canManageMembers?: boolean;
+            canViewAudit?: boolean;
+        };
+        OrganizationSummaryResponse: {
+            id?: string;
+            slug?: string;
+            displayName?: string;
+            status?: string;
+            /** Format: int64 */
+            authorityVersion?: number;
+            membershipId?: string;
+            /** Format: int64 */
+            membershipAuthorityVersion?: number;
+            roles?: string[];
+            /** Format: date-time */
+            memberSince?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            permissions?: components["schemas"]["OrganizationPermissionsResponse"];
+        };
+        PageResponseOrganizationSummaryResponse: {
+            items?: components["schemas"]["OrganizationSummaryResponse"][];
+            /** Format: int64 */
+            total?: number;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
+        };
+        ApiResponseOrganizationDetailResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["OrganizationDetailResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        OrganizationDetailResponse: {
+            id?: string;
+            slug?: string;
+            displayName?: string;
+            status?: string;
+            /** Format: int64 */
+            authorityVersion?: number;
+            membershipId?: string;
+            /** Format: int64 */
+            membershipAuthorityVersion?: number;
+            roles?: string[];
+            /** Format: date-time */
+            memberSince?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            permissions?: components["schemas"]["OrganizationPermissionsResponse"];
+        };
+        ApiResponsePageResponseLoginConnectionSummaryResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["PageResponseLoginConnectionSummaryResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        LoginConnectionSummaryResponse: {
+            id?: string;
+            publicHandle?: string;
+            displayName?: string;
+            status?: string;
+            adapterKey?: string;
+            activeRevisionId?: string;
+            lastTestedRevisionId?: string;
+            /** Format: date-time */
+            createdAt?: string;
+            /** Format: date-time */
+            updatedAt?: string;
+            /** Format: int64 */
+            version?: number;
+        };
+        PageResponseLoginConnectionSummaryResponse: {
+            items?: components["schemas"]["LoginConnectionSummaryResponse"][];
+            /** Format: int64 */
+            total?: number;
+            /** Format: int32 */
+            page?: number;
+            /** Format: int32 */
+            size?: number;
         };
         ApiResponseListAuthProviderResponse: {
             /** Format: int32 */
@@ -14930,6 +15085,76 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ClawHubResolveResponse"];
+                };
+            };
+        };
+    };
+    listOrganizations: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResponseOrganizationSummaryResponse"];
+                };
+            };
+        };
+    };
+    getOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOrganizationDetailResponse"];
+                };
+            };
+        };
+    };
+    listLoginConnections: {
+        parameters: {
+            query?: {
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponsePageResponseLoginConnectionSummaryResponse"];
                 };
             };
         };
