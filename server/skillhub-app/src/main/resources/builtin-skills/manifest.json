@@ -61,6 +61,12 @@
       "sha256": "67b2f34163874e56ba43a0a9ed3d1012d752615a1a80f0c26608a702d9fe394e"
     },
     {
+      "slug": "ledger-tasks-yylo",
+      "version": "1.0.0",
+      "url": "https://bjcdn.openstorage.cn/aicontest/2026-09-22/5fac3d84-44db-4b90-a707-a820a096a2a4.zip",
+      "sha256": "1b8aa3bb329a4f8551f7e262eb1faab1b1e3111b2b2053278aa2e6996099215b"
+    },
+    {
       "slug": "linkedin-post-formatter",
       "version": "1.0.0",
       "url": "https://bjcdn.openstorage.cn/open_res/xfyundoc/2026-07-31/4e19c89f-7fa2-44fa-a3bf-90ec959258c0/skillhub-builtin-skills/linkedin-post-formatter/1.0.0/171acf2d0574265b1ececa53759658aeb582aae4c859d4199b1ff322d65f8642.zip",
@@ -71,6 +77,12 @@
       "version": "1.0.0",
       "url": "https://bjcdn.openstorage.cn/open_res/xfyundoc/2026-07-31/6cf347a7-ccc5-4016-b4ca-6263959a1b08/skillhub-builtin-skills/meeting-note-summarizer/1.0.0/5add401203f323bc1cbb350f306d3a5d3f3b16c2ad6578e7cab55d2c196152ca.zip",
       "sha256": "5add401203f323bc1cbb350f306d3a5d3f3b16c2ad6578e7cab55d2c196152ca"
+    },
+    {
+      "slug": "orca-replay",
+      "version": "1.0.0",
+      "url": "https://bjcdn.openstorage.cn/aicontest/2026-09-22/2c7f87a4-b339-47f5-9a8e-f0ad1caad2c6.zip",
+      "sha256": "9184ae8bafab208fe468c9f6b5053ca76dd9e594a96ea57ff66cb370196dbd4b"
     },
     {
       "slug": "plugin-scanner",
