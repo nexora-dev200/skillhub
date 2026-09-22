@@ -110,6 +110,8 @@ helm -n skillhub upgrade -i skillhub ./charts/skillhub \
 | `skillhub-download-anon-cookie-secret` | 是 | 至少 32 字符的匿名下载 Cookie 签名密钥 |
 | `oauth2-github-client-id` | 否 | GitHub OAuth2 Client ID |
 | `oauth2-github-client-secret` | 否 | GitHub OAuth2 Client Secret |
+| `oauth2-dingtalk-client-id` | 否 | DingTalk AppKey |
+| `oauth2-dingtalk-client-secret` | 否 | DingTalk AppSecret |
 | `skill-scanner-llm-api-key` | 否 | Scanner LLM API Key |
 | `skill-scanner-llm-base-url` | 否 | Scanner 自定义 LLM API 地址 |
 | `skill-scanner-llm-model` | 否 | Scanner LLM 模型名称 |

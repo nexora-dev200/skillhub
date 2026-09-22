@@ -287,7 +287,8 @@ spring:
             client-secret: ${OAUTH2_DINGTALK_CLIENT_SECRET}
             # 故意不声明 scope：钉钉的授权端点要 scope=openid，但在这里声明会让
             # Spring 把该注册当成 OIDC 客户端并附加 nonce，而钉钉不接受 nonce。
-            # scope 由 DingTalkAuthorizationRequestCustomizer 在请求阶段补上。
+            # scope=openid 与 prompt=consent 由 DingTalkAuthorizationRequestCustomizer
+            # 在请求阶段补上。
             # 钉钉是 confidential client，只是由自定义 token client 把 secret 放进 JSON body。
             # 不使用 none，避免 Spring 自动添加本实现无法应答的 PKCE challenge。
             client-authentication-method: client_secret_post
@@ -315,7 +316,7 @@ Spring Security OAuth2 Client 原生支持多 Provider 并存，新增 Provider 
 
 | 偏离环节 | 策略接口 | 现有实现 |
 |---|---|---|
-| 授权请求参数 | `ProviderAuthorizationRequestCustomizer` | 钉钉补 `openid` scope |
+| 授权请求参数 | `ProviderAuthorizationRequestCustomizer` | 钉钉补 `scope=openid` 与 `prompt=consent` |
 | token 交换 | `ProviderTokenResponseClient` | 钉钉用 JSON body 而非表单 |
 | userinfo 加载 | `ProviderOAuth2UserService` | 飞书拆信封；钉钉用自定义 token header |
 
