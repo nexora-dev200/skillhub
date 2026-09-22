@@ -380,7 +380,7 @@ if [ "${REDIS_BIND_ADDRESS:-127.0.0.1}" != "127.0.0.1" ]; then
   warn "REDIS_BIND_ADDRESS is not 127.0.0.1; confirm Redis exposure is intended"
 fi
 
-for provider in GITHUB GITLAB FEISHU; do
+for provider in GITHUB GITLAB FEISHU DINGTALK; do
   eval "oauth_id=\"\${OAUTH2_${provider}_CLIENT_ID:-}\""
   eval "oauth_secret=\"\${OAUTH2_${provider}_CLIENT_SECRET:-}\""
   if [ -n "$oauth_id" ] && [ -z "$oauth_secret" ]; then
@@ -405,6 +405,15 @@ for feishu_endpoint in OAUTH2_FEISHU_AUTHORIZATION_URI OAUTH2_FEISHU_TOKEN_URI O
     validate_url "$feishu_endpoint"
   fi
 done
+
+for dingtalk_endpoint in OAUTH2_DINGTALK_AUTHORIZE_URI OAUTH2_DINGTALK_BASE_URI OAUTH2_DINGTALK_REDIRECT_URI; do
+  eval "dingtalk_endpoint_value=\${$dingtalk_endpoint:-}"
+  if [ -n "$dingtalk_endpoint_value" ]; then
+    validate_url "$dingtalk_endpoint"
+  fi
+done
+validate_no_trailing_slash OAUTH2_DINGTALK_AUTHORIZE_URI
+validate_no_trailing_slash OAUTH2_DINGTALK_BASE_URI
 
 if [ "$errors" -gt 0 ]; then
   echo "Release config validation failed: $errors error(s), $warnings warning(s)." >&2

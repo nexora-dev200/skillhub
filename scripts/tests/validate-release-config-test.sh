@@ -107,6 +107,27 @@ write_env "$invalid_feishu_redirect_env" "release-download-secret-32-bytes-minim
 printf '%s\n' "OAUTH2_FEISHU_REDIRECT_URI=https://skillhub.example.com/login/oauth2/code/feishu?bad=1" >>"$invalid_feishu_redirect_env"
 expect_fail "$invalid_feishu_redirect_env" "OAUTH2_FEISHU_REDIRECT_URI must not contain a query"
 
+valid_dingtalk_env="$tmp/valid-dingtalk.env"
+write_env "$valid_dingtalk_env" "release-download-secret-32-bytes-minimum"
+cat >>"$valid_dingtalk_env" <<'EOF'
+OAUTH2_DINGTALK_CLIENT_ID=ding-test
+OAUTH2_DINGTALK_CLIENT_SECRET=dingtalk-test-secret
+OAUTH2_DINGTALK_AUTHORIZE_URI=https://login.dingtalk.com
+OAUTH2_DINGTALK_BASE_URI=https://api.dingtalk.com
+OAUTH2_DINGTALK_REDIRECT_URI=https://skillhub.example.com/login/oauth2/code/dingtalk
+EOF
+"$SCRIPT" "$valid_dingtalk_env" >/dev/null
+
+invalid_dingtalk_base_env="$tmp/invalid-dingtalk-base.env"
+write_env "$invalid_dingtalk_base_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' "OAUTH2_DINGTALK_BASE_URI=https://api.dingtalk.com/" >>"$invalid_dingtalk_base_env"
+expect_fail "$invalid_dingtalk_base_env" "OAUTH2_DINGTALK_BASE_URI must not have a trailing slash"
+
+invalid_dingtalk_redirect_env="$tmp/invalid-dingtalk-redirect.env"
+write_env "$invalid_dingtalk_redirect_env" "release-download-secret-32-bytes-minimum"
+printf '%s\n' "OAUTH2_DINGTALK_REDIRECT_URI=https://skillhub.example.com/callback?bad=1" >>"$invalid_dingtalk_redirect_env"
+expect_fail "$invalid_dingtalk_redirect_env" "OAUTH2_DINGTALK_REDIRECT_URI must not contain a query"
+
 disabled_builtin_skills_env="$tmp/disabled-builtin-skills.env"
 write_env "$disabled_builtin_skills_env" "release-download-secret-32-bytes-minimum"
 printf '%s\n' "SKILLHUB_BUILTIN_SKILLS_ENABLED=false" >>"$disabled_builtin_skills_env"
@@ -292,7 +313,7 @@ expect_fail "$invalid_redis_sentinel_check_env" "SKILLHUB_REDIS_SENTINEL_CHECK_S
 
 # An OAuth client id without its secret (or vice versa) leaves the provider half-configured:
 # the login button renders but the exchange fails. Checked for every supported provider.
-for provider in GITHUB GITLAB FEISHU; do
+for provider in GITHUB GITLAB FEISHU DINGTALK; do
   missing_oauth_secret_env="$tmp/missing-oauth-secret.env"
   write_env "$missing_oauth_secret_env" "release-download-secret-32-bytes-minimum"
   printf 'OAUTH2_%s_CLIENT_ID=real-client-id\n' "$provider" >>"$missing_oauth_secret_env"

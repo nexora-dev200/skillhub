@@ -314,11 +314,22 @@ services:
     兼容回退。`OAUTH2_FEISHU_TOKEN_URI` 必须指向支持 JSON authorization-code
     exchange 的 endpoint。`OAUTH2_FEISHU_PROTOCOL_VERSION` 只允许 `v2` 或 `v3`，
     默认 `v3`，不会自动 fallback。
+  - 钉钉：`OAUTH2_DINGTALK_CLIENT_ID` / `OAUTH2_DINGTALK_CLIENT_SECRET`
+    （分别填应用的 AppKey 与 AppSecret）。在钉钉开发者后台登记
+    `https://<公网域名>/login/oauth2/code/dingtalk`，并为用户信息接口开通所需权限。
+    同时将钉钉开发者后台的“服务器出口 IP”配置为实际运行 SkillHub 后端并调用
+    DingTalk API 的机器公网 IP；仅将回调域名或反向隧道服务器 IP 加入白名单并不能
+    改变本地后端的出站 IP。使用 SSH 反向隧道做本地预览时，应临时加入本机出站 IP，
+    或让后端出站流量经过已加入白名单的服务器；生产环境应只配置生产后端的固定出口 IP。
+    `OAUTH2_DINGTALK_REDIRECT_URI` 可在动态端口或特殊反向代理场景显式覆盖；Compose
+    默认根据 `SKILLHUB_PUBLIC_BASE_URL` 生成回调，Helm/K8s 未设置时由 Spring 使用
+    `{baseUrl}`。国际版或网关场景可覆盖 `OAUTH2_DINGTALK_AUTHORIZE_URI` 与
+    `OAUTH2_DINGTALK_BASE_URI`。
 
-  留空即不展示该入口，无需改配置文件。注意：飞书邮箱由企业管理员导入、未经用户
-  确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把
+  留空即不展示该入口，无需改配置文件。注意：飞书和钉钉的邮箱都由企业管理员导入、
+  未经用户确认，因此 `emailVerified` 恒为 false；若在 `application.yml` 中把
   `skillhub.access-policy.mode` 设为 `EMAIL_DOMAIN`，该策略会拒绝所有未验证邮箱，
-  飞书登录将一律失败。启用飞书时请保留默认的 `OPEN` 或改用其他准入模式。
+  这两个入口的登录将一律失败。启用它们时请保留默认的 `OPEN` 或改用其他准入模式。
 
   启用飞书前，使用一个测试租户完成一次真实回调验收。不要把真实 client secret
   写入仓库、报告或聊天记录；只在受控的 `.env.release`、CI Secret 或 Kubernetes
@@ -351,6 +362,149 @@ services:
 
   本地 mock 回调只能证明 SkillHub 与协议形状的集成，不能替代上述真实租户验收。
   没有可用飞书租户时，应将该项记录为“未验证”，不要宣称 Feishu 登录已通过。
+
+  钉钉登录使用同样的验收边界，但协议配置不同：在钉钉开发者后台创建企业内部
+  H5 微应用，使用应用的 AppKey/AppSecret，进入“钉钉登录与分享”登记
+  `https://<公网域名>/login/oauth2/code/dingtalk`，并开通个人信息读取权限。
+  验收前设置：
+
+  ```dotenv
+  OAUTH2_DINGTALK_CLIENT_ID=<AppKey>
+  OAUTH2_DINGTALK_CLIENT_SECRET=<AppSecret>
+  OAUTH2_DINGTALK_REDIRECT_URI=https://<公网域名>/login/oauth2/code/dingtalk
+  ```
+
+  登录请求必须包含 `scope=openid` 和 `prompt=consent`，但配置文件不能声明 `openid`
+  scope；实现会把它们仅写入外发授权 URL，避免 Spring 将回调路由到 OIDC。验收时应
+  确认 token 请求为 JSON body，userinfo 请求使用 `x-acs-dingtalk-access-token`，重复
+  登录仍绑定同一 `unionId`。上游失败时日志只记录 HTTP 状态、错误码、requiredScopes
+  和 requestId，不记录 AppSecret、authorization code、access token、unionId 或完整错误正文。
+  没有钉钉测试应用凭据时，这些只能标记为“协议测试通过、真实厂商往返未验证”。
+
+### 7.1 钉钉配置示例
+
+以下示例中的 `AppKey`、`AppSecret`、公网地址和出口 IP 都必须替换为部署环境的真实值。
+不要把 `AppSecret` 提交到 Git、镜像或 HTML 报告。
+
+#### Docker Compose release
+
+在受保护的 `.env.release` 中设置：
+
+```dotenv
+# 浏览器访问地址，不带末尾斜杠
+SKILLHUB_PUBLIC_BASE_URL=https://skills.example.com
+SESSION_COOKIE_SECURE=true
+
+# 钉钉企业内部 H5 微应用
+OAUTH2_DINGTALK_CLIENT_ID=dingxxxxxxxx
+OAUTH2_DINGTALK_CLIENT_SECRET=<从密钥管理系统注入>
+OAUTH2_DINGTALK_REDIRECT_URI=https://skills.example.com/login/oauth2/code/dingtalk
+OAUTH2_DINGTALK_AUTHORIZE_URI=https://login.dingtalk.com
+OAUTH2_DINGTALK_BASE_URI=https://api.dingtalk.com
+OAUTH2_DINGTALK_DISPLAY_NAME=钉钉
+```
+
+启动和检查：
+
+```bash
+make validate-release-config
+docker compose --env-file .env.release -f compose.release.yml up -d
+curl -fsS http://127.0.0.1:8080/actuator/health
+curl -fsS http://127.0.0.1:8080/api/v1/auth/methods
+```
+
+钉钉后台必须同时配置：
+
+1. “钉钉登录与分享”回调 URL：与 `OAUTH2_DINGTALK_REDIRECT_URI` 完全一致。
+2. `Contact.User.Read` 个人信息读取权限，并将应用发布到当前版本。
+3. 服务器出口 IP：填写运行 SkillHub 后端并访问 `api.dingtalk.com` 的真实公网出口。
+4. 测试账号必须属于应用所属组织，并在应用可用范围内。
+
+#### Helm 私有化部署
+
+推荐使用 Kubernetes Secret，不把密钥写入 `values-production.yaml`：
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: skillhub-production-secret
+  namespace: skillhub
+type: Opaque
+stringData:
+  bootstrap-admin-password: "<固定随机密码>"
+  skillhub-download-anon-cookie-secret: "<至少32字符随机值>"
+  oauth2-dingtalk-client-id: "dingxxxxxxxx"
+  oauth2-dingtalk-client-secret: "<从密钥管理系统注入>"
+```
+
+`values-production.yaml` 只放非敏感配置：
+
+```yaml
+images:
+  registry: ghcr.io/iflytek
+  tag: <固定发布版本>
+  pullPolicy: IfNotPresent
+publicBaseUrl: https://skills.example.com
+session:
+  cookieSecure: true
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: skills.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - hosts:
+        - skills.example.com
+      secretName: skillhub-tls
+oauth2:
+  dingtalk:
+    authorizeBaseUri: https://login.dingtalk.com
+    apiBaseUri: https://api.dingtalk.com
+    redirectUri: https://skills.example.com/login/oauth2/code/dingtalk
+    displayName: 钉钉
+```
+
+安装或升级：
+
+```bash
+kubectl create namespace skillhub --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f skillhub-production-secret.yaml
+helm upgrade --install skillhub ./charts/skillhub \
+  --namespace skillhub \
+  -f values-production.yaml \
+  --set existingSecret=skillhub-production-secret
+```
+
+如果使用 Chart 自己创建 Secret，也可以在受保护的 values 文件中设置
+`secrets.oauth2DingtalkClientId` 和 `secrets.oauth2DingtalkClientSecret`；生产环境优先使用
+External Secrets、Sealed Secrets 或其他密钥注入方案。
+
+#### 原生 Kubernetes/Kustomize
+
+在 `deploy/k8s/base/secret.yaml.example` 对应的 Secret 中提供：
+
+```yaml
+stringData:
+  oauth2-dingtalk-client-id: dingxxxxxxxx
+  oauth2-dingtalk-client-secret: "<从密钥管理系统注入>"
+```
+
+再通过环境变量或 overlay 设置公开地址和回调：
+
+```yaml
+env:
+  - name: SKILLHUB_PUBLIC_BASE_URL
+    value: https://skills.example.com
+  - name: OAUTH2_DINGTALK_REDIRECT_URI
+    value: https://skills.example.com/login/oauth2/code/dingtalk
+```
+
+Kubernetes 集群节点或出口网关的公网 IP 必须加入钉钉服务器出口 IP 白名单。Ingress 只负责浏览器
+回调可达性，不会替代后端出站 IP 白名单。
 - 如果要启用密码重置验证码邮件，参见：`docs/19-smtp-password-reset-email-setup.md`
 
 ## 8 OIDC 登录配置

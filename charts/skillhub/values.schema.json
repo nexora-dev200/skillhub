@@ -37,7 +37,7 @@
     "oauth2": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["feishu"],
+      "required": ["feishu", "dingtalk"],
       "properties": {
         "feishu": {
           "type": "object",
@@ -49,6 +49,17 @@
             "tokenUri": { "type": "string", "format": "uri" },
             "userInfoUri": { "type": "string", "format": "uri" },
             "redirectUri": { "type": "string" }
+          }
+        },
+        "dingtalk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["authorizeBaseUri", "apiBaseUri", "redirectUri", "displayName"],
+          "properties": {
+            "authorizeBaseUri": { "type": "string", "format": "uri" },
+            "apiBaseUri": { "type": "string", "format": "uri" },
+            "redirectUri": { "type": "string" },
+            "displayName": { "type": "string", "minLength": 1 }
           }
         }
       }
@@ -177,6 +188,8 @@
         "oauth2GithubClientSecret": { "type": "string" },
         "oauth2FeishuClientId": { "type": "string" },
         "oauth2FeishuClientSecret": { "type": "string" },
+        "oauth2DingtalkClientId": { "type": "string" },
+        "oauth2DingtalkClientSecret": { "type": "string" },
         "scannerLlmApiKey": { "type": "string" },
         "scannerLlmBaseUrl": { "type": "string" },
         "scannerLlmModel": { "type": "string" }
