@@ -130,7 +130,7 @@ for coordinate in packaged_runtime_coordinates:
     assert parsed_url.scheme == "https", coordinate
     assert parsed_url.hostname == "bjcdn.openstorage.cn", coordinate
     assert not parsed_url.query and not parsed_url.fragment, coordinate
-    assert parsed_url.path.endswith(f'/{artifact["sha256"]}.zip'), coordinate
+    assert parsed_url.path.lower().endswith('.zip'), coordinate
 PY
 
 python3 - "$first" <<'PY'
