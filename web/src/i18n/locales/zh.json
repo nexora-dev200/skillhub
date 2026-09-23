@@ -348,7 +348,6 @@
     "organizationContinue": "查找登录方式",
     "organizationSearching": "查找中...",
     "organizationNotFound": "未找到可用的组织登录方式。请核对信息，或联系组织管理员。",
-    "methodsUnavailable": "暂时无法获取登录方式，请稍后重试。",
     "externalIdentityMethods": "外部身份源",
     "externalIdentityHint": "飞书、钉钉、GitHub、GitLab 等入口由服务端配置；登录后的账号归属由后端绑定和组织关系决定。",
     "tabPassword": "账号密码",

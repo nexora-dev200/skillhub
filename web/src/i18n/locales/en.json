@@ -348,7 +348,6 @@
     "organizationContinue": "Find sign-in methods",
     "organizationSearching": "Searching...",
     "organizationNotFound": "No organization sign-in method is available. Check your details or contact your administrator.",
-    "methodsUnavailable": "Sign-in methods are temporarily unavailable. Please try again.",
     "externalIdentityMethods": "External identity sources",
     "externalIdentityHint": "Feishu, DingTalk, GitHub, GitLab, and similar entries are advertised by the server. Account ownership is decided by backend binding and organization membership.",
     "tabPassword": "Password",

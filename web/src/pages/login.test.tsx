@@ -125,7 +125,18 @@ describe('LoginPage', () => {
     render(<LoginPage />)
 
     expect(screen.queryByRole('button', { name: 'login.tabEnterprise' })).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByLabelText('login.password').closest('[hidden]')).toBeNull()
+  })
+
+  it('keeps password login available without a warning when the method catalog fails', () => {
+    authMethodsFixture.methods = []
+    authMethodsFixture.isError = true
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'login.tabEnterprise' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'login.submit' })).toBeTruthy()
   })
 
   it('hides an unusable session bootstrap entry when the web runtime is not configured', () => {

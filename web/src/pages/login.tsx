@@ -31,7 +31,7 @@ export function LoginPage() {
   const [loginMode, setLoginMode] = useState<'personal' | 'organization'>('personal')
   const [fieldErrors, setFieldErrors] = useState<{ username?: string, password?: string }>({})
   const isChinese = i18n.resolvedLanguage?.split('-')[0] === 'zh'
-  const { data: authMethods, isLoading: authMethodsLoading, isError: authMethodsError } = useAuthMethods(search.returnTo)
+  const { data: authMethods, isLoading: authMethodsLoading } = useAuthMethods(search.returnTo)
 
   const returnTo = search.returnTo && search.returnTo.startsWith('/') ? search.returnTo : '/dashboard'
   const disabledMessage = search.reason === 'accountDisabled' ? t('apiError.auth.accountDisabled') : null
@@ -192,10 +192,6 @@ export function LoginPage() {
             />
             <p className="text-sm text-muted-foreground">{t('login.orgLoginHint')}</p>
           </div>
-        ) : null}
-
-        {authMethodsError ? (
-          <p role="alert" className="text-sm text-destructive">{t('login.methodsUnavailable')}</p>
         ) : null}
 
         {authMethodsLoading || hasExternalMethods ? (

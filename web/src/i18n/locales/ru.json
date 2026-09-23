@@ -348,7 +348,6 @@
     "organizationContinue": "Найти способы входа",
     "organizationSearching": "Поиск...",
     "organizationNotFound": "Способ входа для организации не найден. Проверьте данные или обратитесь к администратору.",
-    "methodsUnavailable": "Способы входа временно недоступны. Повторите попытку позже.",
     "externalIdentityMethods": "Внешние источники идентификации",
     "externalIdentityHint": "Feishu, DingTalk, GitHub, GitLab и похожие входы публикуются сервером. Принадлежность аккаунта определяют привязки и членство в организациях на backend.",
     "tabPassword": "Пароль",
