@@ -16,6 +16,10 @@ vi.mock('react-i18next', async () => {
   }
 })
 
+vi.mock('@/features/auth/auth-shell', () => ({
+  AuthShell: ({ children }: { children: unknown }) => children,
+}))
+
 vi.mock('@/features/auth/login-button', () => ({
   LoginButton: () => null,
 }))

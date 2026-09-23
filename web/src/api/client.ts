@@ -31,6 +31,7 @@ import type {
   PagedResponse,
   ReportDisposition,
   AuthMethod,
+  EnterpriseLoginDiscovery,
   OAuthProvider,
   User,
   ManagedNamespace,
@@ -360,6 +361,14 @@ export const authApi = {
         displayName: method.displayName,
         actionUrl: method.actionUrl,
       }))
+  },
+
+  async discoverEnterpriseLogin(identifier: string, returnTo?: string): Promise<EnterpriseLoginDiscovery> {
+    return fetchJson<EnterpriseLoginDiscovery>('/api/v1/auth/login-discovery', {
+      method: 'POST',
+      headers: await ensureCsrfHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ identifier, returnTo }),
+    })
   },
 
   async localLogin(request: LocalLoginRequest): Promise<User> {

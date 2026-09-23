@@ -7,13 +7,14 @@ import { useSessionBootstrap } from './use-session-bootstrap'
 interface SessionBootstrapEntryProps {
   onAuthenticated: () => Promise<void>
   methodDisplayName?: string
+  compact?: boolean
 }
 
 /**
  * Optional login entry that attempts to bootstrap a browser session from an upstream enterprise
  * identity before showing manual login choices.
  */
-export function SessionBootstrapEntry({ onAuthenticated, methodDisplayName }: SessionBootstrapEntryProps) {
+export function SessionBootstrapEntry({ onAuthenticated, methodDisplayName, compact = false }: SessionBootstrapEntryProps) {
   const { t } = useTranslation()
   const config = getSessionBootstrapRuntimeConfig()
   const bootstrapMutation = useSessionBootstrap()
@@ -46,6 +47,36 @@ export function SessionBootstrapEntry({ onAuthenticated, methodDisplayName }: Se
     && bootstrapMutation.error.status !== 403
     ? bootstrapMutation.error.message
     : null
+
+  if (compact) {
+    return (
+      <div className="space-y-3">
+        <Button
+          className="h-11 w-full rounded-xl bg-violet-600 text-white shadow-[0_10px_30px_-18px_rgb(124_58_237/0.75)] hover:bg-violet-700"
+          type="button"
+          disabled={bootstrapMutation.isPending}
+          onClick={() => {
+            void bootstrapMutation.mutateAsync(config.provider!, {
+              onSuccess: async () => {
+                await onAuthenticated()
+              },
+              onError: () => {
+                // Keep the page usable for other login methods.
+              },
+            })
+          }}
+        >
+          {bootstrapMutation.isPending
+            ? t('login.enterpriseSsoSubmitting', { name: providerName })
+            : t('login.enterpriseContinue')}
+        </Button>
+
+        {manualError ? (
+          <p className="text-sm text-red-600">{manualError}</p>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 space-y-3">

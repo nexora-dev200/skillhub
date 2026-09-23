@@ -23,6 +23,19 @@ export interface AuthMethod {
   actionUrl: string
 }
 
+export interface EnterpriseLoginDiscovery {
+  publicMethods: AuthMethod[]
+  organizations: Array<{
+    slug: string
+    displayName: string
+    loginOptions: Array<{
+      displayName: string
+      methodType: string
+      actionUrl: string
+    }>
+  }>
+}
+
 export type ApiToken = Omit<components['schemas']['TokenSummaryResponse'], 'id' | 'name' | 'tokenPrefix' | 'createdAt'> & {
   id: number
   name: string
