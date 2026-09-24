@@ -2380,6 +2380,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/organizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an organization with an initial owner */
+        post: operations["createOrganization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/namespaces/{slug}/unfreeze": {
         parameters: {
             query?: never;
@@ -5767,6 +5784,29 @@ export interface components {
             /** Format: int64 */
             id?: number;
             status?: string;
+        };
+        OrganizationCreateRequest: {
+            slug: string;
+            displayName: string;
+            initialOwnerUserId: string;
+        };
+        ApiResponseOrganizationCreateResponse: {
+            /** Format: int32 */
+            code?: number;
+            msg?: string;
+            data?: components["schemas"]["OrganizationCreateResponse"];
+            /** Format: date-time */
+            timestamp?: string;
+            requestId?: string;
+        };
+        OrganizationCreateResponse: {
+            id?: string;
+            slug?: string;
+            displayName?: string;
+            /** @enum {string} */
+            status?: "ACTIVE" | "SUSPENDED" | "DECOMMISSIONED";
+            /** Format: int64 */
+            authorityVersion?: number;
         };
         AdminNamespaceDetailResponse: {
             /** Format: int64 */
@@ -12018,6 +12058,30 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["ApiResponseProfileReviewMutationResponse"];
+                };
+            };
+        };
+    };
+    createOrganization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ApiResponseOrganizationCreateResponse"];
                 };
             };
         };
