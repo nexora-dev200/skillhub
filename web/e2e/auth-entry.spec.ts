@@ -118,7 +118,7 @@ test.describe('Auth Entry', () => {
     await expect.poll(() => loginPage.evaluate(async () => (await fetch('/api/v1/auth/me')).status)).toBe(401)
 
     await loginPage.getByLabel('Username').fill(username)
-    await loginPage.getByLabel('Password').fill(password)
+    await loginPage.getByLabel('Password', { exact: true }).fill(password)
     await loginPage.getByRole('button', { name: 'Login' }).click()
     await expect(loginPage).toHaveURL('/dashboard/tokens')
     await expect.poll(() => loginPage.evaluate(async () => (await fetch('/api/v1/auth/me')).status)).toBe(200)
@@ -128,7 +128,7 @@ test.describe('Auth Entry', () => {
     await setEnglishLocale(defaultLoginPage)
     await defaultLoginPage.goto('/login')
     await defaultLoginPage.getByLabel('Username').fill(username)
-    await defaultLoginPage.getByLabel('Password').fill(password)
+    await defaultLoginPage.getByLabel('Password', { exact: true }).fill(password)
     await defaultLoginPage.getByRole('button', { name: 'Login' }).click()
     await expect(defaultLoginPage).toHaveURL('/')
     await defaultLoginPage.close()
