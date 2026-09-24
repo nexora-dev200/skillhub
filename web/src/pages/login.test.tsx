@@ -4,7 +4,7 @@ import { afterEach } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 
 const authMethodsFixture = vi.hoisted(() => ({
-  methods: [{ id: 'organization', methodType: 'ENTERPRISE_DISCOVERY' }],
+  methods: [] as Array<{ id: string, methodType: string }>,
   bootstrapEnabled: false,
   isError: false,
   returnTo: '',
@@ -46,10 +46,6 @@ vi.mock('@/features/auth/auth-shell', () => ({
   AuthShell: ({ children }: { children: unknown }) => children,
 }))
 
-vi.mock('@/features/auth/enterprise-discovery-entry', () => ({
-  EnterpriseDiscoveryEntry: () => <p>organization discovery</p>,
-}))
-
 vi.mock('@/features/auth/login-button', () => ({
   AuthMethodButtonList: () => null,
   LoginButton: () => null,
@@ -85,7 +81,7 @@ import { LoginPage } from './login'
 describe('LoginPage', () => {
   afterEach(() => {
     cleanup()
-    authMethodsFixture.methods = [{ id: 'organization', methodType: 'ENTERPRISE_DISCOVERY' }]
+    authMethodsFixture.methods = []
     authMethodsFixture.bootstrapEnabled = false
     authMethodsFixture.isError = false
     authMethodsFixture.returnTo = ''
@@ -103,8 +99,7 @@ describe('LoginPage', () => {
     expect(html).toContain('login.title')
     expect(html).toContain('login.subtitle')
     expect(html).toContain('login.submit')
-    expect(html).toContain('login.tabPersonal')
-    expect(html).toContain('login.tabEnterprise')
+    expect(html).not.toContain('login.tabEnterprise')
     expect(html).toContain('login.register')
   })
 
@@ -125,7 +120,8 @@ describe('LoginPage', () => {
     await waitFor(() => expect(authMethodsFixture.navigate).toHaveBeenCalledWith({ to: '/skills?tab=mine' }))
   })
 
-  it('replaces the password form with organization discovery and can switch back', () => {
+  it('replaces the password form with configured session bootstrap and can switch back', () => {
+    authMethodsFixture.bootstrapEnabled = true
     render(<LoginPage />)
     const personal = screen.getByRole('button', { name: 'login.tabPersonal' })
     const organization = screen.getByRole('button', { name: 'login.tabEnterprise' })
@@ -136,15 +132,14 @@ describe('LoginPage', () => {
     fireEvent.click(organization)
     expect(organization.getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByLabelText('login.password').closest('[hidden]')).not.toBeNull()
-    expect(screen.getByText('organization discovery').closest('[hidden]')).toBeNull()
+    expect(screen.getByText('session bootstrap').closest('[hidden]')).toBeNull()
 
     fireEvent.click(personal)
     expect(screen.getByLabelText('login.password').closest('[hidden]')).toBeNull()
-    expect(screen.getByText('organization discovery').closest('[hidden]')).not.toBeNull()
+    expect(screen.getByText('session bootstrap').closest('[hidden]')).not.toBeNull()
   })
 
-  it('does not show an organization entry when the server does not advertise one', () => {
-    authMethodsFixture.methods = []
+  it('does not show an organization entry when bootstrap is not configured', () => {
     render(<LoginPage />)
 
     expect(screen.queryByRole('button', { name: 'login.tabEnterprise' })).toBeNull()

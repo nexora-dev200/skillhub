@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next'
 import { ArrowRight, Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react'
 import { getDirectAuthRuntimeConfig, getSessionBootstrapRuntimeConfig } from '@/api/client'
 import { AuthShell } from '@/features/auth/auth-shell'
-import { EnterpriseDiscoveryEntry } from '@/features/auth/enterprise-discovery-entry'
 import { AuthMethodButtonList } from '@/features/auth/login-button'
 import { SessionBootstrapEntry } from '@/features/auth/session-bootstrap-entry'
 import { useAuthMethods } from '@/features/auth/use-auth-methods'
@@ -40,8 +39,7 @@ export function LoginPage() {
       method.methodType === 'DIRECT_PASSWORD' && method.provider === directAuthConfig.provider)
     : undefined
   const bootstrapMethod = authMethods?.find((method) => method.methodType === 'SESSION_BOOTSTRAP')
-  const discoveryMethod = authMethods?.find((method) => method.methodType === 'ENTERPRISE_DISCOVERY')
-  const hasOrganizationMethod = Boolean(discoveryMethod || bootstrapConfig.enabled)
+  const hasOrganizationMethod = bootstrapConfig.enabled
   const hasExternalMethods = authMethods?.some((method) => method.methodType === 'OAUTH_REDIRECT')
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -177,14 +175,8 @@ export function LoginPage() {
         </form>
         </div>
 
-        {discoveryMethod ? (
-          <div hidden={loginMode !== 'organization'}>
-            <EnterpriseDiscoveryEntry returnTo={returnTo} />
-          </div>
-        ) : null}
-
         {bootstrapConfig.enabled ? (
-          <div hidden={loginMode !== 'organization' || Boolean(discoveryMethod)} className="space-y-2">
+          <div hidden={loginMode !== 'organization'} className="space-y-2">
             <SessionBootstrapEntry
               methodDisplayName={bootstrapMethod?.displayName}
               onAuthenticated={() => navigate({ to: returnTo })}

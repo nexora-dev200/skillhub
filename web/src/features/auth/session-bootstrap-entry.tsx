@@ -52,7 +52,7 @@ export function SessionBootstrapEntry({ onAuthenticated, methodDisplayName, comp
     return (
       <div className="space-y-3">
         <Button
-          className="h-11 w-full rounded-xl bg-violet-600 text-white shadow-[0_10px_30px_-18px_rgb(124_58_237/0.75)] hover:bg-violet-700"
+          className="h-11 w-full rounded-xl bg-[#315b86] text-white hover:bg-[#25496d] dark:bg-sky-300 dark:text-sky-950 dark:hover:bg-sky-200 xl:h-10"
           type="button"
           disabled={bootstrapMutation.isPending}
           onClick={() => {
