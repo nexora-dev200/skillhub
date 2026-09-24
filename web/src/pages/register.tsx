@@ -7,6 +7,7 @@ import { LoginButton } from '@/features/auth/login-button'
 import { useLocalRegister } from '@/features/auth/use-local-auth'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { resolveAuthReturnTo } from '@/shared/lib/auth-route'
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{3,64}$/
 const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/
@@ -60,7 +61,7 @@ export function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({})
   const [formError, setFormError] = useState<string | null>(null)
 
-  const returnTo = search.returnTo && search.returnTo.startsWith('/') ? search.returnTo : '/dashboard'
+  const returnTo = resolveAuthReturnTo(search.returnTo)
 
   function validateUsername(value: string) {
     const trimmed = value.trim()

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,12 +7,15 @@ const authMethodsFixture = vi.hoisted(() => ({
   methods: [{ id: 'organization', methodType: 'ENTERPRISE_DISCOVERY' }],
   bootstrapEnabled: false,
   isError: false,
+  returnTo: '',
+  navigate: vi.fn(),
+  mutateAsync: vi.fn(),
 }))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: unknown }) => children,
-  useNavigate: () => vi.fn(),
-  useSearch: () => ({ returnTo: '' }),
+  useNavigate: () => authMethodsFixture.navigate,
+  useSearch: () => ({ returnTo: authMethodsFixture.returnTo }),
 }))
 
 vi.mock('react-i18next', async () => {
@@ -62,7 +65,7 @@ vi.mock('@/features/auth/use-auth-methods', () => ({
 
 vi.mock('@/features/auth/use-password-login', () => ({
   usePasswordLogin: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: authMethodsFixture.mutateAsync,
     isPending: false,
     error: null,
   }),
@@ -85,6 +88,9 @@ describe('LoginPage', () => {
     authMethodsFixture.methods = [{ id: 'organization', methodType: 'ENTERPRISE_DISCOVERY' }]
     authMethodsFixture.bootstrapEnabled = false
     authMethodsFixture.isError = false
+    authMethodsFixture.returnTo = ''
+    authMethodsFixture.navigate.mockClear()
+    authMethodsFixture.mutateAsync.mockClear()
   })
 
   it('exports a named component function', () => {
@@ -100,6 +106,23 @@ describe('LoginPage', () => {
     expect(html).toContain('login.tabPersonal')
     expect(html).toContain('login.tabEnterprise')
     expect(html).toContain('login.register')
+  })
+
+  it('returns to the home page after direct login without an explicit destination', async () => {
+    render(<LoginPage />)
+    fireEvent.change(screen.getByLabelText('login.username'), { target: { value: 'user1' } })
+    fireEvent.change(screen.getByLabelText('login.password'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'login.submit' }))
+    await waitFor(() => expect(authMethodsFixture.navigate).toHaveBeenCalledWith({ to: '/' }))
+  })
+
+  it('returns to the original local page after direct login', async () => {
+    authMethodsFixture.returnTo = '/skills?tab=mine'
+    render(<LoginPage />)
+    fireEvent.change(screen.getByLabelText('login.username'), { target: { value: 'user1' } })
+    fireEvent.change(screen.getByLabelText('login.password'), { target: { value: 'password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'login.submit' }))
+    await waitFor(() => expect(authMethodsFixture.navigate).toHaveBeenCalledWith({ to: '/skills?tab=mine' }))
   })
 
   it('replaces the password form with organization discovery and can switch back', () => {

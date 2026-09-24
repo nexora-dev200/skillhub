@@ -4,7 +4,7 @@ import { Layout } from './layout'
 import { getCurrentUser } from '@/api/client'
 import { RoleGuard } from '@/shared/components/role-guard'
 import { RouteError } from '@/shared/components/route-error'
-import { createRequireAuth } from '@/shared/lib/auth-route'
+import { createRequireAuth, isSafeAuthReturnTo } from '@/shared/lib/auth-route'
 import { clearDynamicImportReloadGuard, recoverFromDynamicImportError } from '@/shared/lib/dynamic-import-recovery'
 import { normalizeSearchQuery } from '@/shared/lib/search-query'
 
@@ -245,7 +245,7 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
   validateSearch: (search: Record<string, unknown>): { returnTo?: string; reason?: string } => ({
-    returnTo: typeof search.returnTo === 'string' && search.returnTo ? search.returnTo : undefined,
+    returnTo: isSafeAuthReturnTo(search.returnTo) ? search.returnTo : undefined,
     reason: typeof search.reason === 'string' ? search.reason : undefined,
   }),
   component: LoginPage,
@@ -255,7 +255,7 @@ const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'register',
   validateSearch: (search: Record<string, unknown>) => ({
-    returnTo: typeof search.returnTo === 'string' ? search.returnTo : '',
+    returnTo: isSafeAuthReturnTo(search.returnTo) ? search.returnTo : '',
   }),
   component: RegisterPage,
 })

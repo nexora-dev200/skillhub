@@ -1,8 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 import { isRedirect } from '@tanstack/react-router'
-import { buildReturnTo, createRequireAuth } from './auth-route'
+import { buildReturnTo, createRequireAuth, resolveAuthReturnTo } from './auth-route'
 
 describe('auth-route', () => {
+  it('returns to the original local page or the home page, never an external URL', () => {
+    expect(resolveAuthReturnTo('/skills?tab=mine#latest')).toBe('/skills?tab=mine#latest')
+    expect(resolveAuthReturnTo(undefined)).toBe('/')
+    expect(resolveAuthReturnTo('//example.com')).toBe('/')
+    expect(resolveAuthReturnTo('/\\example.com')).toBe('/')
+    expect(resolveAuthReturnTo('https://example.com')).toBe('/')
+  })
+
   it('buildReturnTo preserves pathname search and hash', () => {
     expect(buildReturnTo({
       pathname: '/space/global/caldav-calendar',

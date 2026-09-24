@@ -11,6 +11,7 @@ import { useAuthMethods } from '@/features/auth/use-auth-methods'
 import { usePasswordLogin } from '@/features/auth/use-password-login'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
+import { resolveAuthReturnTo } from '@/shared/lib/auth-route'
 
 /**
  * Authentication entry page.
@@ -31,9 +32,8 @@ export function LoginPage() {
   const [loginMode, setLoginMode] = useState<'personal' | 'organization'>('personal')
   const [fieldErrors, setFieldErrors] = useState<{ username?: string, password?: string }>({})
   const isChinese = i18n.resolvedLanguage?.split('-')[0] === 'zh'
-  const { data: authMethods, isLoading: authMethodsLoading } = useAuthMethods(search.returnTo)
-
-  const returnTo = search.returnTo && search.returnTo.startsWith('/') ? search.returnTo : '/dashboard'
+  const returnTo = resolveAuthReturnTo(search.returnTo)
+  const { data: authMethods, isLoading: authMethodsLoading } = useAuthMethods(returnTo)
   const disabledMessage = search.reason === 'accountDisabled' ? t('apiError.auth.accountDisabled') : null
   const directMethod = directAuthConfig.provider
     ? authMethods?.find((method) =>
