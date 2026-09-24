@@ -40,7 +40,14 @@ function resolveAuthenticatedReturnTo(value: unknown) {
 
 export function createRedirectAuthenticated(getCurrentUser: () => Promise<unknown>) {
   return async function redirectAuthenticated({ search }: { search: { returnTo?: string } }) {
-    if (await getCurrentUser()) {
+    let user: unknown
+    try {
+      user = await getCurrentUser()
+    } catch {
+      // A failed status check must not make the login entry unavailable.
+      return
+    }
+    if (user) {
       throw redirect({ to: resolveAuthenticatedReturnTo(search.returnTo), replace: true })
     }
   }

@@ -86,6 +86,18 @@ test.describe('Auth Entry', () => {
     await expect(page.getByText('Sign in directly with your existing OAuth account')).toHaveCount(0)
   })
 
+  test('keeps the login form available when the session status check fails', async ({ page }) => {
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{"code":503,"msg":"Unavailable"}' })
+    })
+
+    await page.goto('/login')
+
+    await expect(page.getByLabel('Username')).toBeVisible()
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Login' })).toBeVisible()
+  })
+
   test('keeps configured session bootstrap available in the organization view', async ({ page }) => {
     await page.route('**/runtime-config.js', async (route) => {
       await route.fulfill({

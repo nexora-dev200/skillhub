@@ -62,6 +62,14 @@ describe('auth-route', () => {
     await expect(redirectAuthenticated({ search: { returnTo: '/dashboard/tokens' } })).resolves.toBeUndefined()
   })
 
+  it('keeps the login page available when the session status check fails', async () => {
+    const redirectAuthenticated = createRedirectAuthenticated(async () => {
+      throw new Error('Session status unavailable')
+    })
+
+    await expect(redirectAuthenticated({ search: { returnTo: '/dashboard/tokens' } })).resolves.toBeUndefined()
+  })
+
   it('redirects authenticated visitors to the requested local page', async () => {
     const redirectAuthenticated = createRedirectAuthenticated(async () => ({ userId: 'user-1' }))
 

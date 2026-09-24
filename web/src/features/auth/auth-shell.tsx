@@ -48,7 +48,7 @@ export function AuthShell({ children, className }: AuthShellProps) {
             <img src={withBasePath('/login-skill-art-dark.png')} alt="" width="1484" height="1060" className="hidden h-full w-full object-contain dark:block" />
           </div>
 
-          <p className="absolute bottom-9 left-12 z-10 text-[10px] font-medium uppercase leading-4 tracking-[0.28em] text-slate-500 dark:text-slate-400 2xl:left-16">Skills<br />Build<br />Together</p>
+          <p className="absolute bottom-9 left-12 z-10 whitespace-pre-line text-[10px] font-medium uppercase leading-4 tracking-[0.28em] text-slate-500 dark:text-slate-400 2xl:left-16">{t('authShell.shortTagline')}</p>
         </aside>
 
         <div className="flex min-h-svh items-start justify-center px-5 pb-8 pt-20 sm:px-10 xl:px-12 xl:py-24">

@@ -9,6 +9,7 @@ describe('AuthShell', () => {
     expect(html).toContain('dark:bg-slate-950')
     expect(html).toContain('sticky top-0 hidden h-svh')
     expect(html).toContain('authShell.heroTitle')
+    expect(html).toContain('authShell.shortTagline')
     expect(html).toContain('login-skill-art-light.png')
     expect(html).toContain('login-skill-art-dark.png')
     expect(html).toContain('authShell.backHome')
