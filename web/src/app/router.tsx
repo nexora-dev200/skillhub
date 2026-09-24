@@ -4,7 +4,7 @@ import { Layout } from './layout'
 import { getCurrentUser } from '@/api/client'
 import { RoleGuard } from '@/shared/components/role-guard'
 import { RouteError } from '@/shared/components/route-error'
-import { createRequireAuth, isSafeAuthReturnTo } from '@/shared/lib/auth-route'
+import { createRedirectAuthenticated, createRequireAuth, isSafeAuthReturnTo } from '@/shared/lib/auth-route'
 import { clearDynamicImportReloadGuard, recoverFromDynamicImportError } from '@/shared/lib/dynamic-import-recovery'
 import { normalizeSearchQuery } from '@/shared/lib/search-query'
 
@@ -228,6 +228,7 @@ const rootRoute = createRootRoute({
 })
 
 const requireAuth = createRequireAuth(getCurrentUser)
+const redirectAuthenticated = createRedirectAuthenticated(getCurrentUser)
 
 const landingRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -244,6 +245,7 @@ const skillsRoute = createRoute({
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: 'login',
+  beforeLoad: redirectAuthenticated,
   validateSearch: (search: Record<string, unknown>): { returnTo?: string; reason?: string } => ({
     returnTo: isSafeAuthReturnTo(search.returnTo) ? search.returnTo : undefined,
     reason: typeof search.reason === 'string' ? search.reason : undefined,

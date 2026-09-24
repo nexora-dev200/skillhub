@@ -25,6 +25,27 @@ export function resolveAuthReturnTo(value: unknown) {
   return isSafeAuthReturnTo(value) ? value : '/'
 }
 
+function resolveAuthenticatedReturnTo(value: unknown) {
+  const target = resolveAuthReturnTo(value)
+  try {
+    const pathname = decodeURIComponent(new URL(target, 'http://localhost').pathname)
+    if (/^\/(?:login|register)\/?$/i.test(pathname) || pathname.startsWith('//') || pathname.includes('\\')) {
+      return '/'
+    }
+  } catch {
+    return '/'
+  }
+  return target
+}
+
+export function createRedirectAuthenticated(getCurrentUser: () => Promise<unknown>) {
+  return async function redirectAuthenticated({ search }: { search: { returnTo?: string } }) {
+    if (await getCurrentUser()) {
+      throw redirect({ to: resolveAuthenticatedReturnTo(search.returnTo), replace: true })
+    }
+  }
+}
+
 export function createRequireAuth(getCurrentUser: () => Promise<unknown>) {
   return async function requireAuth({ location }: { location: RouteLocationLike }) {
     const user = await getCurrentUser()

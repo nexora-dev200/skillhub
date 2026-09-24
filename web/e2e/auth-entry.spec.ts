@@ -112,6 +112,13 @@ test.describe('Auth Entry', () => {
     await page.getByRole('button', { name: 'Register & Login' }).click()
     await expect(page).toHaveURL('/')
 
+    await page.goto('/login')
+    await expect(page).toHaveURL('/')
+    await page.goto('/login?returnTo=%2Fdashboard%2Ftokens%3Ftab%3Dactive%23latest')
+    await expect(page).toHaveURL('/dashboard/tokens?tab=active#latest')
+    await page.goto('/login?returnTo=%2Flogin')
+    await expect(page).toHaveURL('/')
+
     const loginPage = await browser.newPage()
     await setEnglishLocale(loginPage)
     await loginPage.goto('/login?returnTo=%2Fdashboard%2Ftokens')

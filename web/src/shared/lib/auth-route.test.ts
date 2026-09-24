@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { isRedirect } from '@tanstack/react-router'
-import { buildReturnTo, createRequireAuth, resolveAuthReturnTo } from './auth-route'
+import { buildReturnTo, createRedirectAuthenticated, createRequireAuth, resolveAuthReturnTo } from './auth-route'
 
 describe('auth-route', () => {
   it('returns to the original local page or the home page, never an external URL', () => {
@@ -54,5 +54,34 @@ describe('auth-route', () => {
       location: { pathname: '/dashboard' },
     })).resolves.toEqual({ user })
     expect(getCurrentUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps unauthenticated visitors on the login page', async () => {
+    const redirectAuthenticated = createRedirectAuthenticated(async () => null)
+
+    await expect(redirectAuthenticated({ search: { returnTo: '/dashboard/tokens' } })).resolves.toBeUndefined()
+  })
+
+  it('redirects authenticated visitors to the requested local page', async () => {
+    const redirectAuthenticated = createRedirectAuthenticated(async () => ({ userId: 'user-1' }))
+
+    await expect(redirectAuthenticated({ search: { returnTo: '/dashboard/tokens?tab=active#latest' } })).rejects.toSatisfy((error: unknown) => {
+      expect(isRedirect(error)).toBe(true)
+      if (!isRedirect(error)) return false
+      expect(error.options.to).toBe('/dashboard/tokens?tab=active#latest')
+      expect(error.options.replace).toBe(true)
+      return true
+    })
+  })
+
+  it.each([undefined, '//example.com', '/login', '/login?returnTo=%2Flogin', '/register'])('redirects authenticated visitors to home for unusable destinations (%s)', async (returnTo) => {
+    const redirectAuthenticated = createRedirectAuthenticated(async () => ({ userId: 'user-1' }))
+
+    await expect(redirectAuthenticated({ search: { returnTo } })).rejects.toSatisfy((error: unknown) => {
+      expect(isRedirect(error)).toBe(true)
+      if (!isRedirect(error)) return false
+      expect(error.options.to).toBe('/')
+      return true
+    })
   })
 })
