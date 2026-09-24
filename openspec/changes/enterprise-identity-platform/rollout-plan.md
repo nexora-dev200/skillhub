@@ -161,7 +161,7 @@ V54–V60 是一条已经联合验证的 expand-only 迁移链：
 
 1. 保持 R1-A 已验收的 identity core 模式。
 2. 注入 Secret keyring 和固定的 OIDC public base URI 等运行配置。
-3. 设置 `SKILLHUB_ENTERPRISE_OIDC_ENABLED=true`，只装配控制面。
+3. Organization 创建、成员与角色管理按自身权限开放，不依赖 OIDC 开关；需要配置和测试 OIDC Login Connection 时，设置 `SKILLHUB_ENTERPRISE_OIDC_ENABLED=true`。此开关在后续连接管理批次实现，不是本批 Organization 创建 API 的运行前提。
 4. 明确保持 `SKILLHUB_ENTERPRISE_OIDC_LOGIN_ENABLED=false`。
 5. 保持 `SKILLHUB_ENTERPRISE_ORGANIZATION_ALLOWLIST` 为空。
 6. 只创建测试 Organization，配置、测试并激活测试连接。
@@ -178,7 +178,7 @@ V54–V60 是一条已经联合验证的 expand-only 迁移链：
 
 #### 回滚
 
-设置 `SKILLHUB_ENTERPRISE_OIDC_ENABLED=false`，关闭控制面组件。已创建的 Organization、Connection、revision、Secret 和审计记录保留，不影响现有公共登录。
+设置 `SKILLHUB_ENTERPRISE_OIDC_ENABLED=false`，关闭 OIDC Login Connection 的配置、测试和激活等操作，而不是关闭 Organization 基础 API。现有成员范围的连接摘要仍可按组织权限读取。已创建的 Organization、Membership、Connection、revision、Secret 和审计记录保留，不影响现有公共登录或其他协议后续接入。
 
 ### 4.3 R1-C：动态 OIDC 登录数据面
 
@@ -224,7 +224,7 @@ V54–V60 是一条已经联合验证的 expand-only 迁移链：
 1. 从 Organization allowlist 移除受影响组织。
 2. 设置 `SKILLHUB_ENTERPRISE_OIDC_LOGIN_ENABLED=false`。
 3. 如问题位于统一身份核心，再将 `SKILLHUB_IDENTITY_CORE_MODE` 切回 `LEGACY`。
-4. 必要时最后关闭 `SKILLHUB_ENTERPRISE_OIDC_ENABLED` 控制面。
+4. 必要时最后关闭 `SKILLHUB_ENTERPRISE_OIDC_ENABLED` 所控制的 OIDC 连接配置操作；Organization 基础 API 不随之关闭。
 
 回滚不删除 Organization、Membership、Connection、External Identity、Session origin 或审计数据。
 

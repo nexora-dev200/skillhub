@@ -7,6 +7,7 @@ R1-B 的只读 Organization API 已合入，但平台管理员还不能创建测
 - 仅 `SUPER_ADMIN` 可创建 Organization，并指定一个已存在、ACTIVE、非系统、未合并的平台账号为初始 owner。
 - 在一个事务中创建 Organization、ACTIVE Membership、`ORG_OWNER` role binding 和组织审计记录。
 - 返回新组织的基本标识和状态；平台管理员不会自动取得该组织成员身份。
+- Organization 创建与成员权限属于协议无关的租户基础能力，不受未来的企业 OIDC 连接管理或登录开关控制。
 
 ## Non-goals
 

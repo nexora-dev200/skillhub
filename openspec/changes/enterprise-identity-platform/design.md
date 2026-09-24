@@ -180,7 +180,7 @@ OIDC client secret 不写入 typed configuration、API 响应、审计详情或�
 
 local login、公共 OAuth、Device Flow 和 API Token 的路由与响应保持不变。公共 OAuth 将已验证 facts 送入统一核心；身份核心支持 `LEGACY` 和 `ACTIVE` 模式。V54–V60 只做向前 schema/constraint/backfill，不删除旧表或旧 binding，因此回滚应用时无需执行 destructive down migration。
 
-动态企业 OIDC 把控制面装配开关、匿名登录数据面开关和 Organization allowlist 分开。控制面可以先启用来配置、探测和激活连接，同时保持匿名 discovery/start/callback 关闭；只有身份核心对目标 Organization 为 `ACTIVE`、登录数据面开启且 Organization 位于 allowlist 时，动态登录才可执行。身份核心切回 `LEGACY` 时公共 OAuth 完全走旧 binding。
+动态企业 OIDC 把连接管理开关、匿名登录数据面开关和 Organization allowlist 分开。Organization、Membership 和 Role 是协议无关的租户基础能力，不受 OIDC 开关控制。连接管理开关只控制 OIDC Login Connection 的配置、探测和激活等操作；成员范围的连接摘要读取仍按组织权限校验。连接管理可以先启用，同时保持匿名 discovery/start/callback 关闭；只有身份核心对目标 Organization 为 `ACTIVE`、登录数据面开启且 Organization 位于 allowlist 时，动态登录才可执行。身份核心切回 `LEGACY` 时公共 OAuth 完全走旧 binding。
 
 认证专属的 Login Connection、revision、Secret、External Identity、认证操作和 Session origin
 属于 `skillhub-auth` 安全边界。它们的聚合、Repository port 和 JPA adapter 在 auth 内闭合，

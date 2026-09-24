@@ -214,7 +214,7 @@ local login、公共 OAuth、CLI Device Flow 和 API Token SHALL 保留既有路
 
 ### Requirement: Dynamic enterprise OIDC is disabled by default
 
-动态企业 OIDC SHALL 仅在身份核心对目标 Organization 为 `ACTIVE`、OIDC 登录数据面开关启用且目标 Organization 位于 allowlist 时公开和执行；控制面开关只决定连接管理组件是否装配，不得隐式开放匿名登录。默认配置 SHALL 不改变现有登录。
+动态企业 OIDC SHALL 仅在身份核心对目标 Organization 为 `ACTIVE`、OIDC 登录数据面开关启用且目标 Organization 位于 allowlist 时公开和执行；连接管理开关只决定 OIDC 连接配置、测试和激活等操作是否可用，不得关闭 Organization 基础 API 或隐式开放匿名登录。默认配置 SHALL 不改变现有登录。
 
 #### Scenario: Global switch is disabled
 - **WHEN** operator 未开启动态企业 OIDC
