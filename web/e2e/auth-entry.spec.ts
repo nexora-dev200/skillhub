@@ -188,6 +188,7 @@ test.describe('Auth Entry', () => {
       expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.innerHeight + 2)
 
       await page.goto('/register')
+      await page.addStyleTag({ content: '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }' })
       const registerButton = page.getByRole('button', { name: 'Register & Login' })
       await expect(registerButton).toBeVisible()
       const registerButtonBox = await registerButton.boundingBox()
