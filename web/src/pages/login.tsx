@@ -2,7 +2,7 @@ import { Link, useNavigate, useSearch } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowRight, Eye, EyeOff, LockKeyhole, UserRound } from 'lucide-react'
-import { getDirectAuthRuntimeConfig, getSessionBootstrapRuntimeConfig } from '@/api/client'
+import { getSessionBootstrapRuntimeConfig } from '@/api/client'
 import { AuthShell } from '@/features/auth/auth-shell'
 import { AuthMethodButtonList } from '@/features/auth/login-button'
 import { SessionBootstrapEntry } from '@/features/auth/session-bootstrap-entry'
@@ -23,7 +23,6 @@ export function LoginPage() {
   const navigate = useNavigate()
   const search = useSearch({ from: '/login' })
   const loginMutation = usePasswordLogin()
-  const directAuthConfig = getDirectAuthRuntimeConfig()
   const bootstrapConfig = getSessionBootstrapRuntimeConfig()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -34,10 +33,6 @@ export function LoginPage() {
   const returnTo = resolveAuthReturnTo(search.returnTo)
   const { data: authMethods, isLoading: authMethodsLoading } = useAuthMethods(returnTo)
   const disabledMessage = search.reason === 'accountDisabled' ? t('apiError.auth.accountDisabled') : null
-  const directMethod = directAuthConfig.provider
-    ? authMethods?.find((method) =>
-      method.methodType === 'DIRECT_PASSWORD' && method.provider === directAuthConfig.provider)
-    : undefined
   const bootstrapMethod = authMethods?.find((method) => method.methodType === 'SESSION_BOOTSTRAP')
   const hasOrganizationMethod = bootstrapConfig.enabled
   const hasExternalMethods = authMethods?.some((method) => method.methodType === 'OAUTH_REDIRECT')
@@ -97,13 +92,6 @@ export function LoginPage() {
 
         <div hidden={loginMode !== 'personal'}>
         <form className="space-y-4" onSubmit={handleSubmit}>
-              {directAuthConfig.enabled ? (
-                <p className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
-                  {t('login.passwordCompatHint', {
-                    name: directMethod?.displayName ?? directAuthConfig.provider,
-                  })}
-                </p>
-              ) : null}
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="username">{t('login.username')}</label>
                 <div className="relative">

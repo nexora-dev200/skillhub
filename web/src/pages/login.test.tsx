@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest'
 const authMethodsFixture = vi.hoisted(() => ({
   methods: [] as Array<{ id: string, methodType: string }>,
   bootstrapEnabled: false,
+  directEnabled: false,
   isError: false,
   returnTo: '',
   navigate: vi.fn(),
@@ -38,7 +39,7 @@ vi.mock('lucide-react', () => ({
 }))
 
 vi.mock('@/api/client', () => ({
-  getDirectAuthRuntimeConfig: () => ({ enabled: false }),
+  getDirectAuthRuntimeConfig: () => ({ enabled: authMethodsFixture.directEnabled, provider: 'local' }),
   getSessionBootstrapRuntimeConfig: () => ({ enabled: authMethodsFixture.bootstrapEnabled, provider: 'proxy' }),
 }))
 
@@ -83,6 +84,7 @@ describe('LoginPage', () => {
     cleanup()
     authMethodsFixture.methods = []
     authMethodsFixture.bootstrapEnabled = false
+    authMethodsFixture.directEnabled = false
     authMethodsFixture.isError = false
     authMethodsFixture.returnTo = ''
     authMethodsFixture.navigate.mockClear()
@@ -101,6 +103,14 @@ describe('LoginPage', () => {
     expect(html).toContain('login.submit')
     expect(html).not.toContain('login.tabEnterprise')
     expect(html).toContain('login.register')
+  })
+
+  it('does not expose password routing details when direct login is configured', () => {
+    authMethodsFixture.directEnabled = true
+    const html = renderToStaticMarkup(<LoginPage />)
+
+    expect(html).toContain('login.submit')
+    expect(html).not.toContain('login.passwordCompatHint')
   })
 
   it('returns to the home page after direct login without an explicit destination', async () => {
