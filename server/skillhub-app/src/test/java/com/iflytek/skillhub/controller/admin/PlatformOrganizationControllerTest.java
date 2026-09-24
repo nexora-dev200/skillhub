@@ -1,6 +1,11 @@
 package com.iflytek.skillhub.controller.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -10,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.iflytek.skillhub.auth.device.DeviceAuthService;
 import com.iflytek.skillhub.auth.rbac.PlatformPrincipal;
+import com.iflytek.skillhub.domain.audit.AuditLogService;
 import com.iflytek.skillhub.domain.audit.AuditLog;
 import com.iflytek.skillhub.domain.organization.Organization;
 import com.iflytek.skillhub.domain.organization.OrganizationMembership;
@@ -17,6 +23,8 @@ import com.iflytek.skillhub.domain.organization.OrganizationRole;
 import com.iflytek.skillhub.domain.organization.OrganizationRoleBinding;
 import com.iflytek.skillhub.domain.user.UserAccount;
 import com.iflytek.skillhub.domain.user.UserStatus;
+import com.iflytek.skillhub.dto.OrganizationCreateRequest;
+import com.iflytek.skillhub.service.PlatformOrganizationCreateAppService;
 import jakarta.persistence.EntityManager;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,12 +35,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,6 +56,15 @@ class PlatformOrganizationControllerTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private PlatformOrganizationCreateAppService appService;
+
+    @SpyBean
+    private AuditLogService auditLogService;
 
     @MockBean
     private DeviceAuthService deviceAuthService;
@@ -185,6 +205,31 @@ class PlatformOrganizationControllerTest {
         assertThat(organizationCount()).isEqualTo(1);
     }
 
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void create_rollsBackAllWritesWhenAuditFails() {
+        transactionTemplate.executeWithoutResult(status -> persistUser("rollback-owner"));
+        long organizationsBefore = count("Organization");
+        long membershipsBefore = count("OrganizationMembership");
+        long rolesBefore = count("OrganizationRoleBinding");
+        long auditsBefore = count("AuditLog");
+
+        doThrow(new IllegalStateException("forced audit failure"))
+                .when(auditLogService).recordOrganizationCreated(
+                        eq("platform-admin"), anyString(), any());
+
+        assertThatThrownBy(() -> appService.create(
+                new OrganizationCreateRequest("rollback-team", "Rollback Team", "rollback-owner"),
+                "platform-admin"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("forced audit failure");
+
+        assertThat(count("Organization")).isEqualTo(organizationsBefore);
+        assertThat(count("OrganizationMembership")).isEqualTo(membershipsBefore);
+        assertThat(count("OrganizationRoleBinding")).isEqualTo(rolesBefore);
+        assertThat(count("AuditLog")).isEqualTo(auditsBefore);
+    }
+
     private UserAccount persistUser(String userId) {
         UserAccount user = new UserAccount(userId, userId, userId + "@example.com", "");
         entityManager.persist(user);
@@ -195,6 +240,11 @@ class PlatformOrganizationControllerTest {
     private long organizationCount() {
         entityManager.flush();
         return entityManager.createQuery("select count(o) from Organization o", Long.class)
+                .getSingleResult();
+    }
+
+    private long count(String entityName) {
+        return entityManager.createQuery("select count(e) from " + entityName + " e", Long.class)
                 .getSingleResult();
     }
 

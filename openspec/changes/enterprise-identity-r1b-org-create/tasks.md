@@ -6,6 +6,6 @@
 
 ## Verification
 
-- [x] 集成测试覆盖成功、仅 owner 可进入组织详情、非管理员、禁用/不存在 owner 和重复 slug。
+- [x] 集成测试覆盖成功、仅 owner 可进入组织详情、非管理员、禁用/不存在 owner、重复 slug，以及审计失败时四类写入的事务回滚。
 - [x] 完整后端测试、Web typecheck/lint 和 OpenSpec strict validation 通过。
-- [ ] 检查最终 diff、敏感信息、精确 SHA 与预览环境；经人工评审后再提 PR/合并。
+- [ ] 核对 PR 最终 diff、敏感信息、精确 SHA 与预览环境；完成评审和合并前验收。
