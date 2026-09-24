@@ -164,7 +164,7 @@ test.describe('Auth Entry', () => {
       await page.getByRole('button', { name: 'Personal login' }).click()
       await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
 
-      const themeSwitch = page.getByRole('switch', { name: 'Dark mode' })
+      const themeSwitch = page.getByRole('switch', { name: 'Dark theme' })
       if (await themeSwitch.getAttribute('aria-checked') === 'true') await themeSwitch.click()
       const lightArtwork = page.locator('img[src$="/login-skill-art-light.png"]')
       const darkArtwork = page.locator('img[src$="/login-skill-art-dark.png"]')
