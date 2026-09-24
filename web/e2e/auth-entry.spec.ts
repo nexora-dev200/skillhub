@@ -96,6 +96,100 @@ test.describe('Auth Entry', () => {
     await expect(page.getByLabel('Username')).toBeVisible()
     await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Login' })).toBeVisible()
+
+    await page.goto('/dashboard/tokens')
+    await expect(page.getByRole('heading', { name: 'Something went wrong' })).toBeVisible()
+    await expect(page.getByLabel('Password', { exact: true })).toHaveCount(0)
+  })
+
+  test('routes configured direct password login to the direct endpoint', async ({ page }) => {
+    let directRequests = 0
+    let localRequests = 0
+    await page.route('**/runtime-config.js', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/javascript',
+        body: 'window.__SKILLHUB_RUNTIME_CONFIG__ = { authDirectEnabled: "true", authDirectProvider: "local" }',
+      })
+    })
+    await page.route('**/api/v1/auth/direct/login', async (route) => {
+      directRequests += 1
+      expect(route.request().method()).toBe('POST')
+      expect(route.request().postDataJSON()).toEqual({ provider: 'local', username: 'direct-demo', password: 'Valid1!pass' })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 0, msg: 'ok', data: { userId: 'direct-demo', username: 'direct-demo', displayName: 'Direct Demo', platformRoles: [] } }),
+      })
+    })
+    await page.route('**/api/v1/auth/local/login', async (route) => {
+      localRequests += 1
+      await route.abort()
+    })
+
+    await page.goto('/login')
+    await page.getByLabel('Username').fill('direct-demo')
+    await page.getByLabel('Password', { exact: true }).fill('Valid1!pass')
+    await page.getByRole('button', { name: 'Login' }).click()
+
+    await expect(page).toHaveURL('/')
+    expect(directRequests).toBe(1)
+    expect(localRequests).toBe(0)
+  })
+
+  test('keeps the desktop layout stable across theme and login-mode changes', async ({ page }, testInfo) => {
+    await page.route('**/runtime-config.js', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/javascript',
+        body: 'window.__SKILLHUB_RUNTIME_CONFIG__ = { authSessionBootstrapEnabled: "true", authSessionBootstrapProvider: "proxy", authSessionBootstrapAuto: "false" }',
+      })
+    })
+
+    for (const viewport of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) {
+      await page.setViewportSize(viewport)
+      await page.goto('/login')
+      await page.addStyleTag({ content: '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }' })
+      const title = page.getByRole('heading', { name: 'Login to SkillHub' })
+      const registerLink = page.getByRole('link', { name: 'Sign up now' })
+      await expect(title).toBeVisible()
+      await expect(registerLink).toBeVisible()
+
+      const before = await title.boundingBox()
+      await page.getByRole('button', { name: 'Organization login' }).click()
+      await expect(page.getByRole('button', { name: 'Log in with work account' })).toBeVisible()
+      const after = await title.boundingBox()
+      expect(before && after && Math.abs(before.y - after.y)).toBeLessThan(2)
+      await expect(registerLink).toBeVisible()
+      await page.getByRole('button', { name: 'Personal login' }).click()
+      await expect(page.getByLabel('Password', { exact: true })).toBeVisible()
+
+      const themeSwitch = page.getByRole('switch', { name: 'Dark mode' })
+      if (await themeSwitch.getAttribute('aria-checked') === 'true') await themeSwitch.click()
+      await expect(page.locator('img[src$="/login-skill-art-light.png"]')).toBeVisible()
+      await expect(page.locator('img[src$="/login-skill-art-dark.png"]')).toBeHidden()
+      await page.screenshot({ path: testInfo.outputPath(`login-${viewport.width}-light.png`) })
+      await themeSwitch.click()
+      await expect(page.locator('img[src$="/login-skill-art-dark.png"]')).toBeVisible()
+      await expect(page.locator('img[src$="/login-skill-art-light.png"]')).toBeHidden()
+      await page.screenshot({ path: testInfo.outputPath(`login-${viewport.width}-dark.png`) })
+
+      const dimensions = await page.evaluate(() => ({
+        scrollHeight: document.documentElement.scrollHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        innerHeight: window.innerHeight,
+        innerWidth: window.innerWidth,
+      }))
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 2)
+      expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.innerHeight + 2)
+    }
+
+    await page.getByRole('button', { name: 'English' }).click()
+    await page.getByRole('menuitem', { name: '中文' }).click()
+    await expect(page.getByText(/让技能\s*连接团队/)).toBeVisible()
+    await page.getByRole('button', { name: '中文' }).click()
+    await page.getByRole('menuitem', { name: 'Русский' }).click()
+    await expect(page.getByText(/Навыки\s*объединяют\s*команду/)).toBeVisible()
   })
 
   test('keeps configured session bootstrap available in the organization view', async ({ page }) => {
