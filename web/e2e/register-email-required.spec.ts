@@ -26,7 +26,9 @@ test.describe('Register Email Required (Real API)', () => {
     await page.getByLabel('Password').fill(user.password)
     await page.getByRole('button', { name: 'Register & Login' }).click()
 
-    await expect(page).toHaveURL('/dashboard')
+    await expect(page).toHaveURL('/')
+    const sessionResponse = await page.request.get('/api/v1/auth/me')
+    expect(sessionResponse.status()).toBe(200)
   })
 
   test('shows required validation when email is missing', async ({ page }) => {

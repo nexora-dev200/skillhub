@@ -13,7 +13,7 @@ import { syncDocumentLanguage } from '@/shared/lib/document-language'
 import { DashboardSidebar, SIDEBAR_GROUPS } from '@/pages/dashboard'
 import { canViewGovernanceCenter } from '@/shared/lib/governance-access'
 import { getAppHeaderClassName } from './layout-header-style'
-import { getAppMainContentLayout, resolveAppMainContentPathname } from './layout-main-content'
+import { AUTH_ENTRY_PATHS, SPLIT_AUTH_PATHS, getAppMainContentLayout, resolveAppMainContentPathname } from './layout-main-content'
 
 const FOOTER_LINK_CLASS_NAME = 'group relative inline-flex py-0.5 transition-colors duration-150 hover:text-foreground focus-visible:outline-none focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-secondary after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:origin-left after:scale-x-0 after:bg-foreground/60 after:transition-transform after:duration-200 hover:after:scale-x-100 motion-reduce:after:transition-none'
 
@@ -37,6 +37,8 @@ export function Layout() {
   const previousPathnameRef = useRef(pathname)
   const contentLayoutPathname = resolveAppMainContentPathname(pathname, resolvedPathname)
   const mainContentLayout = getAppMainContentLayout(contentLayoutPathname)
+  const isAuthEntryRoute = AUTH_ENTRY_PATHS.includes(contentLayoutPathname as typeof AUTH_ENTRY_PATHS[number])
+  const isSplitAuthRoute = SPLIT_AUTH_PATHS.includes(contentLayoutPathname as typeof SPLIT_AUTH_PATHS[number])
   const isDashboardSubRoute = pathname !== '/dashboard' && pathname.startsWith('/dashboard')
   const showSidebar = (isDashboardSubRoute && pathname !== '/dashboard/publish') || pathname.startsWith('/settings/')
   const governanceVisible = canViewGovernanceCenter(user?.platformRoles)
@@ -113,63 +115,72 @@ export function Layout() {
       </div>
 
       {/* Header */}
-      <header className={getAppHeaderClassName(isHeaderElevated)} style={{ borderColor: 'hsl(var(--border))' }}>
-        <Link to="/" className="text-xl font-semibold tracking-tight flex-shrink-0" style={{ color: 'hsl(var(--foreground))' }}>
-          SkillHub
-        </Link>
+      <header
+        className={isSplitAuthRoute ? 'absolute right-5 top-4 z-50 flex items-center sm:right-10' : getAppHeaderClassName(isHeaderElevated)}
+        style={isSplitAuthRoute ? undefined : { borderColor: 'hsl(var(--border))' }}
+      >
+        {!isSplitAuthRoute ? (
+          <Link to="/" className="text-xl font-semibold tracking-tight flex-shrink-0" style={{ color: 'hsl(var(--foreground))' }}>
+            SkillHub
+          </Link>
+        ) : null}
 
         {/* Desktop nav — lg+ only */}
-        <nav className="hidden lg:flex items-center gap-5 text-[15px] font-normal" style={{ color: 'hsl(var(--text-secondary))' }}>
-          {navItems.map((item) => {
-            if (item.auth && !user) return null
-            const active = isActive(item.to, item.exact)
+        {!isAuthEntryRoute ? (
+          <nav className="hidden lg:flex items-center gap-5 text-[15px] font-normal" style={{ color: 'hsl(var(--text-secondary))' }}>
+            {navItems.map((item) => {
+              if (item.auth && !user) return null
+              const active = isActive(item.to, item.exact)
 
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={
-                  active
-                    ? 'px-4 py-1.5 rounded-full text-sm font-medium bg-foreground text-background shadow-[0_1px_2px_0_rgb(0_0_0/0.12)]'
-                    : 'px-4 py-1.5 rounded-full text-sm font-medium hover:opacity-90 transition-opacity duration-150'
-                }
-                style={active ? undefined : { color: 'hsl(var(--foreground) / 0.65)' }}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-        </nav>
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={
+                    active
+                      ? 'px-4 py-1.5 rounded-full text-sm font-medium bg-foreground text-background shadow-[0_1px_2px_0_rgb(0_0_0/0.12)]'
+                      : 'px-4 py-1.5 rounded-full text-sm font-medium hover:opacity-90 transition-opacity duration-150'
+                  }
+                  style={active ? undefined : { color: 'hsl(var(--foreground) / 0.65)' }}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+          </nav>
+        ) : null}
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0" style={{ color: 'hsl(var(--text-secondary))' }}>
           {/* Hamburger — visible below lg */}
-          <button
-            type="button"
-            className="lg:hidden inline-flex items-center justify-center rounded-lg p-2 hover:bg-accent transition-colors"
-            onClick={() => setMobileMenuOpen((prev) => !prev)}
-            aria-expanded={mobileMenuOpen}
-            aria-label={t(mobileMenuOpen ? 'layout.closeNavigation' : 'layout.openNavigation')}
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
+          {!isAuthEntryRoute ? (
+            <button
+              type="button"
+              className="lg:hidden inline-flex items-center justify-center rounded-lg p-2 hover:bg-accent transition-colors"
+              onClick={() => setMobileMenuOpen((prev) => !prev)}
+              aria-expanded={mobileMenuOpen}
+              aria-label={t(mobileMenuOpen ? 'layout.closeNavigation' : 'layout.openNavigation')}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          ) : null}
           <ThemeToggle />
           <LanguageSwitcher />
           {user && <NotificationBell />}
           {isLoading ? null : user ? (
             <UserMenu user={user} />
-          ) : (
+          ) : !isAuthEntryRoute ? (
             <Link
               to="/login"
               className="hover:opacity-80 transition-opacity"
             >
               {t('nav.login')}
             </Link>
-          )}
+          ) : null}
         </div>
       </header>
 
       {/* Mobile nav dropdown */}
-      {mobileMenuOpen ? (
+      {mobileMenuOpen && !isAuthEntryRoute ? (
         <div className="lg:hidden sticky top-[52px] z-40 border-b border-border bg-background/95 backdrop-blur-xl">
           <nav className="flex flex-col px-4 py-3 gap-1">
             {navItems.map((item) => {
@@ -219,6 +230,7 @@ export function Layout() {
       </main>
 
       {/* Footer */}
+      {!isAuthEntryRoute ? (
       <footer className="relative z-10 mt-auto border-t bg-secondary/70" style={{ borderColor: 'hsl(var(--border))' }}>
         <div className="mx-auto max-w-6xl px-6 py-12 md:px-12 md:py-16">
           <div className="grid grid-cols-2 gap-8 md:grid-cols-5">
@@ -273,6 +285,7 @@ export function Layout() {
           </div>
         </div>
       </footer>
+      ) : null}
     </div>
   )
 }
