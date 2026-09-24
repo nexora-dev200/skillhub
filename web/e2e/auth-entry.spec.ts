@@ -166,11 +166,15 @@ test.describe('Auth Entry', () => {
 
       const themeSwitch = page.getByRole('switch', { name: 'Dark mode' })
       if (await themeSwitch.getAttribute('aria-checked') === 'true') await themeSwitch.click()
-      await expect(page.locator('img[src$="/login-skill-art-light.png"]')).toBeVisible()
+      const lightArtwork = page.locator('img[src$="/login-skill-art-light.png"]')
+      const darkArtwork = page.locator('img[src$="/login-skill-art-dark.png"]')
+      await expect(lightArtwork).toBeVisible()
+      await expect.poll(() => lightArtwork.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
       await expect(page.locator('img[src$="/login-skill-art-dark.png"]')).toBeHidden()
       await page.screenshot({ path: testInfo.outputPath(`login-${viewport.width}-light.png`) })
       await themeSwitch.click()
-      await expect(page.locator('img[src$="/login-skill-art-dark.png"]')).toBeVisible()
+      await expect(darkArtwork).toBeVisible()
+      await expect.poll(() => darkArtwork.evaluate((image) => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
       await expect(page.locator('img[src$="/login-skill-art-light.png"]')).toBeHidden()
       await page.screenshot({ path: testInfo.outputPath(`login-${viewport.width}-dark.png`) })
 
@@ -182,6 +186,21 @@ test.describe('Auth Entry', () => {
       }))
       expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth + 2)
       expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.innerHeight + 2)
+
+      await page.goto('/register')
+      const registerButton = page.getByRole('button', { name: 'Register & Login' })
+      await expect(registerButton).toBeVisible()
+      const registerButtonBox = await registerButton.boundingBox()
+      expect(registerButtonBox && registerButtonBox.y + registerButtonBox.height).toBeLessThanOrEqual(viewport.height + 2)
+      const registerDimensions = await page.evaluate(() => ({
+        scrollHeight: document.documentElement.scrollHeight,
+        scrollWidth: document.documentElement.scrollWidth,
+        innerHeight: window.innerHeight,
+        innerWidth: window.innerWidth,
+      }))
+      expect(registerDimensions.scrollWidth).toBeLessThanOrEqual(registerDimensions.innerWidth + 2)
+      expect(registerDimensions.scrollHeight).toBeLessThanOrEqual(registerDimensions.innerHeight + 2)
+      await page.screenshot({ path: testInfo.outputPath(`register-${viewport.width}-dark.png`) })
     }
 
     await page.getByRole('button', { name: 'English' }).click()
