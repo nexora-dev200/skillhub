@@ -53,6 +53,21 @@ test.describe('Auth Entry', () => {
     await expect(page.getByRole('button', { name: 'Organization login' })).toHaveCount(0)
   })
 
+  test('keeps registration usable without configured OAuth methods', async ({ page }) => {
+    await page.route('**/api/v1/auth/methods*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 0, msg: 'ok', data: [] }),
+      })
+    })
+
+    await page.goto('/register')
+
+    await expect(page.getByRole('button', { name: 'Register & Login' })).toBeVisible()
+    await expect(page.getByText('Sign in directly with your existing OAuth account')).toHaveCount(0)
+  })
+
   test('keeps configured session bootstrap available in the organization view', async ({ page }) => {
     await page.route('**/runtime-config.js', async (route) => {
       await route.fulfill({

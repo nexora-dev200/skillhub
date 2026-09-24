@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const authMethodsFixture = vi.hoisted(() => ({
+  methods: [] as Array<{ id: string, methodType: string }>,
+  isLoading: false,
+}))
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: unknown }) => children,
   useNavigate: () => vi.fn(),
@@ -21,7 +26,11 @@ vi.mock('@/features/auth/auth-shell', () => ({
 }))
 
 vi.mock('@/features/auth/login-button', () => ({
-  LoginButton: () => null,
+  AuthMethodButtonList: () => <span>OAuth buttons</span>,
+}))
+
+vi.mock('@/features/auth/use-auth-methods', () => ({
+  useAuthMethods: () => ({ data: authMethodsFixture.methods, isLoading: authMethodsFixture.isLoading }),
 }))
 
 vi.mock('@/features/auth/use-local-auth', () => ({
@@ -69,5 +78,15 @@ describe('RegisterPage', () => {
     expect(html).toContain('register.title')
     expect(html).toContain('register.subtitle')
     expect(html).toContain('register.submit')
+    expect(html).not.toContain('register.oauthHint')
+  })
+
+  it('shows OAuth entry only when providers are advertised', () => {
+    authMethodsFixture.methods = [{ id: 'github', methodType: 'OAUTH_REDIRECT' }]
+    const html = renderToStaticMarkup(<RegisterPage />)
+
+    expect(html).toContain('register.oauthHint')
+    expect(html).toContain('OAuth buttons')
+    authMethodsFixture.methods = []
   })
 })

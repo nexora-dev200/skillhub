@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ApiError } from '@/api/client'
 import { AuthShell } from '@/features/auth/auth-shell'
-import { LoginButton } from '@/features/auth/login-button'
+import { AuthMethodButtonList } from '@/features/auth/login-button'
+import { useAuthMethods } from '@/features/auth/use-auth-methods'
 import { useLocalRegister } from '@/features/auth/use-local-auth'
 import { Button } from '@/shared/ui/button'
 import { Input } from '@/shared/ui/input'
@@ -62,6 +63,8 @@ export function RegisterPage() {
   const [formError, setFormError] = useState<string | null>(null)
 
   const returnTo = resolveAuthReturnTo(search.returnTo)
+  const { data: authMethods, isLoading: authMethodsLoading } = useAuthMethods(returnTo)
+  const hasExternalMethods = authMethods?.some((method) => method.methodType === 'OAUTH_REDIRECT')
 
   function validateUsername(value: string) {
     const trimmed = value.trim()
@@ -262,12 +265,14 @@ export function RegisterPage() {
           </p>
         </form>
 
-        <div className="space-y-3 border-t border-border/70 pt-5">
-          <p className="text-sm text-muted-foreground">
-            {t('register.oauthHint')}
-          </p>
-          <LoginButton returnTo={returnTo} compact />
-        </div>
+        {authMethodsLoading || hasExternalMethods ? (
+          <div className="space-y-3 border-t border-border/70 pt-5">
+            <p className="text-sm text-muted-foreground">
+              {t('register.oauthHint')}
+            </p>
+            <AuthMethodButtonList methods={authMethods} isLoading={authMethodsLoading} compact />
+          </div>
+        ) : null}
       </div>
     </AuthShell>
   )

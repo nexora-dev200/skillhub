@@ -8,6 +8,10 @@ describe('auth-route', () => {
     expect(resolveAuthReturnTo(undefined)).toBe('/')
     expect(resolveAuthReturnTo('//example.com')).toBe('/')
     expect(resolveAuthReturnTo('/\\example.com')).toBe('/')
+    expect(resolveAuthReturnTo('/\n/evil.example')).toBe('/')
+    expect(resolveAuthReturnTo('/\t/evil.example')).toBe('/')
+    expect(resolveAuthReturnTo('/\r/evil.example')).toBe('/')
+    expect(resolveAuthReturnTo('/\u007fevil.example')).toBe('/')
     expect(resolveAuthReturnTo('https://example.com')).toBe('/')
   })
 
