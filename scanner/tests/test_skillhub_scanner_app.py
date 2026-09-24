@@ -12,8 +12,9 @@ from unittest.mock import patch
 
 
 class _FakeRouter:
-    def __init__(self):
+    def __init__(self, routes=None):
         self.handlers = []
+        self.routes = routes or []
 
     def add_event_handler(self, _event, _handler):
         self.handlers.append((_event, _handler))
@@ -52,6 +53,9 @@ class _FakeApp:
                 _FakeScanResponse([{"description": "No credentials", "metadata": {"safe": True}}]),
             ),
         ]
+        mounted_routes = [route.clone("/mounted") for route in self.upstream_routes]
+        nested_routes = [route.clone("/nested") for route in self.upstream_routes]
+        self.router.routes = [_FakeIncludedRouter(mounted_routes), _FakeMount(nested_routes)]
 
     def middleware(self, _kind):
         return lambda function: function
@@ -75,12 +79,29 @@ class _FakeRoute:
     def __init__(self, path, response):
         self.path = path
         self.methods = {"POST"}
+        self._response = response
 
         async def endpoint():
             return response
 
         self.endpoint = endpoint
         self.dependant = types.SimpleNamespace(call=endpoint)
+
+    def clone(self, prefix=""):
+        clone = _FakeRoute(f"{prefix}{self.path}", self._response)
+        clone.endpoint = self.endpoint
+        clone.dependant = types.SimpleNamespace(call=self.endpoint)
+        return clone
+
+
+class _FakeIncludedRouter:
+    def __init__(self, routes):
+        self.original_router = types.SimpleNamespace(routes=routes)
+
+
+class _FakeMount:
+    def __init__(self, routes):
+        self.app = types.SimpleNamespace(router=types.SimpleNamespace(routes=routes))
 
 
 class _Request:
@@ -234,6 +255,39 @@ class SkillHubScannerAppTest(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("BEGIN PRIVATE KEY", str(response.findings))
         self.assertEqual(200, response.status_code)
         self.assertEqual({"X-Contract": "preserved"}, response.headers)
+
+    async def test_mounted_app_route_also_redacts_findings(self):
+        included = next(route for route in self.module.app.router.routes if isinstance(route, _FakeIncludedRouter))
+        route = next(route for route in included.original_router.routes if route.path == "/mounted/scan")
+
+        response = await route.endpoint()
+
+        self.assertNotIn("ghp_", str(response.findings))
+        self.assertNotIn("sk-proj-", str(response.findings))
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({"X-Contract": "preserved"}, response.headers)
+
+    async def test_nested_fastapi_app_route_also_redacts_findings(self):
+        mount = next(route for route in self.module.app.router.routes if isinstance(route, _FakeMount))
+        route = next(route for route in mount.app.router.routes if route.path == "/nested/scan")
+
+        response = await route.endpoint()
+
+        self.assertNotIn("ghp_", str(response.findings))
+        self.assertNotIn("sk-proj-", str(response.findings))
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({"X-Contract": "preserved"}, response.headers)
+
+    async def test_sync_endpoint_wrapper_redacts_findings(self):
+        response = _FakeScanResponse([{"description": "api_key=custom-secret-1234567890"}])
+
+        def endpoint():
+            return response
+
+        wrapped = self.module._make_redacting_endpoint(endpoint)
+
+        self.assertIs(response, wrapped())
+        self.assertNotIn("custom-secret-1234567890", str(response.findings))
 
     async def test_safe_scan_findings_are_unchanged(self):
         route = next(route for route in self.module._router_stub.router.routes if route.path == "/scan-upload")

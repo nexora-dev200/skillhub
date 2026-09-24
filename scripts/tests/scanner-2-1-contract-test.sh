@@ -187,7 +187,13 @@ MAIN_URL="http://127.0.0.1:$MAIN_PORT"
 wait_for_health "$MAIN_URL"
 
 docker exec -i "$MAIN_CONTAINER" python - <<'PY'
+from types import SimpleNamespace
+
+from fastapi import APIRouter, FastAPI, Response
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
 from skill_scanner.core.analyzers.llm_analyzer import LLMProvider
+import skillhub_scanner_app as scanner_app
 from skillhub_scanner_app import _redact_supported_tokens
 
 canaries = {
@@ -217,6 +223,54 @@ if _redact_supported_tokens(mixed) != "before\napi_key=<redacted>\tafter":
     raise SystemExit("redaction changed non-secret characters around a credential")
 if not LLMProvider.is_valid_provider("azure-openai") or LLMProvider.is_valid_provider("azure"):
     raise SystemExit("unexpected Scanner 2.1 Azure provider contract")
+
+
+class ScanResponse(BaseModel):
+    findings: list[dict]
+    safe_text: str
+
+
+upstream_router = APIRouter()
+
+
+def install_http_canary(path):
+    @upstream_router.post(path, response_model=ScanResponse)
+    async def scan(response: Response):
+        response.headers["X-Contract"] = "preserved"
+        return ScanResponse(
+            findings=[{"description": f"api_key={canaries['labeled']}"}],
+            safe_text="line one\n" + ("x" * 5000),
+        )
+
+install_http_canary("/scan")
+install_http_canary("/scan-upload")
+http_app = FastAPI()
+http_app.include_router(upstream_router)
+nested_app = FastAPI()
+nested_app.include_router(upstream_router)
+http_app.mount("/nested", nested_app)
+
+previous_app = scanner_app.app
+previous_router = scanner_app._upstream_router
+scanner_app.app = http_app
+scanner_app._upstream_router = SimpleNamespace(router=upstream_router)
+try:
+    scanner_app._install_scan_response_redaction()
+    with TestClient(http_app) as client:
+        for path in ("/scan", "/scan-upload", "/nested/scan", "/nested/scan-upload"):
+            response = client.post(path)
+            if response.status_code != 200:
+                raise SystemExit(f"HTTP canary failed for {path}: {response.status_code}")
+            if response.headers.get("X-Contract") != "preserved":
+                raise SystemExit(f"HTTP canary changed headers for {path}")
+            body = response.text
+            if canaries["labeled"] in body:
+                raise SystemExit(f"HTTP canary leaked secret for {path}")
+            if "line one\\n" not in body or ("x" * 5000) not in body:
+                raise SystemExit(f"HTTP canary changed safe text for {path}")
+finally:
+    scanner_app.app = previous_app
+    scanner_app._upstream_router = previous_router
 PY
 
 docker exec "$MAIN_CONTAINER" python -c \

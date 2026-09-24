@@ -1,6 +1,7 @@
 """Runtime safeguards around the upstream Cisco Skill Scanner ASGI application."""
 
 import asyncio
+import inspect
 import logging
 import os
 import shutil
@@ -46,6 +47,7 @@ _upstream_router.MAX_UPLOAD_SIZE_BYTES = max(
 _active_scans = 0
 _active_scans_guard = asyncio.Lock()
 _SCAN_PATHS = {"/scan", "/scan-upload"}
+_REDACTION_MARKER = "_skillhub_redaction_installed"
 _log = logging.getLogger(__name__)
 
 
@@ -74,23 +76,78 @@ def _redact_supported_tokens(value):
     return value
 
 
-def _install_scan_response_redaction() -> None:
-    """Redact supported token forms before FastAPI serializes scan findings."""
-    for route in _upstream_router.router.routes:
-        if getattr(route, "path", None) not in _SCAN_PATHS or "POST" not in getattr(route, "methods", set()):
+def _iter_route_objects(container, seen=None):
+    """Walk FastAPI/Starlette route containers, including mounted child routers."""
+    seen = set() if seen is None else seen
+    routes = getattr(container, "routes", None)
+    if routes is None:
+        nested_router = getattr(container, "router", None)
+        if nested_router is not None and nested_router is not container:
+            yield from _iter_route_objects(nested_router, seen)
+        return
+    for route in routes:
+        route_id = id(route)
+        if route_id in seen:
             continue
-        endpoint = route.endpoint
+        seen.add(route_id)
+        yield route
+        for nested in (
+            getattr(route, "original_router", None),
+            getattr(route, "app", None),
+            getattr(route, "router", None),
+        ):
+            yield from _iter_route_objects(nested, seen)
 
+
+def _redact_scan_response(response):
+    findings = getattr(response, "findings", None)
+    if isinstance(findings, list):
+        response.findings = _redact_supported_tokens(findings)
+    return response
+
+
+def _make_redacting_endpoint(endpoint):
+    if inspect.iscoroutinefunction(endpoint):
         @wraps(endpoint)
         async def redacting_endpoint(*args, __endpoint=endpoint, **kwargs):
-            response = await __endpoint(*args, **kwargs)
-            findings = getattr(response, "findings", None)
-            if isinstance(findings, list):
-                response.findings = _redact_supported_tokens(findings)
-            return response
+            return _redact_scan_response(await __endpoint(*args, **kwargs))
+    else:
+        @wraps(endpoint)
+        def redacting_endpoint(*args, __endpoint=endpoint, **kwargs):
+            return _redact_scan_response(__endpoint(*args, **kwargs))
+    return redacting_endpoint
 
-        route.endpoint = redacting_endpoint
-        route.dependant.call = redacting_endpoint
+
+def _install_scan_response_redaction() -> None:
+    """Redact supported token forms before FastAPI serializes scan findings."""
+    upstream_routes = list(_iter_route_objects(_upstream_router.router))
+    target_routes = [
+        route
+        for route in upstream_routes
+        if getattr(route, "path", None) in _SCAN_PATHS
+        and "POST" in getattr(route, "methods", set())
+    ]
+    if not target_routes:
+        raise RuntimeError("Scanner routes /scan and /scan-upload were not found")
+    target_endpoints = {route.endpoint for route in target_routes}
+    target_paths = {route.path for route in target_routes}
+    all_routes = [
+        *list(_iter_route_objects(getattr(app, "router", app))),
+        *upstream_routes,
+    ]
+    for route in all_routes:
+        endpoint = getattr(route, "endpoint", None)
+        path = getattr(route, "path", None)
+        is_target_endpoint = endpoint in target_endpoints
+        is_target_path = path in target_paths and "POST" in getattr(route, "methods", set())
+        if not (is_target_endpoint or is_target_path) or getattr(route, _REDACTION_MARKER, False):
+            continue
+        wrapped_endpoint = _make_redacting_endpoint(endpoint)
+        route.endpoint = wrapped_endpoint
+        dependant = getattr(route, "dependant", None)
+        if dependant is not None:
+            dependant.call = wrapped_endpoint
+        setattr(route, _REDACTION_MARKER, True)
 
 
 def _restart_after_hard_timeout(request_path: str) -> NoReturn:
