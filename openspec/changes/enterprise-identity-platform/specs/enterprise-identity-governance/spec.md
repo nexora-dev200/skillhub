@@ -82,7 +82,7 @@ Organization、Membership、Domain、Role Binding、Login Connection、revision�
 
 ### Requirement: Rollout controls are independent and observable
 
-身份核心模式、动态企业 OIDC 控制面开关、匿名登录数据面开关和 Organization allowlist SHALL 独立配置；默认 SHALL 为 legacy-compatible 且企业 OIDC 控制面与登录数据面关闭。系统 SHALL 暴露不含身份数据的启用状态、连接健康和固定类别指标。
+身份核心模式、动态企业 OIDC 连接管理开关、匿名登录数据面开关和 Organization allowlist SHALL 独立配置；默认 SHALL 为 legacy-compatible 且企业 OIDC 连接管理与登录数据面关闭。Organization、Membership 和 Role 的基础 API SHALL 独立于这些 OIDC 开关，继续按平台或组织权限授权。关闭连接管理开关 SHALL 阻断 OIDC 连接的配置、测试和激活等操作，但不影响已授权成员读取非敏感连接摘要。系统 SHALL 暴露不含身份数据的启用状态、连接健康和固定类别指标。
 
 #### Scenario: Candidate is deployed with defaults
 - **WHEN** 新版本使用默认配置启动
